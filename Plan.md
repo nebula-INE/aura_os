@@ -185,6 +185,7 @@ Specify exact CPU extensions, firmware versions, and device models before claimi
 - Failures produce useful diagnostics.
 - Security updates and recovery are part of release design.
 - Shared behavior is tested consistently across architectures.
+- Performance claims are backed by reproducible same-hardware comparisons and raw measurement records.
 - Documentation reflects actual implementation and support status.
 
 
