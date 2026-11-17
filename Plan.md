@@ -100,7 +100,7 @@ Evaluate these approaches before committing to substantial kernel work:
 - [ ] Prototype Linux boot and estimate the effort to build all three targets.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
-- [ ] Add CI for formatting, static checks, builds, and smoke tests.
+- [ ] Add CI for formatting, static checks, builds, and smoke tests.\n- [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.\n- [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
 
 **Exit criteria:** documented kernel decision or time-boxed evaluation, defined platform profiles, and a reproducible first boot.
 
@@ -154,7 +154,7 @@ Evaluate these approaches before committing to substantial kernel work:
 - [ ] Establish vulnerability tracking and kernel/userspace update cadence.
 - [ ] Verify update integrity, failure recovery, and rollback.
 - [ ] Publish reproducible build instructions, component notices, and support matrix.
-- [ ] Run regression, compatibility, and performance tests on all targets.
+- [ ] Run regression, compatibility, and performance tests on all targets.\n- [ ] Publish reproducible per-architecture performance comparisons against the defined Linux reference.
 
 **Exit criteria:** a preview release has documented support, update, and recovery procedures.
 
@@ -187,7 +187,64 @@ Specify exact CPU extensions, firmware versions, and device models before claimi
 - Shared behavior is tested consistently across architectures.
 - Documentation reflects actual implementation and support status.
 
-## 8. Repository organization (provisional)
+
+
+## 8. Performance and efficiency engineering
+
+Performance is a product requirement, not a late-stage polish task. Aura OS should aim to outperform a clearly defined Linux reference on selected workloads while preserving reliability, security, and maintainability. Do not claim that Aura is "faster than Linux" based on a single benchmark or an uncontrolled comparison.
+
+### Optimization priorities
+
+Apply optimizations in this order, measuring each change:
+
+1. **Reduce idle resource use**
+   - Start only services required for the current system role.
+   - Use dependency-aware and on-demand service activation where practical.
+   - Remove duplicate daemons, unnecessary polling, and redundant background work.
+   - Keep the base system separate from optional desktop and application services.
+2. **Reduce CPU overhead**
+   - Prefer event-driven waits over busy loops and frequent polling.
+   - Avoid repeated parsing, allocation, context switching, and needless wakeups.
+   - Profile scheduler behavior, lock contention, interrupt load, and system-call overhead before changing low-level policies.
+3. **Improve memory efficiency**
+   - Track resident memory by process and service, not only total RAM.
+   - Reduce duplicate libraries and data copies where safe.
+   - Evaluate allocator behavior, cache policy, memory mapping, compression, and reclaim behavior using real workloads.
+   - Preserve memory headroom; do not optimize idle RAM at the expense of severe latency under pressure.
+4. **Improve I/O and storage paths**
+   - Use asynchronous and batched I/O where workloads benefit.
+   - Reduce avoidable copies and metadata operations.
+   - Measure throughput and tail latency; do not optimize throughput alone.
+5. **Improve startup and responsiveness**
+   - Make service dependencies explicit and parallelize only independent startup work.
+   - Make essential functions ready early and defer nonessential work.
+   - Measure boot-to-ready and interactive response latency.
+6. **Use architecture-aware builds**
+   - Establish safe baseline compiler targets for x86-64, RV64GC, and AArch64.
+   - Evaluate LTO, PGO, and architecture-specific tuning only with repeatable tests.
+   - Keep portable fallbacks and verify that tuning does not break binary compatibility or reliability.
+
+### Measurement and Linux comparison
+
+- Establish a reproducible baseline before setting numeric improvement targets.
+- Compare against a named, documented Linux distribution and kernel configuration on the same hardware.
+- Keep workload, data, application versions, toolchain, power mode, and background services controlled.
+- Repeat runs and report median, spread/variance, and relevant tail latency.
+- Track at least:
+  - idle and workload resident memory, including per-service breakdown;
+  - boot-to-ready time and service startup cost;
+  - CPU time and energy per fixed workload;
+  - interactive and scheduler latency under load;
+  - storage and network throughput plus latency;
+  - behavior under memory pressure and sustained load.
+- Report results separately for x86-64, RV64GC, and AArch64. Never generalize a result from one architecture to all three.
+- Keep benchmark scripts, workload definitions, raw results, and environment metadata in the repository so results can be reproduced.
+
+### Kernel and userspace decision rule
+
+First optimize Aura's service set, userspace, build configuration, and hardware integration while using upstream Linux. If profiling identifies a kernel-level bottleneck, test a minimal configuration change or a small, maintainable patch and compare it with upstream. Consider a custom kernel or custom subsystem only when repeatable measurements show a material unmet requirement and the project can sustain its security, driver, and maintenance burden.
+
+## 9. Repository organization (provisional)
 
 ~~~text
 aura_os/
@@ -211,7 +268,7 @@ aura_os/
 
 Adjust this structure to the selected kernel and build system. Do not create empty directories just to match the diagram.
 
-## 9. Immediate next actions
+## 10. Immediate next actions
 
 1. Write an architecture decision record comparing Linux-based Aura OS with a custom kernel.
 2. Select one reference environment per architecture: x86-64, QEMU RV64GC, and QEMU AArch64.
@@ -219,7 +276,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 4. Define shared userspace, desktop, package, and update strategy.
 5. Decide whether any concrete requirement justifies custom kernel work.
 
-## 10. Open design decisions
+## 11. Open design decisions
 
 - Linux distribution/base userspace versus a minimal custom userspace.
 - Init/service manager and system library choices.
@@ -230,7 +287,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 - Secure boot, signing, and component update policy.
 - Whether any requirement justifies custom kernel development.
 
-## 11. Risk register
+## 12. Risk register
 
 | Risk | Mitigation |
 |---|---|
