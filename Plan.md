@@ -1,229 +1,247 @@
 # Aura OS — Development Plan
 
 > Status: Planning
-> Project: `aura_os`
+> Project: aura_os
 > Last updated: 2026-11-17
 
 ## 1. Vision
 
-Aura OS is a from-scratch, general-purpose desktop operating system. It should grow into a coherent, maintainable platform rather than a collection of unrelated experiments.
+Aura OS is a general-purpose desktop operating system designed as one coherent product across x86-64, RISC-V RV64GC, and ARM 64-bit (AArch64). The product identity is defined by its system integration, userspace, desktop, developer experience, security, and update model—not solely by its kernel.
 
-The first objective is a reliably booting and debuggable system. Desktop usability, application compatibility, and polished user experience follow on top of a stable kernel and userspace foundation.
+The kernel strategy is intentionally open: Linux is a serious candidate, and a custom kernel should only be selected if concrete requirements justify its engineering and maintenance cost.
 
 ## 2. Product and platform decisions
 
-### Initial architecture
+### First-class native architectures
 
-- **Primary target: x86-64.** The initial supported hardware and development target is x86-64.
-- **Boot: UEFI.** Prefer a modern UEFI boot path; keep bootloader responsibilities small and explicit.
-- **Kernel: own implementation.** Build Aura OS kernel functionality incrementally, keeping hardware-dependent code isolated from architecture-independent subsystems.
-- **RISC-V: future architecture.** RV64GC is a possible future port and potential in-house hardware target. Do not let this delay the first x86-64 release.
-- **ARM: not an initial priority.** Revisit only when there is a concrete product or hardware reason.
+All three architectures are strategic priorities from the beginning:
+
+- **x86-64** — first-class native target for PCs and virtual machines.
+- **RISC-V RV64GC** — first-class native target, with a defined ISA and firmware/platform baseline.
+- **ARM 64-bit (AArch64)** — first-class native target, beginning with a clearly defined reference platform.
+
+The goal is one Aura OS product with architecture-specific builds, shared userspace interfaces, common release policies, and a shared test suite. Native support does not imply support for every board or peripheral on day one.
+
+### Boot and firmware
+
+- Support UEFI on platforms that provide it.
+- Support device-tree-based boot where required, especially on RISC-V and ARM platforms.
+- Isolate firmware, bootloader, and architecture-specific code from shared product components.
+- Define a minimum reference hardware profile for each architecture before claiming compatibility.
+
+### Kernel strategy — decision pending
+
+Evaluate these approaches before committing to substantial kernel work:
+
+1. **Linux kernel based**
+   - Use upstream Linux for CPU architecture support, drivers, memory management, scheduling, networking, and security infrastructure.
+   - Build Aura OS identity in userspace, system integration, desktop, installer/images, developer tools, and update policies.
+   - Maintain a controlled kernel configuration and a small patch set; upstream generally useful changes.
+   - Review license obligations, notices, source distribution, and firmware redistribution for shipped components.
+
+2. **Custom kernel**
+   - Build and maintain Aura-owned kernel functionality, drivers, architecture support, process model, storage, and security boundaries.
+   - Offers deeper control but substantially increases implementation, hardware enablement, security, and long-term maintenance work.
+   - Requires a realistic engineering and maintenance plan before selection.
+
+3. **Staged / hybrid approach**
+   - Start with Linux to establish a usable multi-architecture Aura OS.
+   - Keep Aura userspace and system interfaces independent of Linux implementation details where practical.
+   - Reconsider a custom kernel only if measured product requirements cannot reasonably be met with Linux.
+
+**Provisional recommendation:** prototype the Linux-based route first. Do not start a full custom kernel until an architecture decision record demonstrates a compelling reason.
 
 ### Product principles
 
-1. A usable, predictable desktop is more important than feature count.
-2. Reliability, security, and recoverability are foundational requirements.
-3. Keep interfaces between boot, kernel, drivers, services, and applications explicit.
-4. Prefer small milestones that can be built, booted, tested, and debugged independently.
-5. Avoid premature multi-architecture abstractions; preserve clean boundaries so a later port remains possible.
-6. Document design decisions and known limitations as they are made.
+1. Reliability, security, maintainability, and recoverability are foundational.
+2. x86-64, RV64GC, and AArch64 are first-class product targets.
+3. Keep platform-specific code behind explicit interfaces.
+4. Prefer upstream components and reproducible builds where practical.
+5. Distinguish compile support, boot support, and usable hardware support.
+6. Document decisions, trade-offs, and limitations.
 
 ## 3. Scope and non-goals
 
 ### Initial scope
 
-- Bootable x86-64 image under an emulator.
-- Basic kernel initialization, diagnostics, and panic handling.
-- Physical and virtual memory management.
-- Interrupt and timer handling.
-- Basic scheduling and process isolation.
-- Minimal storage and filesystem access.
-- Kernel-to-userspace interface and initial userland.
-- Basic input, display, and a minimal graphical desktop in a later milestone.
-- Repeatable build, test, and image-generation workflow.
+- Bootable Aura OS images for all three target architectures.
+- A common base userspace and system configuration.
+- A documented kernel strategy, with Linux as the first prototype candidate.
+- Basic storage, networking, services, logging, and package/update workflows.
+- A consistent desktop experience after the base system is reliable.
+- Automated builds and smoke tests using emulators and reference hardware.
 
-### Explicit non-goals for the first milestone
+### Non-goals for the first milestone
 
-- Supporting every PC and peripheral.
-- ARM or RISC-V parity.
-- Full POSIX or Windows compatibility.
-- A production-ready application ecosystem.
-- Advanced GPU acceleration, networking, audio, or power management before the core platform is stable.
+- Supporting every device, board, and peripheral.
+- Perfect feature parity across all hardware immediately.
+- Maintaining a private Linux fork without a demonstrated need.
+- Reimplementing mature kernel subsystems solely for ownership.
+- Building a complete application ecosystem before the base platform is stable.
 
 ## 4. Proposed system architecture
 
-Keep the implementation divided into layers with documented contracts:
-
-1. **Boot layer** — UEFI handoff, memory map acquisition, boot configuration, and kernel loading.
-2. **Architecture layer** — x86-64 CPU setup, page tables, descriptor tables, interrupt entry, and low-level context switching.
-3. **Kernel core** — memory allocators, synchronization primitives, scheduler, timers, and kernel diagnostics.
-4. **Drivers** — begin with emulator-friendly devices; isolate device-specific code behind stable interfaces.
-5. **Storage layer** — block-device abstraction, an initial simple filesystem, and mount/interface boundaries.
-6. **Process and syscall layer** — user/kernel boundary, process lifecycle, permissions, and system calls.
-7. **Userland** — init/service manager, system utilities, libraries, and application launch.
-8. **Desktop layer** — display server/compositor, window management, input routing, settings, and shell.
-9. **Developer tooling** — cross-build environment, image builder, automated tests, emulator launch scripts, and debug symbols.
-
-These are logical boundaries, not a requirement to implement every layer immediately.
+1. **Platform and boot** — UEFI or device-tree handoff, boot configuration, firmware interfaces, and image boot process.
+2. **Architecture support** — low-level CPU/platform support for x86-64, RV64GC, and AArch64.
+3. **Kernel** — Linux initially, subject to the decision process; maintain documented configuration and minimal patches.
+4. **Hardware integration** — graphics, input, storage, networking, audio, firmware, and power management, tracked by reference platform.
+5. **System base** — init/service management, libraries, users, permissions, logging, and core utilities.
+6. **Storage and packages** — filesystem layout, package repositories, installation, verified updates, and rollback.
+7. **Aura services and APIs** — stable product-level interfaces for applications and system components.
+8. **Desktop** — compositor, window management, settings, shell, input, and accessibility.
+9. **Developer tooling** — multi-architecture builds, image creation, CI, tests, emulators, symbols, and diagnostics.
 
 ## 5. Development phases
 
-### Phase 0 — Repository and build foundation
+### Phase 0 — Architecture and repository foundation
 
-- [ ] Define the language/toolchain and pin supported versions.
-- [ ] Establish repository layout and coding conventions.
-- [ ] Add a reproducible x86-64 build.
-- [ ] Generate a bootable disk image.
-- [ ] Add an emulator launch configuration (QEMU is the initial reference environment).
-- [ ] Document how to build, boot, debug, and clean the project.
-- [ ] Add CI for formatting, static checks, build, and basic tests.
+- [ ] Record requirements and a minimum reference platform for each architecture.
+- [ ] Compare Linux-based, custom-kernel, and staged approaches in an architecture decision record.
+- [ ] Prototype Linux boot and estimate the effort to build all three targets.
+- [ ] Choose base userspace, init/service model, build system, and packaging direction.
+- [ ] Establish repository layout, conventions, and pinned toolchains.
+- [ ] Add CI for formatting, static checks, builds, and smoke tests.
 
-**Exit criteria:** A clean checkout can produce an image and boot it in the documented emulator environment.
+**Exit criteria:** documented kernel decision or time-boxed evaluation, defined platform profiles, and a reproducible first boot.
 
-### Phase 1 — Boot and kernel diagnostics
+### Phase 1 — Three-architecture bootable base
 
-- [ ] Implement UEFI boot and a documented boot handoff structure.
-- [ ] Enter the kernel in a known CPU state.
-- [ ] Initialize serial/debug output and an early panic path.
-- [ ] Read and validate the firmware memory map.
-- [ ] Add a minimal kernel self-test mechanism.
+- [ ] Produce a bootable x86-64 image.
+- [ ] Produce a bootable RV64GC image for the selected emulator/reference platform.
+- [ ] Produce a bootable AArch64 image for the selected emulator/reference platform.
+- [ ] Document platform-specific boot and firmware requirements.
+- [ ] Capture boot logs in automated smoke tests.
+- [ ] Publish known limitations for each target.
 
-**Exit criteria:** The kernel boots repeatedly, reports its environment, and fails in a diagnosable way.
+**Exit criteria:** all three architectures boot a minimal Aura OS base through repeatable documented workflows.
 
-### Phase 2 — Core kernel
+### Phase 2 — Shared system foundation
 
-- [ ] Physical page/frame allocator.
-- [ ] Kernel virtual memory and page-table management.
-- [ ] Interrupt descriptor table and exception handlers.
-- [ ] Timer source and monotonic clock.
-- [ ] Basic heap allocator.
-- [ ] Synchronization primitives.
-- [ ] Preemptive or cooperative scheduler (choose and document the initial model).
-- [ ] Kernel-level tests for memory and scheduling invariants.
+- [ ] Establish common userspace and service startup.
+- [ ] Define users, groups, permissions, and privilege boundaries.
+- [ ] Establish storage layout and filesystem support.
+- [ ] Add logging, diagnostics, crash reporting, and recovery.
+- [ ] Establish networking and time configuration.
+- [ ] Define package installation, updates, and rollback.
+- [ ] Add architecture-independent integration tests.
 
-**Exit criteria:** Multiple kernel tasks can run reliably, and memory/exception failures are diagnosable.
+**Exit criteria:** core system workflows behave consistently across all three targets.
 
-### Phase 3 — User mode and storage
+### Phase 3 — Hardware enablement
 
-- [ ] Define the syscall ABI and user/kernel transition.
-- [ ] Load and start a minimal user process.
-- [ ] Define process, thread, handle, and permission models.
-- [ ] Add a block-device interface and emulator-backed storage driver.
-- [ ] Implement an initial filesystem and basic file operations.
-- [ ] Add process termination and fault isolation.
+- [ ] Maintain a hardware compatibility matrix per architecture.
+- [ ] Validate storage, USB/input, display, networking, audio, and power by priority.
+- [ ] Prefer upstream Linux drivers when using Linux.
+- [ ] Track firmware licensing and redistribution constraints.
+- [ ] Add real-hardware smoke tests in addition to emulator coverage.
 
-**Exit criteria:** A user process can start, use basic syscalls, read/write files, and fail without crashing the whole system under expected fault conditions.
+**Exit criteria:** each architecture has at least one documented, usable reference device.
 
-### Phase 4 — Usable command environment
+### Phase 4 — Aura desktop experience
 
-- [ ] Start an init process and essential system services.
-- [ ] Provide a basic shell and core utilities.
-- [ ] Add configuration and logging conventions.
-- [ ] Add a repeatable installation or image deployment workflow.
-- [ ] Document recovery and troubleshooting.
+- [ ] Select the desktop/compositor and graphics stack.
+- [ ] Establish consistent windowing, settings, input, and accessibility.
+- [ ] Integrate launcher, file manager, terminal, and system settings.
+- [ ] Verify desktop behavior on all three architectures.
+- [ ] Define startup, memory, graphics, and responsiveness budgets.
 
-**Exit criteria:** A user can boot Aura OS and perform basic tasks from a command environment.
+**Exit criteria:** users can boot into the Aura desktop, use basic applications, and shut down or reboot cleanly on each reference target.
 
-### Phase 5 — Desktop foundation
+### Phase 5 — Security, updates, and release engineering
 
-- [ ] Select and document the initial display model.
-- [ ] Add framebuffer/display output and input-device support.
-- [ ] Define window, surface, and input-routing interfaces.
-- [ ] Implement a minimal compositor/window manager.
-- [ ] Add a basic shell/desktop and settings surface.
-- [ ] Test keyboard-only operation and common display sizes.
+- [ ] Define secure boot and image-signing policy per platform.
+- [ ] Harden default services, permissions, and network exposure.
+- [ ] Establish vulnerability tracking and kernel/userspace update cadence.
+- [ ] Verify update integrity, failure recovery, and rollback.
+- [ ] Publish reproducible build instructions, component notices, and support matrix.
+- [ ] Run regression, compatibility, and performance tests on all targets.
 
-**Exit criteria:** A user can log in or enter the desktop, launch a basic application, interact with windows, and shut down/reboot cleanly.
+**Exit criteria:** a preview release has documented support, update, and recovery procedures.
 
-### Phase 6 — Platform hardening
+### Phase 6 — Long-term kernel and platform evolution
 
-- [ ] Review privilege boundaries and default permissions.
-- [ ] Add robust error handling and recovery paths.
-- [ ] Expand hardware coverage based on actual target devices.
-- [ ] Add performance and resource-usage benchmarks.
-- [ ] Establish compatibility and regression test suites.
-- [ ] Define release, update, and rollback strategy.
+- [ ] Review whether Linux continues to meet Aura OS requirements.
+- [ ] Upstream generally useful fixes and avoid unnecessary private divergence.
+- [ ] Reconsider a custom kernel only against concrete unmet requirements and a sustainable maintenance plan.
+- [ ] Expand hardware coverage based on user demand and engineering capacity.
 
-**Exit criteria:** A documented x86-64 preview can be installed or run by testers with known limitations and reproducible diagnostics.
+**Exit criteria:** kernel and platform direction is backed by product requirements and measured maintenance cost.
 
-### Phase 7 — Future architecture expansion
+## 6. Architecture-specific validation
 
-- [ ] Reassess RISC-V RV64GC readiness against the architecture boundaries.
-- [ ] Separate architecture-specific boot and CPU code from common kernel code.
-- [ ] Port only after x86-64 has stable kernel and userspace contracts.
-- [ ] Reconsider ARM only if a concrete target justifies the engineering cost.
+| Target | Initial baseline to define | Validation environment |
+|---|---|---|
+| x86-64 | UEFI PC profile, CPU baseline, graphics/storage expectations | QEMU + reference PC |
+| RISC-V RV64GC | ISA extensions, firmware/boot protocol, device-tree and virt-board profile | QEMU virt + reference board |
+| ARM AArch64 | Reference board or UEFI-capable platform, firmware and device-tree expectations | QEMU AArch64 + reference device |
 
-**Exit criteria:** A second architecture boots and passes a defined shared kernel test suite without destabilizing x86-64.
+Specify exact CPU extensions, firmware versions, and device models before claiming compatibility. Compilation alone is not support; boot and usable-device validation must be tracked separately.
 
-## 6. Quality gates
+## 7. Quality gates
 
-Every phase should meet these gates before being considered complete:
+- Clean, documented builds are reproducible.
+- Every target has an explicit boot and test environment.
+- Critical behavior is covered by automated tests.
+- Failures produce useful diagnostics.
+- Security updates and recovery are part of release design.
+- Shared behavior is tested consistently across architectures.
+- Documentation reflects actual implementation and support status.
 
-- A clean, documented build succeeds.
-- The emulator boot path is reproducible.
-- Tests cover the critical behavior introduced by the phase.
-- Failures produce useful diagnostics rather than silent hangs where practical.
-- No known data-loss or privilege-boundary regression is accepted without an explicit decision.
-- Documentation reflects the implementation, not merely the intended design.
+## 8. Repository organization (provisional)
 
-## 7. Repository organization (provisional)
-
-Adjust this structure to the chosen language and boot strategy; do not create empty directories just to match the diagram.
-
-```text
+~~~text
 aura_os/
-├── boot/          # UEFI loader and boot handoff
-├── kernel/
-│   ├── arch/
-│   │   └── x86_64/
-│   ├── mm/        # Memory management
-│   ├── interrupt/
-│   ├── sched/
-│   ├── drivers/
-│   └── core/
-├── userland/      # Init, services, shell, utilities
-├── libraries/     # User-space libraries and shared interfaces
-├── desktop/       # Compositor, window manager, shell
-├── tools/         # Image/build/debug tools
+├── platform/
+│   ├── x86_64/
+│   ├── riscv64/
+│   └── aarch64/
+├── boot/
+├── kernel/             # Kernel config, patches, or custom kernel work
+├── system/             # Base userspace and system integration
+├── services/
+├── desktop/
+├── packages/
+├── images/             # Image definitions and manifests
+├── tools/              # Build, image, test, and debug tools
 ├── tests/
-├── docs/          # Architecture decisions and design notes
+├── docs/               # Architecture decisions and platform support
 ├── scripts/
 └── Plan.md
-```
+~~~
 
-## 8. Immediate next actions
+Adjust this structure to the selected kernel and build system. Do not create empty directories just to match the diagram.
 
-1. Confirm the implementation language, compiler/toolchain, and bootloader approach.
-2. Create the minimal build that emits a UEFI-bootable x86-64 image.
-3. Boot it in QEMU and capture serial output in CI.
-4. Add a short architecture decision record for the boot handoff and kernel execution model.
-5. Only then begin memory management and interrupt implementation.
+## 9. Immediate next actions
 
-## 9. Open design decisions
+1. Write an architecture decision record comparing Linux-based Aura OS with a custom kernel.
+2. Select one reference environment per architecture: x86-64, QEMU RV64GC, and QEMU AArch64.
+3. Build a minimal Linux-based boot prototype and measure the work required for all three images.
+4. Define shared userspace, desktop, package, and update strategy.
+5. Decide whether any concrete requirement justifies custom kernel work.
 
-These decisions should be made when the corresponding phase is near, rather than guessed prematurely:
+## 10. Open design decisions
 
-- Kernel language and compiler/toolchain.
-- Monolithic kernel versus a more separated service architecture.
-- Bootloader choice and ownership of UEFI responsibilities.
-- Syscall ABI and executable format.
-- Filesystem choice for the first usable image.
-- Display/compositor protocol and graphics API.
-- Package/application distribution and update model.
-- Security model, signing, and secure-boot strategy.
+- Linux distribution/base userspace versus a minimal custom userspace.
+- Init/service manager and system library choices.
+- Desktop/compositor and graphics stack.
+- Package format, repositories, installation, and atomic update model.
+- Exact reference hardware and minimum CPU/ISA baselines for all three targets.
+- Firmware and boot strategy per platform.
+- Secure boot, signing, and component update policy.
+- Whether any requirement justifies custom kernel development.
 
-## 10. Risk register
+## 11. Risk register
 
 | Risk | Mitigation |
 |---|---|
-| Scope grows before the first boot | Keep x86-64/QEMU boot as the first hard milestone |
-| Hardware-specific code spreads through the kernel | Define narrow driver and architecture interfaces |
-| Debugging becomes difficult | Serial logs, symbols, panic diagnostics, and emulator snapshots early |
-| Multi-architecture work delays usability | Defer RISC-V until x86-64 contracts are stable |
-| Desktop work hides kernel instability | Require phase exit criteria and regression tests |
-| Toolchain drift breaks builds | Pin versions and validate clean builds in CI |
+| Three architectures expand scope | Define one reference platform per architecture and prioritize shared workflows |
+| Hardware support differs widely | Publish per-device support matrix; distinguish compile, boot, and usable support |
+| Custom kernel consumes the project | Prototype Linux first and require evidence before custom-kernel work |
+| Linux fork becomes hard to maintain | Keep patches small, track upstream, and upstream useful changes |
+| Firmware differences leak into product code | Isolate boot and architecture-specific components |
+| Updates cause data loss or an unbootable system | Design verification, rollback, and recovery before preview release |
+| Desktop work hides base instability | Require base-system quality gates before desktop milestones |
 
 ---
 
-**Planning rule:** Keep this file as the high-level roadmap. Put detailed subsystem designs in separate documents under `docs/`, and update this plan when a milestone or major architectural decision changes.
+**Planning rule:** Keep this file as the high-level roadmap. Put detailed designs and trade-off records in docs/. Update the plan when a major platform, kernel, or release decision changes.
