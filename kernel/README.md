@@ -64,7 +64,7 @@ The builder rejects a dynamically linked BusyBox so the initramfs does not silen
 Install QEMU's x86 system emulator:
 
 ~~~sh
-sudo apt-get install -y qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted
+sudo apt-get install -y qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted parted
 ~~~
 
 Run:
@@ -73,7 +73,7 @@ Run:
 bash scripts/test-kernel-qemu.sh
 ~~~
 
-The smoke test creates a GPT-partitioned FAT32 EFI system partition containing a standalone x86-64 GRUB loader, the kernel, and initramfs. It boots the image through OVMF UEFI on QEMU q35 using the fixed qemu64 CPU model and TCG. The test records the QEMU version, OVMF package version, firmware checksums, and ESP checksum in build/qemu/firmware-provenance.txt. It captures the serial log, rejects kernel panics, and requires both AURA_INIT_OK and AURA_QEMU_TEST_PASS before accepting guest poweroff. The serial log is saved under build/qemu/.
+The smoke test creates a GPT-partitioned FAT32 EFI system partition containing a standalone x86-64 GRUB loader, the kernel, and initramfs. It verifies the copied files with mtools, searches for `/vmlinuz` at GRUB startup to select the EFI partition as its root, then boots the image through OVMF UEFI on QEMU q35 using the fixed qemu64 CPU model and TCG. The test records the QEMU version, OVMF package version, firmware checksums, and ESP checksum in build/qemu/firmware-provenance.txt. It captures the serial log, rejects kernel panics, and requires both AURA_INIT_OK and AURA_QEMU_TEST_PASS before accepting guest poweroff. The serial log is saved under build/qemu/.
 
 ## CI
 
