@@ -24,12 +24,12 @@ sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libn
 Then run:
 
 ```sh
-./scripts/build-kernel.sh
+bash scripts/build-kernel.sh
 ```
 
 The script downloads the pinned upstream source, creates an x86-64 QEMU configuration based on `x86_64_defconfig`, and builds `arch/x86/boot/bzImage`. Outputs are written to `build/kernel/`.
 
-For a faster local iteration, set `JOBS` (for example, `JOBS=4 ./scripts/build-kernel.sh`). The default is the number of available processors.
+For a faster local iteration, set `JOBS` (for example, `JOBS=4 bash scripts/build-kernel.sh`). The default is the number of available processors.
 
 ## Source authenticity
 
