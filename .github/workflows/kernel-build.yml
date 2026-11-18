@@ -22,6 +22,8 @@ on:
       - "scripts/build-initramfs-target.sh"
       - "scripts/test-kernel-qemu.sh"
       - "scripts/test-kernel-qemu-multiarch.sh"
+      - "scripts/build-kernel-aarch64-uefi.sh"
+      - "scripts/test-kernel-qemu-aarch64-uefi.sh"
       - ".github/workflows/kernel-build.yml"
   workflow_dispatch:
 
