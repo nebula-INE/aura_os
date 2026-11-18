@@ -89,7 +89,7 @@ timeout --signal=TERM --kill-after=10s "$TIMEOUT_SECONDS" \
     -drive if=pflash,format=raw,unit=0,readonly=on,file="$OVMF_CODE" \
     -drive if=pflash,format=raw,unit=1,file="$OVMF_VARS_COPY" \
     -drive if=none,id=esp,format=raw,file="$ESP_IMAGE" \
-    -device virtio-blk-device,drive=esp,bootindex=1 \
+    -device virtio-blk-pci,drive=esp,bootindex=1 \
     -display none \
     -serial stdio \
     -monitor none \
