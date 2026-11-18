@@ -1,0 +1,49 @@
+name: Linux kernel build
+
+on:
+  push:
+    paths:
+      - "kernel/**"
+      - "scripts/build-kernel.sh"
+      - ".github/workflows/kernel-build.yml"
+  pull_request:
+    paths:
+      - "kernel/**"
+      - "scripts/build-kernel.sh"
+      - ".github/workflows/kernel-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kernel-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  x86_64-kernel:
+    name: Build Linux kernel (x86-64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libncurses-dev
+
+      - name: Build upstream Linux kernel
+        run: JOBS=2 ./scripts/build-kernel.sh
+
+      - name: Upload kernel image and config
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-linux-x86_64-kernel
+          path: |
+            build/kernel/arch/x86/boot/bzImage
+            build/kernel/.config
+            build/kernel/bzImage.sha256
+          if-no-files-found: error
+          retention-days: 7
