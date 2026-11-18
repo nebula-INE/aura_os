@@ -50,6 +50,7 @@ jobs:
         run: bash scripts/test-kernel-qemu.sh
 
       - name: Upload kernel, initramfs, provenance, and boot log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: aura-linux-x86_64-qemu-bringup
@@ -63,5 +64,5 @@ jobs:
             build/qemu/aura-qemu-boot.log
             build/qemu/firmware-provenance.txt
           include-hidden-files: true
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
