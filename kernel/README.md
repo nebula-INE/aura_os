@@ -5,8 +5,9 @@ Aura OS uses the upstream Linux kernel. Kernel source is fetched at build time a
 ## Pinned bring-up baseline
 
 - Version: 6.18.64 (stable series)
-- Git tag: v6.18.64 in the official Linux stable repository
-- Repository: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
+- Git tag: v6.18.64 (signed release tag)
+- Fetch mirror: https://github.com/gregkh/linux (read-only stable-tree mirror maintained by Greg Kroah-Hartman)
+- Canonical upstream: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
 - Tag signer: Greg Kroah-Hartman (gregkh@kernel.org)
 - Pinned signer fingerprint: 647F28654894E3BD457199BE38DBBDC86092693E
 - Initial architecture: x86-64
@@ -17,7 +18,7 @@ The version is a reproducible bring-up baseline, not a promise to stay on this p
 
 ## Source verification
 
-The build does not trust a downloaded archive or an unverified moving branch. It fetches the exact v6.18.64 Git tag from the official stable repository and verifies the annotated tag signature before compiling.
+The build does not trust a downloaded archive or an unverified moving branch. To avoid depending on direct git.kernel.org connectivity in CI, it fetches the exact v6.18.64 tag from Greg Kroah-Hartman's read-only GitHub mirror. This mirror is used only as a transport source: the annotated release tag's OpenPGP signature is independently verified against the pinned stable maintainer key before any source is compiled. The same verification therefore rejects an unsigned or altered tag even when fetched from the mirror.
 
 The build first tries gregkh@kernel.org through the kernel.org OpenPGP Web Key Directory (WKD). When WKD is unreachable, it retrieves the key by its 16-character key ID from the kernel.org-maintained PGP keyring, then falls back to keyserver.ubuntu.com. It checks that an imported key contains the pinned full fingerprint before running git verify-tag, and requires the tag's VALIDSIG fingerprint to match. A missing key, unexpected key fingerprint, unsigned tag, invalid signature, or signer mismatch stops the build.
 
