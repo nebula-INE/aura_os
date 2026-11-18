@@ -2,7 +2,7 @@
 
 > Status: Planning
 > Project: aura_os
-> Last updated: 2026-11-17
+> Last updated: 2026-11-18
 
 ## 1. Vision
 
@@ -75,7 +75,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 1. **Platform and boot** — UEFI or device-tree handoff, boot configuration, firmware interfaces, and image boot process.
 2. **Architecture support** — low-level CPU/platform support for x86-64, RV64GC, and AArch64.
-3. **Kernel** — Linux initially, subject to the decision process; maintain documented configuration and minimal patches.
+3. **Kernel** — upstream Linux (selected foundation); maintain documented configuration and minimal patches.
 4. **Hardware integration** — graphics, input, storage, networking, audio, firmware, and power management, tracked by reference platform.
 5. **System base** — init/service management, libraries, users, permissions, logging, and core utilities.
 6. **Storage and packages** — filesystem layout, package repositories, installation, verified updates, and rollback.
@@ -132,7 +132,9 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 **Exit criteria:** each architecture has at least one documented, usable reference device.
 
-### Desktop interaction and responsive layout requirements
+### Phase 4 — Aura desktop experience
+
+#### Desktop interaction and responsive layout requirements
 
 - Make the application launcher and unified search the primary entry point for applications, settings, and common system actions.
 - Design common tasks so that at least 90% of audited everyday workflows can be completed in three user actions or fewer from the desktop entry point; direct search results and keyboard navigation count as actions and must be measured consistently.
@@ -140,7 +142,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - Build responsive layouts for the planned future device sizes: 12-inch and 13.2-inch entry devices, plus 14.5-inch and 16-inch standard/higher-tier devices. These are future product design targets only; hardware development is not part of the current scope.
 - Validate usable layouts at representative resolutions and scaling factors, not diagonal size alone.
 
-### Phase 4 — Aura desktop experience
+#### Desktop implementation
 
 - [ ] Select the desktop/compositor and graphics stack.
 - [ ] Establish consistent windowing, settings, input, and accessibility.
@@ -352,9 +354,9 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 
 ## 11. Immediate next actions
 
-1. Write an architecture decision record confirming upstream Linux, the selected stable/LTS line, configuration policy, and patch policy.
-2. Select one reference environment per architecture: x86-64, QEMU RV64GC, and QEMU AArch64.
-3. Build reproducible Linux-based boot images for all three targets.
+1. Record the selected upstream Linux kernel policy and first-boot reference platform in architecture decision records.
+2. Bring up x86-64 in QEMU first, with serial boot logs and a minimal initramfs.
+3. Establish the reproducible build and smoke-test workflow, then extend it to QEMU RV64GC and AArch64.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
 5. Establish per-architecture kernel security-update and regression-test workflows.
 
