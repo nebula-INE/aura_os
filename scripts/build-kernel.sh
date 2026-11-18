@@ -19,7 +19,7 @@ require_command() {
   }
 }
 
-for cmd in git gpg awk grep make perl; do
+for cmd in git gpg curl awk grep make perl tr; do
   require_command "$cmd"
 done
 
@@ -31,14 +31,28 @@ fi
 mkdir -p "${WORK_DIR}" "${OUT_DIR}" "${KEYRING_DIR}"
 chmod 700 "${KEYRING_DIR}"
 export GNUPGHOME="${KEYRING_DIR}"
+EXPECTED_FINGERPRINT="$(printf '%s' "${LINUX_KERNEL_SIGNING_KEY_FINGERPRINT}" | tr '[:lower:]' '[:upper:]')"
 
 echo "Importing the Linux stable maintainer key through kernel.org WKD..."
 if ! gpg --batch --locate-keys "${LINUX_KERNEL_SIGNER}"; then
-  echo "error: unable to locate ${LINUX_KERNEL_SIGNER} through OpenPGP WKD." >&2
-  exit 1
+  echo "warning: kernel.org WKD is unavailable; trying fingerprint-addressed HTTPS key endpoints." >&2
+  KEY_FILE="${WORK_DIR}/linux-stable-maintainer-key.asc"
+  fetch_key() {
+    local url="$1"
+    if curl --fail --location --retry 2 --connect-timeout 10 --max-time 45 \
+      --output "${KEY_FILE}" "${url}" &&
+      gpg --batch --import "${KEY_FILE}"; then
+      return 0
+    fi
+    return 1
+  }
+  if ! fetch_key "https://keys.openpgp.org/vks/v1/by-fingerprint/${EXPECTED_FINGERPRINT}" &&
+    ! fetch_key "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${EXPECTED_FINGERPRINT}"; then
+    echo "error: unable to retrieve the pinned signing key from WKD or HTTPS keyservers." >&2
+    exit 1
+  fi
 fi
 
-EXPECTED_FINGERPRINT="$(printf '%s' "${LINUX_KERNEL_SIGNING_KEY_FINGERPRINT}" | tr '[:lower:]' '[:upper:]')"
 if ! gpg --batch --with-colons --list-keys "${LINUX_KERNEL_SIGNER}" |
   awk -F: -v expected="${EXPECTED_FINGERPRINT}" '$1 == "fpr" && toupper($10) == expected { found = 1 } END { exit !found }'; then
   echo "error: the retrieved key does not match the pinned kernel.org fingerprint." >&2
