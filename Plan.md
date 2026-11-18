@@ -132,6 +132,14 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 **Exit criteria:** each architecture has at least one documented, usable reference device.
 
+### Desktop interaction and responsive layout requirements
+
+- Make the application launcher and unified search the primary entry point for applications, settings, and common system actions.
+- Design common tasks so that at least 90% of audited everyday workflows can be completed in three user actions or fewer from the desktop entry point; direct search results and keyboard navigation count as actions and must be measured consistently.
+- Keep advanced controls available without forcing novice users through complex nested menus.
+- Build responsive layouts for the planned future device sizes: 12-inch and 13.2-inch entry devices, plus 14.5-inch and 16-inch standard/higher-tier devices. These are future product design targets only; hardware development is not part of the current scope.
+- Validate usable layouts at representative resolutions and scaling factors, not diagonal size alone.
+
 ### Phase 4 — Aura desktop experience
 
 - [ ] Select the desktop/compositor and graphics stack.
@@ -233,6 +241,17 @@ Aura OS must be meaningfully better at a small number of important user outcomes
 - **Against other Linux distributions:** differentiate through the complete Aura workflow—installation, defaults, desktop integration, updates, recovery, diagnostics, and consistent multi-architecture releases—not through branding or a custom kernel alone.
 - **Against minimal Linux distributions:** retain a polished, accessible, general-purpose desktop and safe lifecycle management rather than optimizing only for the smallest image or lowest idle memory number.
 
+### Primary desktop Linux benchmark: Linux Mint
+
+Linux Mint is the primary reference distribution for Aura OS desktop efficiency and everyday usability. The objective is to reach parity with, then measurably exceed, Linux Mint on selected user-relevant efficiency measures without sacrificing equivalent functionality, security, hardware support, or reliability.
+
+- Compare against maintained Linux Mint releases and record the exact edition (Cinnamon, MATE, or Xfce), release, kernel, image checksum, installed packages, services, and configuration. Use the edition that best matches Aura's intended desktop experience; use other editions as additional context, not as a substitute for the primary comparison.
+- Run both systems on identical reference hardware with equivalent display resolution, graphics settings, power profile, network state, and background workload.
+- Measure idle memory, idle CPU and wakeups, boot-to-ready, application launch and interactive latency, battery/energy use where measurable, and performance under memory pressure.
+- Publish the full test method and raw results. Report both total system memory accounting and process-level proportional set size (PSS), and separately identify reclaimable page cache, shared memory, kernel memory, and reserved memory. Do not present a single ambiguous “RAM used” number as the whole result.
+- First establish a reproducible Linux Mint baseline. Then set per-metric Aura budgets and require repeated-run evidence before claiming parity or superiority.
+- A result counts as a product improvement only when common workflows remain equally usable and there is no unacceptable regression in security, stability, compatibility, accessibility, or responsiveness.
+
 ### Evidence and acceptance criteria
 
 - Choose named, maintained comparison systems for each reference hardware profile. Record exact OS image, kernel, configuration, software versions, hardware, power mode, and test procedure.
@@ -245,6 +264,16 @@ Aura OS must be meaningfully better at a small number of important user outcomes
 ## 9. Performance and efficiency engineering
 
 Performance is a product requirement, not a late-stage polish task. Aura OS should aim to outperform a clearly defined Linux reference on selected workloads while preserving reliability, security, and maintainability. Do not claim that Aura is "faster than Linux" based on a single benchmark or an uncontrolled comparison.
+
+### Explicit efficiency targets
+
+The following are engineering targets, not current measured results:
+
+- **Idle memory stretch target: 512 MiB or less** for the complete base desktop session, including the Linux kernel, compositor/window manager, shell, and essential system services. AI models, application processes, and optional services are not part of this idle baseline.
+- Report a second, stricter accounting view that includes kernel allocations and non-reclaimable system memory; document treatment of reclaimable page cache, shared pages, firmware reservations, and graphics memory so the 512 MiB figure cannot be achieved through accounting exclusions.
+- Treat 512 MiB as a stretch target to validate on defined reference hardware, not as a promise for every driver, architecture, or desktop configuration. If it cannot be met without weakening security or usability, publish the measured result and explain the trade-off.
+- Ensure an 8 GiB RAM system remains practical for ordinary workloads such as web browsing, document editing, media playback, and multitasking. Test actual applications and memory pressure; idle footprint alone is insufficient.
+- Aim for parity with Linux Mint first, then exceed it on clearly specified measures. Never trade away equivalent functionality or security merely to win an idle-memory comparison.
 
 ### Optimization priorities
 
