@@ -93,7 +93,9 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Prototype Linux boot and establish reproducible build workflows for all three targets.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
-- [ ] Add CI for formatting, static checks, builds, and smoke tests.\n- [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.\n- [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
+- [ ] Add CI for formatting, static checks, builds, and smoke tests.
+- [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.
+- [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
 
 **Exit criteria:** documented Linux kernel policy, defined platform profiles, and a reproducible first boot.
 
@@ -147,7 +149,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Establish vulnerability tracking and kernel/userspace update cadence.
 - [ ] Verify update integrity, failure recovery, and rollback.
 - [ ] Publish reproducible build instructions, component notices, and support matrix.
-- [ ] Run regression, compatibility, and performance tests on all targets.\n- [ ] Publish reproducible per-architecture performance comparisons against the defined Linux reference.
+- [ ] Run regression, compatibility, and performance tests on all targets.
+- [ ] Publish reproducible per-architecture performance comparisons against the defined Linux reference.
 
 **Exit criteria:** a preview release has documented support, update, and recovery procedures.
 
