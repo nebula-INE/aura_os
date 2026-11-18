@@ -24,7 +24,7 @@ require_command() {
   }
 }
 
-for cmd in grub-mkstandalone mformat mmd mcopy parted sha256sum dpkg-query timeout tee grep; do
+for cmd in grub-mkstandalone mformat mmd mcopy mdir parted sha256sum dpkg-query timeout tee grep; do
   require_command "$cmd"
 done
 
@@ -45,6 +45,15 @@ rm -f "$ESP_IMAGE" "$OVMF_VARS_COPY" "$GRUB_EFI"
 cat >"$GRUB_CFG" <<'GRUB'
 set timeout=0
 set default=0
+insmod part_gpt
+insmod fat
+insmod search
+insmod search_fs_file
+search --no-floppy --file --set=root /vmlinuz
+if [ -z "$root" ]; then
+    echo "Aura OS UEFI test: could not locate /vmlinuz on an attached filesystem"
+    sleep 10
+fi
 menuentry "Aura OS x86-64 UEFI smoke test" {
     linux /vmlinuz console=ttyS0,115200n8 rdinit=/init panic=-1 aura.ci=1
     initrd /initramfs.cpio.gz
@@ -55,7 +64,7 @@ echo "Building standalone x86-64 UEFI GRUB loader..."
 grub-mkstandalone \
   --format=x86_64-efi \
   --output="$GRUB_EFI" \
-  --modules="part_gpt fat normal linux" \
+  --modules="part_gpt fat normal linux search search_fs_file" \
   "boot/grub/grub.cfg=$GRUB_CFG"
 test -s "$GRUB_EFI"
 
@@ -72,6 +81,10 @@ mmd -i "$ESP_MTOOLS_IMAGE" ::/EFI/BOOT
 mcopy -i "$ESP_MTOOLS_IMAGE" "$GRUB_EFI" ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i "$ESP_MTOOLS_IMAGE" "$KERNEL_IMAGE" ::/vmlinuz
 mcopy -i "$ESP_MTOOLS_IMAGE" "$INITRAMFS" ::/initramfs.cpio.gz
+
+echo "Verifying files in the GPT EFI partition..."
+mdir -i "$ESP_MTOOLS_IMAGE" ::/
+mdir -i "$ESP_MTOOLS_IMAGE" ::/EFI/BOOT
 
 # Use a disposable writable NVRAM copy; never modify the installed firmware template.
 cp "$OVMF_VARS" "$OVMF_VARS_COPY"
