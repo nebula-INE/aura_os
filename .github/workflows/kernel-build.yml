@@ -38,7 +38,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-            git gnupg curl busybox-static cpio gzip qemu-system-x86
+            git gnupg curl busybox-static cpio gzip qemu-system-x86 ovmf grub-efi-amd64-bin mtools
 
       - name: Verify source and build upstream Linux kernel
         run: JOBS=2 bash scripts/build-kernel.sh
@@ -61,5 +61,7 @@ jobs:
             build/initramfs/aura-initramfs.cpio.gz
             build/initramfs/aura-initramfs.cpio.gz.sha256
             build/qemu/aura-qemu-boot.log
+            build/qemu/firmware-provenance.txt
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
