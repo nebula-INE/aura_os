@@ -8,7 +8,7 @@
 
 Aura OS is a general-purpose desktop operating system designed as one coherent product across x86-64, RISC-V RV64GC, and ARM 64-bit (AArch64). The product identity is defined by its system integration, userspace, desktop, developer experience, security, and update model—not solely by its kernel.
 
-The kernel strategy is intentionally open: Linux is a serious candidate, and a custom kernel should only be selected if concrete requirements justify its engineering and maintenance cost.
+Aura OS has selected the upstream Linux kernel as its foundation. The project will focus its engineering effort on a lean, secure, maintainable Aura userspace and product experience rather than developing a kernel from scratch.
 
 ## 2. Product and platform decisions
 
@@ -29,27 +29,19 @@ The goal is one Aura OS product with architecture-specific builds, shared usersp
 - Isolate firmware, bootloader, and architecture-specific code from shared product components.
 - Define a minimum reference hardware profile for each architecture before claiming compatibility.
 
-### Kernel strategy — decision pending
+### Kernel strategy — Linux selected
 
-Evaluate these approaches before committing to substantial kernel work:
+**Decision: Aura OS will use the upstream Linux kernel as its kernel foundation.** This is the project direction, not merely a temporary prototype choice.
 
-1. **Linux kernel based**
-   - Use upstream Linux for CPU architecture support, drivers, memory management, scheduling, networking, and security infrastructure.
-   - Build Aura OS identity in userspace, system integration, desktop, installer/images, developer tools, and update policies.
-   - Maintain a controlled kernel configuration and a small patch set; upstream generally useful changes.
-   - Review license obligations, notices, source distribution, and firmware redistribution for shipped components.
+- Use upstream Linux for CPU architecture support, drivers, memory management, scheduling, networking, security infrastructure, and hardware enablement across x86-64, RV64GC, and AArch64.
+- Prefer an actively maintained upstream stable/LTS kernel line appropriate to the release and hardware-support requirements; record the exact version and support lifecycle for every release.
+- Maintain Aura-specific kernel configuration separately and keep patches minimal, documented, and rebased against upstream. Upstream generally useful fixes whenever practical.
+- Do not maintain a private kernel fork or build a replacement kernel as part of the initial product roadmap.
+- Build Aura OS identity in its userspace, service model, desktop, installer/images, developer tools, security policy, and update/recovery experience.
+- Keep product-level interfaces and services modular so that implementation details of the Linux kernel do not unnecessarily leak into applications.
+- Track Linux licensing, required source availability, notices, and firmware redistribution obligations for shipped components.
 
-2. **Custom kernel**
-   - Build and maintain Aura-owned kernel functionality, drivers, architecture support, process model, storage, and security boundaries.
-   - Offers deeper control but substantially increases implementation, hardware enablement, security, and long-term maintenance work.
-   - Requires a realistic engineering and maintenance plan before selection.
-
-3. **Staged / hybrid approach**
-   - Start with Linux to establish a usable multi-architecture Aura OS.
-   - Keep Aura userspace and system interfaces independent of Linux implementation details where practical.
-   - Reconsider a custom kernel only if measured product requirements cannot reasonably be met with Linux.
-
-**Provisional recommendation:** prototype the Linux-based route first. Do not start a full custom kernel until an architecture decision record demonstrates a compelling reason.
+A custom kernel is out of initial scope. Reconsidering that decision would require a documented, repeatable kernel-level limitation that cannot reasonably be addressed through Linux configuration, upstream fixes, or a small maintainable patch, plus a credible security, driver, and long-term maintenance plan.
 
 ### Product principles
 
@@ -95,14 +87,16 @@ Evaluate these approaches before committing to substantial kernel work:
 
 ### Phase 0 — Architecture and repository foundation
 
+- [x] Select upstream Linux as the kernel foundation.
 - [ ] Record requirements and a minimum reference platform for each architecture.
-- [ ] Compare Linux-based, custom-kernel, and staged approaches in an architecture decision record.
-- [ ] Prototype Linux boot and estimate the effort to build all three targets.
+- [x] Select upstream Linux as the kernel foundation for Aura OS.
+- [ ] Record the Linux kernel line, configuration policy, patch policy, and support lifecycle in an architecture decision record.
+- [ ] Prototype Linux boot and establish reproducible build workflows for all three targets.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
 - [ ] Add CI for formatting, static checks, builds, and smoke tests.\n- [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.\n- [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
 
-**Exit criteria:** documented kernel decision or time-boxed evaluation, defined platform profiles, and a reproducible first boot.
+**Exit criteria:** documented Linux kernel policy, defined platform profiles, and a reproducible first boot.
 
 ### Phase 1 — Three-architecture bootable base
 
@@ -160,9 +154,10 @@ Evaluate these approaches before committing to substantial kernel work:
 
 ### Phase 6 — Long-term kernel and platform evolution
 
-- [ ] Review whether Linux continues to meet Aura OS requirements.
-- [ ] Upstream generally useful fixes and avoid unnecessary private divergence.
-- [ ] Reconsider a custom kernel only against concrete unmet requirements and a sustainable maintenance plan.
+- [ ] Track upstream Linux security fixes, stable/LTS support, and hardware enablement for every supported architecture.
+- [ ] Keep Aura kernel configuration reproducible and patches minimal; upstream generally useful fixes.
+- [ ] Review kernel updates for regressions, bootability, performance, and recovery before release.
+- [ ] Reconsider the kernel strategy only if a documented, repeatable requirement cannot reasonably be met with upstream Linux.
 - [ ] Expand hardware coverage based on user demand and engineering capacity.
 
 **Exit criteria:** kernel and platform direction is backed by product requirements and measured maintenance cost.
@@ -271,11 +266,11 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 
 ## 10. Immediate next actions
 
-1. Write an architecture decision record comparing Linux-based Aura OS with a custom kernel.
+1. Write an architecture decision record confirming upstream Linux, the selected stable/LTS line, configuration policy, and patch policy.
 2. Select one reference environment per architecture: x86-64, QEMU RV64GC, and QEMU AArch64.
-3. Build a minimal Linux-based boot prototype and measure the work required for all three images.
-4. Define shared userspace, desktop, package, and update strategy.
-5. Decide whether any concrete requirement justifies custom kernel work.
+3. Build reproducible Linux-based boot images for all three targets.
+4. Define the shared userspace, init/service model, desktop, package, and update strategy.
+5. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 11. Open design decisions
 
@@ -286,7 +281,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 - Exact reference hardware and minimum CPU/ISA baselines for all three targets.
 - Firmware and boot strategy per platform.
 - Secure boot, signing, and component update policy.
-- Whether any requirement justifies custom kernel development.
+- Exact upstream Linux kernel line and update cadence for each Aura OS release.
 
 ## 12. Risk register
 
@@ -294,7 +289,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 |---|---|
 | Three architectures expand scope | Define one reference platform per architecture and prioritize shared workflows |
 | Hardware support differs widely | Publish per-device support matrix; distinguish compile, boot, and usable support |
-| Custom kernel consumes the project | Prototype Linux first and require evidence before custom-kernel work |
+| Kernel maintenance falls behind upstream | Track stable/LTS lifecycle, security advisories, and test updates continuously; keep local patches minimal |
 | Linux fork becomes hard to maintain | Keep patches small, track upstream, and upstream useful changes |
 | Firmware differences leak into product code | Isolate boot and architecture-specific components |
 | Updates cause data loss or an unbootable system | Design verification, rollback, and recovery before preview release |
