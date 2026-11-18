@@ -19,7 +19,7 @@ The version is a reproducible bring-up baseline, not a promise to stay on this p
 
 The build does not trust a downloaded archive or an unverified moving branch. It fetches the exact v6.18.64 Git tag from the official stable repository and verifies the annotated tag signature before compiling.
 
-The build imports gregkh@kernel.org through the kernel.org OpenPGP Web Key Directory (WKD), checks that the imported key contains the pinned full fingerprint, runs git verify-tag, and requires the VALIDSIG fingerprint to match. A missing key, unexpected key fingerprint, unsigned tag, invalid signature, or signer mismatch stops the build.
+The build first tries gregkh@kernel.org through the kernel.org OpenPGP Web Key Directory (WKD). When WKD is unreachable, it tries HTTPS fingerprint lookup through keys.openpgp.org and keyserver.ubuntu.com. In every case it checks that the imported key contains the pinned full fingerprint, runs git verify-tag, and requires the VALIDSIG fingerprint to match. A missing key, unexpected key fingerprint, unsigned tag, invalid signature, or signer mismatch stops the build.
 
 The pinned fingerprint is published on https://www.kernel.org/signature.html. Review that page and the key's trust/revocation status when updating the kernel pin. Git tag verification follows the kernel maintainer PGP guidance: https://www.kernel.org/doc/html/latest/process/maintainer-pgp-guide.html.
 
@@ -29,7 +29,7 @@ On Debian/Ubuntu, install the build and verification dependencies:
 
 ~~~sh
 sudo apt-get update
-sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libncurses-dev git gnupg
+sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libncurses-dev git gnupg curl
 ~~~
 
 Then run:
