@@ -24,7 +24,7 @@ require_command() {
   }
 }
 
-for cmd in grub-mkstandalone mformat mmd mcopy sha256sum dpkg-query timeout tee grep; do
+for cmd in grub-mkstandalone mformat mmd mcopy parted sha256sum dpkg-query timeout tee grep; do
   require_command "$cmd"
 done
 
@@ -61,12 +61,17 @@ test -s "$GRUB_EFI"
 
 echo "Creating a FAT32 EFI system partition..."
 truncate -s 64M "$ESP_IMAGE"
-mformat -i "$ESP_IMAGE" -F ::
-mmd -i "$ESP_IMAGE" ::/EFI
-mmd -i "$ESP_IMAGE" ::/EFI/BOOT
-mcopy -i "$ESP_IMAGE" "$GRUB_EFI" ::/EFI/BOOT/BOOTX64.EFI
-mcopy -i "$ESP_IMAGE" "$KERNEL_IMAGE" ::/vmlinuz
-mcopy -i "$ESP_IMAGE" "$INITRAMFS" ::/initramfs.cpio.gz
+parted --script "$ESP_IMAGE" mklabel gpt
+parted --script "$ESP_IMAGE" mkpart ESP fat32 1MiB 100%
+parted --script "$ESP_IMAGE" set 1 esp on
+ESP_OFFSET=1048576
+ESP_MTOOLS_IMAGE="${ESP_IMAGE}@@${ESP_OFFSET}"
+mformat -i "$ESP_MTOOLS_IMAGE" -F ::
+mmd -i "$ESP_MTOOLS_IMAGE" ::/EFI
+mmd -i "$ESP_MTOOLS_IMAGE" ::/EFI/BOOT
+mcopy -i "$ESP_MTOOLS_IMAGE" "$GRUB_EFI" ::/EFI/BOOT/BOOTX64.EFI
+mcopy -i "$ESP_MTOOLS_IMAGE" "$KERNEL_IMAGE" ::/vmlinuz
+mcopy -i "$ESP_MTOOLS_IMAGE" "$INITRAMFS" ::/initramfs.cpio.gz
 
 # Use a disposable writable NVRAM copy; never modify the installed firmware template.
 cp "$OVMF_VARS" "$OVMF_VARS_COPY"
