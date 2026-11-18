@@ -79,6 +79,35 @@ The smoke test creates a GPT-partitioned FAT32 EFI system partition containing a
 
 The Linux kernel workflow verifies the upstream signature, builds the kernel and initramfs, boots them in QEMU, and uploads the kernel, config, source verification record, initramfs, checksums, and serial log as a short-lived artifact.
 
+## RV64GC and AArch64 QEMU bring-up (early validation)
+
+The verified kernel builder also accepts the cross-architecture targets. Install the matching cross compiler and QEMU emulator on Debian/Ubuntu:
+
+~~~sh
+# RV64GC
+sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
+TARGET_ARCH=riscv64 bash scripts/build-kernel.sh
+TARGET_ARCH=riscv64 bash scripts/build-initramfs-target.sh
+TARGET_ARCH=riscv64 bash scripts/test-kernel-qemu-multiarch.sh
+
+# AArch64
+sudo apt-get install -y gcc-aarch64-linux-gnu qemu-system-arm
+TARGET_ARCH=aarch64 bash scripts/build-kernel.sh
+TARGET_ARCH=aarch64 bash scripts/build-initramfs-target.sh
+TARGET_ARCH=aarch64 bash scripts/test-kernel-qemu-multiarch.sh
+~~~
+
+Both paths use the same pinned and signature-verified Linux source. The kernel builder selects an architecture-specific defconfig fragment and cross compiler, then records the compiler, target, source revision, signer fingerprint, and image checksum under `build/kernel/`.
+
+The multi-architecture initramfs compiles `initramfs/init.c` as a statically linked target-native ELF executable. It mounts devtmpfs, opens `/dev/console`, emits `AURA_INIT_OK` and `AURA_QEMU_TEST_PASS`, then requests a clean guest poweroff. This is a boot-test init only; it does not select Aura's eventual init/service manager.
+
+Boot reference profiles:
+
+- **RV64GC:** QEMU `virt`, `rv64` CPU, QEMU's default OpenSBI firmware, generated device tree, and 16550 serial console. The test uses `qemu-system-riscv64`.
+- **AArch64:** QEMU `virt`, `cortex-a57` CPU, PL011 serial console, and QEMU's direct Linux `Image` loader. The current smoke test does not exercise UEFI or a physical board. The test uses `qemu-system-aarch64`.
+
+The cross-architecture jobs run independently of the existing x86-64 OVMF/UEFI job. Passing them demonstrates kernel compilation and first userspace execution in the specified emulators only. It does not yet demonstrate an installable disk image, UEFI boot on AArch64, physical-board compatibility, a complete userspace, or usable desktop hardware.
+
 ## Scope
 
 This is the first bootable kernel bring-up path only. It does not yet create a bootable disk image, installer, package system, or complete Aura userspace. Do not install this development kernel on the host machine.
