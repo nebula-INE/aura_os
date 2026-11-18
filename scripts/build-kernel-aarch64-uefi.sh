@@ -25,12 +25,16 @@ require_command() {
 for cmd in "$COMPILER" make cp grep sha256sum file; do
   require_command "$cmd"
 done
-for path in "$SOURCE_DIR/Makefile" "$BASE_OUT_DIR/.config" "$INITRAMFS_ROOTFS/init"; do
-  if [[ ! -s "$path" && ! -f "$path" ]]; then
-    echo "error: required input is missing: $path" >&2
+for path in "$SOURCE_DIR/Makefile" "$BASE_OUT_DIR/.config"; do
+  if [[ ! -s "$path" ]]; then
+    echo "error: required input is missing or empty: $path" >&2
     exit 1
   fi
 done
+if [[ ! -d "$INITRAMFS_ROOTFS" || ! -x "$INITRAMFS_ROOTFS/init" ]]; then
+  echo "error: target initramfs root must contain an executable /init: $INITRAMFS_ROOTFS" >&2
+  exit 1
+fi
 
 mkdir -p "$OUT_DIR"
 cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"
