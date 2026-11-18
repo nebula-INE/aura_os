@@ -44,7 +44,7 @@ This validates the OpenSBI-to-Linux handoff in the QEMU virt environment. It doe
 - Kernel payload: `arch/arm64/boot/Image`, loaded with QEMU's direct Linux Image loader.
 - Console: PL011 UART, Linux console `ttyAMA0`.
 
-The first smoke test deliberately uses QEMU's direct Linux loader and does **not** exercise UEFI, EDK2/AAVMF, GRUB, or a physical board. A separate firmware-mediated UEFI boot test is required before claiming AArch64 UEFI boot support.
+The direct-loader smoke test deliberately does **not** exercise UEFI. A separate AAVMF firmware-mediated test is now defined in ADR 0005: it boots a PE/COFF Linux EFI-stub kernel from the removable-media fallback path and embeds the test initramfs into that kernel. That UEFI profile remains unverified until its dedicated CI job passes. Neither emulator path establishes physical-board support.
 
 ## Consequences
 

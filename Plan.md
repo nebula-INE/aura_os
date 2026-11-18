@@ -93,6 +93,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Build the pinned upstream Linux 6.18.64 x86-64 kernel in CI; generate a minimal initramfs and verify first boot through OVMF UEFI in QEMU (AURA_INIT_OK / AURA_QEMU_TEST_PASS; CI run 44301482434).
 - [x] Add target-specific kernel, static initramfs, and QEMU smoke-test workflows for RV64GC and AArch64 (initial emulator profiles; hardware support is not implied).
 - [ ] Pass both new cross-architecture CI jobs and inspect their boot artifacts.
+- [x] Add an AArch64 AAVMF UEFI smoke-test path using the Linux EFI stub and an embedded target-native initramfs; CI validation remains pending.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
 - [x] Add CI for the initial pinned x86-64 Linux kernel build.

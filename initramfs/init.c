@@ -10,12 +10,27 @@
 #include <sys/reboot.h>
 #include <unistd.h>
 
+static void write_fully(int fd, const char *buffer, size_t length) {
+    while (length > 0) {
+        ssize_t written = write(fd, buffer, length);
+        if (written > 0) {
+            buffer += (size_t)written;
+            length -= (size_t)written;
+            continue;
+        }
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        break;
+    }
+}
+
 int main(void) {
     /* The initramfs starts with an empty /dev; mount devtmpfs before logging. */
     if (mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID, NULL) != 0 &&
         errno != EBUSY) {
         const char message[] = "[Aura OS] warning: could not mount devtmpfs\n";
-        (void)write(STDERR_FILENO, message, sizeof(message) - 1);
+        write_fully(STDERR_FILENO, message, sizeof(message) - 1);
     }
 
     int console_fd = open("/dev/console", O_RDWR | O_NOCTTY);

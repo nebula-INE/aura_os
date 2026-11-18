@@ -108,6 +108,29 @@ Boot reference profiles:
 
 The cross-architecture jobs run independently of the existing x86-64 OVMF/UEFI job. Passing them demonstrates kernel compilation and first userspace execution in the specified emulators only. It does not yet demonstrate an installable disk image, UEFI boot on AArch64, physical-board compatibility, a complete userspace, or usable desktop hardware.
 
+## AArch64 UEFI boot (separate EFI-stub validation)
+
+The direct QEMU Linux loader test remains in place. A second path validates the AArch64 UEFI handoff using the Linux kernel's EFI stub rather than a separately installed GRUB binary.
+
+On Ubuntu 24.04, install the AArch64 UEFI firmware and image tools:
+
+~~~sh
+sudo apt-get install -y qemu-efi-aarch64 mtools parted file
+~~~
+
+The workflow first builds the target-native static initramfs, then runs:
+
+~~~sh
+bash scripts/build-kernel-aarch64-uefi.sh
+bash scripts/test-kernel-qemu-aarch64-uefi.sh
+~~~
+
+The EFI-specific kernel is built in a separate output tree so the ordinary AArch64 `Image` used by direct boot is preserved. The builder takes the already-built AArch64 kernel configuration, enables the EFI stub, embeds the target-native initramfs directory into the kernel, and forces the serial-console/test command line. The resulting PE/COFF AArch64 kernel is placed at the removable-media fallback path `EFI/BOOT/BOOTAA64.EFI` on a GPT/FAT32 EFI System Partition.
+
+The test boots that image through the AAVMF firmware pair `AAVMF_CODE.fd` and a disposable copy of `AAVMF_VARS.fd` on QEMU `virt` with a fixed `cortex-a57` CPU and TCG. The test records firmware and image hashes, captures the serial log, rejects kernel panics, and requires both Aura success markers.
+
+This test exercises UEFI firmware → AArch64 Linux EFI stub → embedded initramfs `/init`. It is still an emulator reference profile only; it does not establish physical-device compatibility, Secure Boot trust policy, an installer, or a complete bootable system image. The UEFI-specific build and boot must pass in CI before this profile is considered verified.
+
 ## Scope
 
 This is the first bootable kernel bring-up path only. It does not yet create a bootable disk image, installer, package system, or complete Aura userspace. Do not install this development kernel on the host machine.
