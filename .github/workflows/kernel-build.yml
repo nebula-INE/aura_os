@@ -10,6 +10,8 @@ on:
       - "scripts/build-initramfs-target.sh"
       - "scripts/test-kernel-qemu.sh"
       - "scripts/test-kernel-qemu-multiarch.sh"
+      - "scripts/build-kernel-aarch64-uefi.sh"
+      - "scripts/test-kernel-qemu-aarch64-uefi.sh"
       - ".github/workflows/kernel-build.yml"
   pull_request:
     paths:
@@ -114,6 +116,23 @@ jobs:
           TARGET_ARCH: ${{ matrix.target_arch }}
         run: bash scripts/test-kernel-qemu-multiarch.sh
 
+      - name: Install AArch64 UEFI firmware and image tools
+        if: matrix.target_arch == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-efi-aarch64 mtools parted file
+
+      - name: Build AArch64 EFI-stub kernel with embedded initramfs
+        if: matrix.target_arch == 'aarch64'
+        env:
+          CROSS_COMPILE: aarch64-linux-gnu-
+          JOBS: "2"
+        run: bash scripts/build-kernel-aarch64-uefi.sh
+
+      - name: Boot AArch64 kernel through AAVMF UEFI
+        if: matrix.target_arch == 'aarch64'
+        run: bash scripts/test-kernel-qemu-aarch64-uefi.sh
+
       - name: Upload kernel, initramfs, provenance, and boot log
         if: always()
         uses: actions/upload-artifact@v4
@@ -128,6 +147,12 @@ jobs:
             build/initramfs/aura-initramfs-${{ matrix.target_arch }}.cpio.gz.sha256
             build/qemu/aura-${{ matrix.target_arch }}-qemu-boot.log
             build/qemu/${{ matrix.target_arch }}-firmware-provenance.txt
+            build/kernel-aarch64-uefi/arch/arm64/boot/Image
+            build/kernel-aarch64-uefi/aarch64-uefi-kernel-image.sha256
+            build/kernel-aarch64-uefi/source-verification.txt
+            build/qemu/aura-aarch64-uefi-boot.log
+            build/qemu/aarch64-uefi-firmware-provenance.txt
+            build/qemu/aura-aarch64-uefi-esp.img
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
