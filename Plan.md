@@ -90,7 +90,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Select upstream Linux as the kernel foundation for Aura OS.
 - [ ] Record requirements and a minimum reference platform for each architecture.
 - [x] Record the initial upstream Linux longterm baseline and x86-64 bring-up configuration in architecture decision records.
-- [ ] Build the pinned upstream Linux 6.18.64 x86-64 kernel in CI; then add an initramfs and prove first boot in QEMU.
+- [x] Build the pinned upstream Linux 6.18.64 x86-64 kernel in CI; generate a minimal initramfs and verify first boot through OVMF UEFI in QEMU (AURA_INIT_OK / AURA_QEMU_TEST_PASS; CI run 44301482434).
 - [ ] Extend reproducible kernel build and boot workflows to RV64GC and AArch64.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.

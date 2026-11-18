@@ -15,14 +15,14 @@ Use QEMU's x86-64 system emulator as the first bring-up target.
 Initial reference profile:
 
 - Machine: QEMU `q35`.
-- Firmware: UEFI via OVMF where available; document the exact firmware package/version and checksum in the build environment.
-- CPU: QEMU's documented x86-64 baseline; do not use host passthrough for the reproducibility baseline.
+- Firmware: UEFI via OVMF. CI records the OVMF package version and firmware code/variables-template SHA-256 checksums in its artifacts.
+- CPU: the fixed QEMU `qemu64` model; do not use `max` or host passthrough for the reproducibility baseline.
 - Console: serial console enabled and captured by automated tests.
 - Boot payload: upstream Linux kernel plus a generated initramfs.
 - First userspace milestone: kernel successfully executes `/init` from the initramfs and emits a stable, machine-detectable success marker.
 - Temporary bring-up tools may use BusyBox in the initramfs. This is a bootstrap aid, not a decision to use BusyBox or a particular init/service manager in the final installed OS.
 
-The first smoke test must have a timeout, preserve the complete serial log on failure, and fail if the success marker is absent or a kernel panic is detected.
+The first smoke test must boot through OVMF UEFI, use the fixed `qemu64` CPU model, have a timeout, preserve the complete serial log on failure, and fail if the success marker is absent or a kernel panic is detected. The build artifact must record the QEMU version, OVMF package version, firmware checksums, kernel configuration, and image hashes.
 
 ## Consequences
 

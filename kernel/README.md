@@ -1,40 +1,84 @@
 # Linux kernel integration
 
-Aura OS uses the upstream Linux kernel. The kernel source is fetched during the build and is not vendored into this repository.
+Aura OS uses the upstream Linux kernel. Kernel source is fetched at build time and is not vendored into this repository.
 
 ## Pinned bring-up baseline
 
-- Version: `6.18.64` (longterm series)
-- Source: `https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.64.tar.xz`
+- Version: 6.18.64 (stable series)
+- Git tag: v6.18.64 (signed release tag)
+- Fetch mirror: https://github.com/gregkh/linux (read-only stable-tree mirror maintained by Greg Kroah-Hartman)
+- Canonical upstream: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
+- Tag signer: Greg Kroah-Hartman (gregkh@kernel.org)
+- Pinned signer fingerprint: 647F28654894E3BD457199BE38DBBDC86092693E
 - Initial architecture: x86-64
-- Initial target: QEMU `q35`
-- Configuration: `kernel/configs/x86_64_qemu.fragment`
+- Initial target: QEMU q35
+- Configuration: kernel/configs/x86_64_qemu.fragment
 
-The version is a reproducible bring-up baseline, not a promise to stay on this patch release. Security updates must be reviewed and the pin advanced deliberately. Check the current supported longterm releases at [kernel.org](https://www.kernel.org/).
+The version is a reproducible bring-up baseline, not a promise to stay on this patch release. Security updates must be reviewed and the pin advanced deliberately. Check supported stable releases at https://www.kernel.org/.
 
-## Build
+## Source verification
 
-On Debian/Ubuntu, install the build dependencies:
+The build does not trust a downloaded archive or an unverified moving branch. To avoid depending on direct git.kernel.org connectivity in CI, it fetches the exact v6.18.64 tag from Greg Kroah-Hartman's read-only GitHub mirror. This mirror is used only as a transport source: the annotated release tag's OpenPGP signature is independently verified against the pinned stable maintainer key before any source is compiled. The same verification therefore rejects an unsigned or altered tag even when fetched from the mirror.
 
-```sh
+The build first tries gregkh@kernel.org through the kernel.org OpenPGP Web Key Directory (WKD). When WKD is unreachable, it retrieves the key by its 16-character key ID from the kernel.org-maintained PGP keyring, then falls back to keyserver.ubuntu.com. It checks that an imported key contains the pinned full fingerprint before running git verify-tag, and requires the tag's VALIDSIG fingerprint to match. A missing key, unexpected key fingerprint, unsigned tag, invalid signature, or signer mismatch stops the build.
+
+The pinned fingerprint is published on https://www.kernel.org/signature.html. Review that page and the key's trust/revocation status when updating the kernel pin. Git tag verification follows the kernel maintainer PGP guidance: https://www.kernel.org/doc/html/latest/process/maintainer-pgp-guide.html.
+
+## Build the kernel
+
+On Debian/Ubuntu, install the build and verification dependencies:
+
+~~~sh
 sudo apt-get update
-sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libncurses-dev
-```
+sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libncurses-dev git gnupg curl
+~~~
 
 Then run:
 
-```sh
+~~~sh
 bash scripts/build-kernel.sh
-```
+~~~
 
-The script downloads the pinned upstream source, creates an x86-64 QEMU configuration based on `x86_64_defconfig`, and builds `arch/x86/boot/bzImage`. Outputs are written to `build/kernel/`.
+The script verifies the signed source tag, creates an x86-64 QEMU configuration based on x86_64_defconfig, and builds arch/x86/boot/bzImage. Kernel outputs and a source-verification record are written to build/kernel/.
 
-For a faster local iteration, set `JOBS` (for example, `JOBS=4 bash scripts/build-kernel.sh`). The default is the number of available processors.
+For faster local iteration, set JOBS (for example, JOBS=4 bash scripts/build-kernel.sh). The default is the number of available processors.
 
-## Source authenticity
+## Build the minimal initramfs
 
-The upstream release provides detached OpenPGP signatures alongside release tarballs. Before using a downloaded source archive for a release build, verify its `.tar.sign` file against a trusted Linux stable maintainer key obtained and validated independently. The initial convenience build script does not establish maintainer-key trust automatically; CI build success is not a substitute for signature verification.
+Install a static BusyBox and archive tools:
+
+~~~sh
+sudo apt-get install -y busybox-static cpio gzip
+~~~
+
+Then run:
+
+~~~sh
+bash scripts/build-initramfs.sh
+~~~
+
+The builder rejects a dynamically linked BusyBox so the initramfs does not silently depend on host libraries. It creates a small root filesystem with /init, devtmpfs, procfs, sysfs, a BusyBox shell, and a CI-only clean poweroff path. The compressed archive and SHA-256 file are written to build/initramfs/.
+
+## Boot test in QEMU
+
+Install QEMU's x86 system emulator:
+
+~~~sh
+sudo apt-get install -y qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted
+~~~
+
+Run:
+
+~~~sh
+bash scripts/test-kernel-qemu.sh
+~~~
+
+The smoke test creates a GPT-partitioned FAT32 EFI system partition containing a standalone x86-64 GRUB loader, the kernel, and initramfs. It verifies the copied files with mtools, searches for `/vmlinuz` at GRUB startup to select the EFI partition as its root, then boots the image through OVMF UEFI on QEMU q35 using the fixed qemu64 CPU model and TCG. The test records the QEMU version, OVMF package version, firmware checksums, and ESP checksum in build/qemu/firmware-provenance.txt. It captures the serial log, rejects kernel panics, and requires both AURA_INIT_OK and AURA_QEMU_TEST_PASS before accepting guest poweroff. The serial log is saved under build/qemu/.
+
+## CI
+
+The Linux kernel workflow verifies the upstream signature, builds the kernel and initramfs, boots them in QEMU, and uploads the kernel, config, source verification record, initramfs, checksums, and serial log as a short-lived artifact.
 
 ## Scope
 
-This is the first kernel build integration only. It does not yet create an initramfs, bootable disk image, installer, or a complete Aura userspace. Those are subsequent milestones. Do not install this development kernel on the host machine.
+This is the first bootable kernel bring-up path only. It does not yet create a bootable disk image, installer, package system, or complete Aura userspace. Do not install this development kernel on the host machine.

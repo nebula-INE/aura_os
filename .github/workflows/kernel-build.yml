@@ -1,15 +1,19 @@
-name: Linux kernel build
+name: Linux kernel build and QEMU boot
 
 on:
   push:
     paths:
       - "kernel/**"
       - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs.sh"
+      - "scripts/test-kernel-qemu.sh"
       - ".github/workflows/kernel-build.yml"
   pull_request:
     paths:
       - "kernel/**"
       - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs.sh"
+      - "scripts/test-kernel-qemu.sh"
       - ".github/workflows/kernel-build.yml"
   workflow_dispatch:
 
@@ -21,29 +25,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  x86_64-kernel:
-    name: Build Linux kernel (x86-64)
+  x86_64-kernel-qemu:
+    name: Verify, build, and boot Linux (x86-64)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Check out Aura OS
         uses: actions/checkout@v4
 
-      - name: Install kernel build dependencies
+      - name: Install kernel, verification, initramfs, and QEMU dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libelf-dev libssl-dev libncurses-dev
+          sudo apt-get install -y \
+            build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
+            git gnupg curl busybox-static cpio gzip qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted
 
-      - name: Build upstream Linux kernel
+      - name: Verify source and build upstream Linux kernel
         run: JOBS=2 bash scripts/build-kernel.sh
 
-      - name: Upload kernel image and config
+      - name: Build minimal initramfs
+        run: BUSYBOX=/usr/bin/busybox bash scripts/build-initramfs.sh
+
+      - name: Boot kernel and initramfs in QEMU
+        run: bash scripts/test-kernel-qemu.sh
+
+      - name: Upload kernel, initramfs, provenance, and boot log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: aura-linux-x86_64-kernel
+          name: aura-linux-x86_64-qemu-bringup
           path: |
             build/kernel/arch/x86/boot/bzImage
             build/kernel/.config
             build/kernel/bzImage.sha256
-          if-no-files-found: error
+            build/kernel/source-verification.txt
+            build/initramfs/aura-initramfs.cpio.gz
+            build/initramfs/aura-initramfs.cpio.gz.sha256
+            build/qemu/aura-qemu-boot.log
+            build/qemu/firmware-provenance.txt
+          include-hidden-files: true
+          if-no-files-found: warn
           retention-days: 7
