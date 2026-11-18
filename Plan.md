@@ -58,7 +58,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 - Bootable Aura OS images for all three target architectures.
 - A common base userspace and system configuration.
-- A documented kernel strategy, with Linux as the first prototype candidate.
+- A documented upstream Linux kernel strategy with a defined release and support policy.
 - Basic storage, networking, services, logging, and package/update workflows.
 - A consistent desktop experience after the base system is reliable.
 - Automated builds and smoke tests using emulators and reference hardware.
@@ -87,9 +87,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 ### Phase 0 — Architecture and repository foundation
 
-- [x] Select upstream Linux as the kernel foundation.
-- [ ] Record requirements and a minimum reference platform for each architecture.
 - [x] Select upstream Linux as the kernel foundation for Aura OS.
+- [ ] Record requirements and a minimum reference platform for each architecture.
 - [ ] Record the Linux kernel line, configuration policy, patch policy, and support lifecycle in an architecture decision record.
 - [ ] Prototype Linux boot and establish reproducible build workflows for all three targets.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
@@ -185,7 +184,62 @@ Specify exact CPU extensions, firmware versions, and device models before claimi
 
 
 
-## 8. Performance and efficiency engineering
+
+## 8. Competitive advantage and product differentiation
+
+Aura OS must be meaningfully better at a small number of important user outcomes, not merely be another Linux distribution with a different theme. The project will compete through a coherent, measurable product experience while reusing the upstream Linux kernel and mature open-source components.
+
+### Strategic differentiators
+
+1. **Low overhead without sacrificing usability**
+   - Keep the default installation and background service set lean.
+   - Make optional features installable or activatable on demand.
+   - Optimize boot-to-ready time, idle CPU use, memory footprint, wakeups, and interactive latency.
+   - Do not achieve low benchmark numbers by omitting basic security, accessibility, hardware support, or expected desktop functionality.
+
+2. **One coherent system experience**
+   - Provide one consistent place and interaction model for system settings, applications, permissions, updates, diagnostics, backup, and recovery.
+   - Avoid exposing users to conflicting tools or distro-specific configuration fragments for common tasks.
+   - Make common workflows understandable to non-expert users while retaining advanced controls for developers and administrators.
+
+3. **Safe, predictable system lifecycle**
+   - Make updates verifiable, staged, recoverable, and preferably rollback-capable.
+   - Clearly communicate update state, failures, support status, and recovery options.
+   - Keep security fixes timely and make the supported lifecycle explicit.
+   - Treat backup and recovery as core system workflows, not optional afterthoughts.
+
+4. **Practical compatibility and application access**
+   - Prioritize reliable access to established Linux applications, development tools, common file formats, peripherals, and network services.
+   - Publish an honest compatibility matrix and known limitations.
+   - Do not claim Windows/macOS application compatibility unless a specific compatibility path has been tested.
+   - Prefer established package formats and upstream ecosystems where they reduce user friction; avoid creating a proprietary app ecosystem before there is a compelling need.
+
+5. **Consistent multi-architecture product**
+   - Deliver the same core workflows and release quality on x86-64, AArch64, and RV64GC.
+   - Use architecture-specific optimization only when it is measurable and does not fragment the product experience.
+   - Publish hardware support separately for each reference platform; do not imply that every device on an architecture is supported.
+
+6. **Excellent developer and troubleshooting experience**
+   - Provide reproducible build/development environments, useful system diagnostics, clear logs, and documented APIs.
+   - Make it straightforward to inspect resource usage, identify failing services, and recover from a bad configuration.
+   - Keep system interfaces stable and documented so applications do not depend on Aura-internal implementation details.
+
+### Competitive positioning
+
+- **Against mainstream desktop operating systems:** prioritize lower background overhead, transparent system behavior, recoverable updates, and a simpler integrated system-management experience. Do not claim universal superiority in commercial application availability, peripheral support, or gaming.
+- **Against other Linux distributions:** differentiate through the complete Aura workflow—installation, defaults, desktop integration, updates, recovery, diagnostics, and consistent multi-architecture releases—not through branding or a custom kernel alone.
+- **Against minimal Linux distributions:** retain a polished, accessible, general-purpose desktop and safe lifecycle management rather than optimizing only for the smallest image or lowest idle memory number.
+
+### Evidence and acceptance criteria
+
+- Choose named, maintained comparison systems for each reference hardware profile. Record exact OS image, kernel, configuration, software versions, hardware, power mode, and test procedure.
+- Establish baseline measurements before setting numerical targets. Set explicit budgets for idle memory/CPU, boot-to-ready, interactive latency, update/recovery time, and supported application workflows.
+- Compare equivalent functionality and security settings. Publish raw results, repeated-run distributions, and known limitations; do not compare a fully featured Aura installation with a stripped-down competitor.
+- Require measurable improvement in at least one user-important dimension without unacceptable regressions in reliability, security, compatibility, or usability before making a superiority claim.
+- Validate product workflows with task-based tests (for example: install an app, connect to a network, update, recover from a failed update, and diagnose a service failure), not benchmarks alone.
+- Revisit priorities using user feedback and observed usage. Do not expand scope simply to match every feature of Windows, macOS, or another Linux distribution.
+
+## 9. Performance and efficiency engineering
 
 Performance is a product requirement, not a late-stage polish task. Aura OS should aim to outperform a clearly defined Linux reference on selected workloads while preserving reliability, security, and maintainability. Do not claim that Aura is "faster than Linux" based on a single benchmark or an uncontrolled comparison.
 
@@ -240,7 +294,7 @@ Apply optimizations in this order, measuring each change:
 
 First optimize Aura's service set, userspace, build configuration, and hardware integration while using upstream Linux. If profiling identifies a kernel-level bottleneck, test a minimal configuration change or a small, maintainable patch and compare it with upstream. Consider a custom kernel or custom subsystem only when repeatable measurements show a material unmet requirement and the project can sustain its security, driver, and maintenance burden.
 
-## 9. Repository organization (provisional)
+## 10. Repository organization (provisional)
 
 ~~~text
 aura_os/
@@ -264,7 +318,7 @@ aura_os/
 
 Adjust this structure to the selected kernel and build system. Do not create empty directories just to match the diagram.
 
-## 10. Immediate next actions
+## 11. Immediate next actions
 
 1. Write an architecture decision record confirming upstream Linux, the selected stable/LTS line, configuration policy, and patch policy.
 2. Select one reference environment per architecture: x86-64, QEMU RV64GC, and QEMU AArch64.
@@ -272,7 +326,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
 5. Establish per-architecture kernel security-update and regression-test workflows.
 
-## 11. Open design decisions
+## 12. Open design decisions
 
 - Linux distribution/base userspace versus a minimal custom userspace.
 - Init/service manager and system library choices.
@@ -283,7 +337,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 - Secure boot, signing, and component update policy.
 - Exact upstream Linux kernel line and update cadence for each Aura OS release.
 
-## 12. Risk register
+## 13. Risk register
 
 | Risk | Mitigation |
 |---|---|
