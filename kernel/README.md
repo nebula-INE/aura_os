@@ -64,7 +64,7 @@ The builder rejects a dynamically linked BusyBox so the initramfs does not silen
 Install QEMU's x86 system emulator:
 
 ~~~sh
-sudo apt-get install -y qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted parted
+sudo apt-get install -y qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted
 ~~~
 
 Run:
