@@ -89,15 +89,17 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 - [x] Select upstream Linux as the kernel foundation for Aura OS.
 - [ ] Record requirements and a minimum reference platform for each architecture.
-- [ ] Record the Linux kernel line, configuration policy, patch policy, and support lifecycle in an architecture decision record.
-- [ ] Prototype Linux boot and establish reproducible build workflows for all three targets.
+- [x] Record the initial upstream Linux longterm baseline and x86-64 bring-up configuration in architecture decision records.
+- [ ] Build the pinned upstream Linux 6.18.64 x86-64 kernel in CI; then add an initramfs and prove first boot in QEMU.
+- [ ] Extend reproducible kernel build and boot workflows to RV64GC and AArch64.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
-- [ ] Add CI for formatting, static checks, builds, and smoke tests.
+- [x] Add CI for the initial pinned x86-64 Linux kernel build.
+- [ ] Add CI for formatting, static checks, userspace builds, and boot smoke tests.
 - [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.
 - [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
 
-**Exit criteria:** documented Linux kernel policy, defined platform profiles, and a reproducible first boot.
+**Exit criteria:** documented Linux kernel policy, defined platform profiles, a reproducible x86-64 kernel build, and a verified QEMU first boot.
 
 ### Phase 1 — Three-architecture bootable base
 
