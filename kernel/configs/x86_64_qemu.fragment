@@ -1,0 +1,25 @@
+# Aura OS x86-64 QEMU bring-up fragment
+# Merged on top of the upstream x86_64_defconfig.
+
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_RD_GZIP=y
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+CONFIG_TMPFS=y
+CONFIG_PROC_FS=y
+CONFIG_SYSFS=y
+
+# QEMU virtio devices (built in for the first boot path).
+CONFIG_VIRTIO=y
+CONFIG_VIRTIO_PCI=y
+CONFIG_VIRTIO_BLK=y
+CONFIG_VIRTIO_NET=y
+
+# Serial console for deterministic CI diagnostics.
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
+CONFIG_PRINTK_TIME=y
+
+# Keep the initial image broadly useful while avoiding debug overhead.
+CONFIG_EFI=y
+CONFIG_EFI_STUB=y
