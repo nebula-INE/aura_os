@@ -4,16 +4,22 @@ on:
   push:
     paths:
       - "kernel/**"
+      - "initramfs/**"
       - "scripts/build-kernel.sh"
       - "scripts/build-initramfs.sh"
+      - "scripts/build-initramfs-target.sh"
       - "scripts/test-kernel-qemu.sh"
+      - "scripts/test-kernel-qemu-multiarch.sh"
       - ".github/workflows/kernel-build.yml"
   pull_request:
     paths:
       - "kernel/**"
+      - "initramfs/**"
       - "scripts/build-kernel.sh"
       - "scripts/build-initramfs.sh"
+      - "scripts/build-initramfs-target.sh"
       - "scripts/test-kernel-qemu.sh"
+      - "scripts/test-kernel-qemu-multiarch.sh"
       - ".github/workflows/kernel-build.yml"
   workflow_dispatch:
 
@@ -57,12 +63,71 @@ jobs:
           path: |
             build/kernel/arch/x86/boot/bzImage
             build/kernel/.config
-            build/kernel/bzImage.sha256
+            build/kernel/x86_64-kernel-image.sha256
             build/kernel/source-verification.txt
             build/initramfs/aura-initramfs.cpio.gz
             build/initramfs/aura-initramfs.cpio.gz.sha256
             build/qemu/aura-qemu-boot.log
             build/qemu/firmware-provenance.txt
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  cross-architecture-qemu:
+    name: Verify, build, and boot Linux (${{ matrix.target_arch }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_arch: riscv64
+            cross_packages: gcc-riscv64-linux-gnu qemu-system-misc
+          - target_arch: aarch64
+            cross_packages: gcc-aarch64-linux-gnu qemu-system-arm
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Install cross toolchain and QEMU
+        env:
+          CROSS_PACKAGES: ${{ matrix.cross_packages }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
+            git gnupg curl cpio gzip ${CROSS_PACKAGES}
+
+      - name: Verify source and cross-build upstream Linux kernel
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-kernel.sh
+
+      - name: Build target-native static initramfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: bash scripts/build-initramfs-target.sh
+
+      - name: Boot target kernel and initramfs in QEMU
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: bash scripts/test-kernel-qemu-multiarch.sh
+
+      - name: Upload kernel, initramfs, provenance, and boot log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-linux-${{ matrix.target_arch }}-qemu-bringup
+          path: |
+            build/kernel/arch/**/boot/Image
+            build/kernel/.config
+            build/kernel/*-kernel-image.sha256
+            build/kernel/source-verification.txt
+            build/initramfs/aura-initramfs-${{ matrix.target_arch }}.cpio.gz
+            build/initramfs/aura-initramfs-${{ matrix.target_arch }}.cpio.gz.sha256
+            build/qemu/aura-${{ matrix.target_arch }}-qemu-boot.log
+            build/qemu/${{ matrix.target_arch }}-firmware-provenance.txt
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7

@@ -1,6 +1,6 @@
 # Aura OS — Development Plan
 
-> Status: Planning
+> Status: Active bring-up
 > Project: aura_os
 > Last updated: 2026-11-18
 
@@ -91,7 +91,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Record requirements and a minimum reference platform for each architecture.
 - [x] Record the initial upstream Linux longterm baseline and x86-64 bring-up configuration in architecture decision records.
 - [x] Build the pinned upstream Linux 6.18.64 x86-64 kernel in CI; generate a minimal initramfs and verify first boot through OVMF UEFI in QEMU (AURA_INIT_OK / AURA_QEMU_TEST_PASS; CI run 44301482434).
-- [ ] Extend reproducible kernel build and boot workflows to RV64GC and AArch64.
+- [x] Add target-specific kernel, static initramfs, and QEMU smoke-test workflows for RV64GC and AArch64 (initial emulator profiles; hardware support is not implied).
+- [ ] Pass both new cross-architecture CI jobs and inspect their boot artifacts.
 - [ ] Choose base userspace, init/service model, build system, and packaging direction.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
 - [x] Add CI for the initial pinned x86-64 Linux kernel build.
@@ -181,8 +182,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 | Target | Initial baseline to define | Validation environment |
 |---|---|---|
 | x86-64 | UEFI PC profile, CPU baseline, graphics/storage expectations | QEMU + reference PC |
-| RISC-V RV64GC | ISA extensions, firmware/boot protocol, device-tree and virt-board profile | QEMU virt + reference board |
-| ARM AArch64 | Reference board or UEFI-capable platform, firmware and device-tree expectations | QEMU AArch64 + reference device |
+| RISC-V RV64GC | QEMU `virt`, RV64GC CPU model, OpenSBI firmware, generated device tree, 16550 UART; physical-board firmware remains to be selected | QEMU `qemu-system-riscv64` + later reference board |
+| ARM AArch64 | QEMU `virt`, AArch64 `Image`, PL011 UART; current smoke test uses QEMU's direct Linux loader, not UEFI | QEMU `qemu-system-aarch64` + later UEFI/reference device |
 
 Specify exact CPU extensions, firmware versions, and device models before claiming compatibility. Compilation alone is not support; boot and usable-device validation must be tracked separately.
 
@@ -358,7 +359,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 
 1. Record the selected upstream Linux kernel policy and first-boot reference platform in architecture decision records.
 2. Bring up x86-64 in QEMU first, with serial boot logs and a minimal initramfs.
-3. Establish the reproducible build and smoke-test workflow, then extend it to QEMU RV64GC and AArch64.
+3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
 5. Establish per-architecture kernel security-update and regression-test workflows.
 
