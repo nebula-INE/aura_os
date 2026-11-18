@@ -38,7 +38,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-            git gnupg curl busybox-static cpio gzip qemu-system-x86 ovmf grub-efi-amd64-bin mtools
+            git gnupg curl busybox-static cpio gzip qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted
 
       - name: Verify source and build upstream Linux kernel
         run: JOBS=2 bash scripts/build-kernel.sh
