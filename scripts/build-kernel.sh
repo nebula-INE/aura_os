@@ -32,30 +32,39 @@ mkdir -p "${WORK_DIR}" "${OUT_DIR}" "${KEYRING_DIR}"
 chmod 700 "${KEYRING_DIR}"
 export GNUPGHOME="${KEYRING_DIR}"
 EXPECTED_FINGERPRINT="$(printf '%s' "${LINUX_KERNEL_SIGNING_KEY_FINGERPRINT}" | tr '[:lower:]' '[:upper:]')"
+SIGNING_KEY_ID="${EXPECTED_FINGERPRINT: -16}"
+
+fingerprint_is_present() {
+  gpg --batch --with-colons --list-keys 2>/dev/null |
+    awk -F: -v expected="${EXPECTED_FINGERPRINT}" '$1 == "fpr" && toupper($10) == expected { found = 1 } END { exit !found }'
+}
+
+fetch_and_check_key() {
+  local url="$1"
+  local key_file="${WORK_DIR}/linux-stable-maintainer-key.asc"
+  if curl --fail --location --retry 2 --connect-timeout 10 --max-time 45 \
+    --output "$key_file" "$url" &&
+    gpg --batch --import "$key_file" &&
+    fingerprint_is_present; then
+    return 0
+  fi
+  return 1
+}
 
 echo "Importing the Linux stable maintainer key through kernel.org WKD..."
-if ! gpg --batch --locate-keys "${LINUX_KERNEL_SIGNER}"; then
-  echo "warning: kernel.org WKD is unavailable; trying fingerprint-addressed HTTPS key endpoints." >&2
-  KEY_FILE="${WORK_DIR}/linux-stable-maintainer-key.asc"
-  fetch_key() {
-    local url="$1"
-    if curl --fail --location --retry 2 --connect-timeout 10 --max-time 45 \
-      --output "${KEY_FILE}" "${url}" &&
-      gpg --batch --import "${KEY_FILE}"; then
-      return 0
+if ! gpg --batch --locate-keys "${LINUX_KERNEL_SIGNER}" || ! fingerprint_is_present; then
+  echo "warning: kernel.org WKD did not provide the pinned key; trying kernel.org's published keyring." >&2
+  if ! fetch_and_check_key "https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/${SIGNING_KEY_ID}.asc"; then
+    echo "warning: kernel.org keyring lookup failed; trying the Ubuntu OpenPGP keyserver." >&2
+    if ! fetch_and_check_key "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${EXPECTED_FINGERPRINT}"; then
+      echo "error: unable to retrieve the pinned signing key from trusted key sources." >&2
+      exit 1
     fi
-    return 1
-  }
-  if ! fetch_key "https://keys.openpgp.org/vks/v1/by-fingerprint/${EXPECTED_FINGERPRINT}" &&
-    ! fetch_key "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${EXPECTED_FINGERPRINT}"; then
-    echo "error: unable to retrieve the pinned signing key from WKD or HTTPS keyservers." >&2
-    exit 1
   fi
 fi
 
-if ! gpg --batch --with-colons --list-keys "${LINUX_KERNEL_SIGNER}" |
-  awk -F: -v expected="${EXPECTED_FINGERPRINT}" '$1 == "fpr" && toupper($10) == expected { found = 1 } END { exit !found }'; then
-  echo "error: the retrieved key does not match the pinned kernel.org fingerprint." >&2
+if ! fingerprint_is_present; then
+  echo "error: no imported key matches the pinned kernel.org fingerprint." >&2
   echo "Expected: ${EXPECTED_FINGERPRINT}" >&2
   exit 1
 fi
