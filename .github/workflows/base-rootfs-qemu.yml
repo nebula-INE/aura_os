@@ -13,7 +13,8 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
       - "scripts/verify_base_rootfs.py"
-      - "scripts/ensure-ubuntu-apt-sources.sh"\n      - "tests/test_aura_firstboot.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "tests/test_aura_firstboot.py"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   pull_request:
@@ -28,7 +29,8 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
       - "scripts/verify_base_rootfs.py"
-      - "scripts/ensure-ubuntu-apt-sources.sh"\n      - "tests/test_aura_firstboot.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "tests/test_aura_firstboot.py"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   workflow_dispatch:
@@ -66,8 +68,10 @@ jobs:
         run: |
           bash -n scripts/ensure-ubuntu-apt-sources.sh scripts/build-kernel.sh scripts/build-initramfs-target.sh \
             scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
-            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh system/base/firstboot/aura-firstboot
-          python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v\n          python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
+            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh
+          bash -n system/base/firstboot/aura-firstboot
+          python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+          python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
 
       - name: Install kernel, rootfs, and QEMU dependencies
