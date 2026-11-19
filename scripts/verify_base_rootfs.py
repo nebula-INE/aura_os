@@ -16,7 +16,7 @@ ARCHITECTURES = {
     "aarch64": {"debian": "arm64", "elf_machine": 183},
     "riscv64": {"debian": "riscv64", "elf_machine": 243},
 }
-REQUIRED_PACKAGES = {"apt", "dbus", "libc6", "systemd", "systemd-sysv"}
+REQUIRED_PACKAGES = {"apt", "dbus", "debian-archive-keyring", "libc6", "systemd", "systemd-resolved", "systemd-sysv"}
 
 
 def _read_os_release(path: Path) -> dict[str, str]:
