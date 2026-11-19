@@ -58,6 +58,14 @@ jobs:
       - name: Check out Aura OS
         uses: actions/checkout@v4
 
+      - name: Check shell syntax and existing unit tests
+        run: |
+          bash -n scripts/build-kernel.sh scripts/build-initramfs-target.sh \
+            scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
+            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh
+          python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+          python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
+
       - name: Install kernel, rootfs, and QEMU dependencies
         env:
           CROSS_PACKAGES: ${{ matrix.cross_packages }}
