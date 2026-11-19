@@ -54,8 +54,16 @@ jobs:
       - name: Install Debian bootstrap and foreign architecture emulation tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y mmdebstrap qemu-user qemu-user-binfmt binfmt-support curl gnupg
+          sudo apt-get install -y mmdebstrap qemu-user-static binfmt-support curl gnupg
           sudo systemctl restart systemd-binfmt.service
+          for target in aarch64 riscv64; do
+            handler="/proc/sys/fs/binfmt_misc/qemu-$target"
+            if [[ ! -r "$handler" ]] || ! grep -Eq '^flags:.*F' "$handler"; then
+              echo "error: chroot-safe QEMU binfmt handler is missing or lacks the F flag: $handler" >&2
+              [[ -r "$handler" ]] && cat "$handler" >&2
+              exit 1
+            fi
+          done
           sudo bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
 
       - name: Build target-native Debian root filesystem
