@@ -5,6 +5,8 @@ TOTAL_WAIT_SECONDS="${AURA_NETWORK_TOTAL_WAIT_SECONDS:-120}"
 PROBE_TIMEOUT_SECONDS="${AURA_NETWORK_PROBE_TIMEOUT_SECONDS:-3}"
 DEADLINE=$((SECONDS + TOTAL_WAIT_SECONDS))
 
+command -v timeout >/dev/null 2>&1 || { echo "error: timeout command is required" >&2; exit 1; }
+
 report() {
   printf '%s\\n' "$1" > /dev/console
 }
@@ -37,7 +39,7 @@ wait_for() {
     # Bound each probe as well as the overall smoke test. In particular,
     # resolver retransmissions must not turn a nominal 120-second wait into
     # several minutes of blocking inside getent.
-    if timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" "$@"; then
+    if "$@"; then
       report "$marker"
       return 0
     fi
@@ -73,7 +75,7 @@ has_ipv6_link_local() {
 }
 
 resolves_debian_mirror() {
-  getent ahostsv4 deb.debian.org >/dev/null 2>&1
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" getent ahostsv4 deb.debian.org >/dev/null 2>&1
 }
 
 ntp_is_enabled() {
