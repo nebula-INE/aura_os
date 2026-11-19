@@ -113,24 +113,13 @@ static void switch_to_debian_rootfs(void) {
         fail_and_halt("[Aura OS] ERROR: cannot prepare /sys in the new root");
     }
 
-    /* Remove the tiny, known initramfs tree before overmounting rootfs.
-       The running /init inode remains valid until execve() replaces it. */
-    if (unlink("/init") != 0 && errno != ENOENT) {
-        perror("[Aura OS] ERROR: removing initramfs /init failed");
-        fail_and_halt("[Aura OS] ERROR: cannot clean up the temporary initramfs");
-    }
-
-    const char *empty_directories[] = {
-        "/dev", "/proc", "/sys", "/root", "/tmp"
-    };
-    for (size_t i = 0;
-         i < sizeof(empty_directories) / sizeof(empty_directories[0]);
-         ++i) {
-        if (rmdir(empty_directories[i]) != 0 && errno != ENOENT) {
-            perror("[Aura OS] ERROR: removing an empty initramfs directory failed");
-            fail_and_halt("[Aura OS] ERROR: cannot clean up the temporary initramfs");
-        }
-    }
+    /*
+     * Do not require the initramfs tree to be empty before switching roots.
+     * The overmount below detaches the old initramfs root from the namespace;
+     * after chroot() and execve(), the old /init image and tree can be reclaimed.
+     * /dev, /proc, or /sys may still contain implementation-specific entries
+     * or active references, so rmdir() here is not a correctness condition.
+     */
 
     /* Keep cwd on the new root while moving it over the immutable rootfs. */
     if (chdir("/newroot") != 0) {
