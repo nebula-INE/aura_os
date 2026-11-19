@@ -206,6 +206,9 @@ cat "$CHECKSUM_FILE"
   printf 'Bootstrap tool: mmdebstrap --variant=minbase\n'
   printf 'Init/service manager: systemd (systemd-sysv)\n'
   printf 'Package manager: apt/dpkg\n'
+  printf 'Wired networking: systemd-networkd with DHCPv4/DHCPv6 and IPv6 RA\n'
+  printf 'DNS: systemd-resolved stub resolver\n'
+  printf 'Time synchronization: systemd-timesyncd with DHCP NTP and Debian fallback\n'
   printf 'Root account: locked; no default password configured\n'
   printf 'Desktop: not installed\n'
   printf 'Archive: %s\n' "$ARCHIVE"
