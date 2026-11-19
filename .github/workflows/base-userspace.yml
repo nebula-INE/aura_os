@@ -1,0 +1,86 @@
+name: Aura base userspace build
+
+on:
+  push:
+    paths:
+      - "system/base/**"
+      - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
+      - "scripts/verify_base_rootfs.py"
+      - "tests/test_base_rootfs.py"
+      - ".github/workflows/base-userspace.yml"
+  pull_request:
+    paths:
+      - "system/base/**"
+      - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
+      - "scripts/verify_base_rootfs.py"
+      - "tests/test_base_rootfs.py"
+      - ".github/workflows/base-userspace.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: base-userspace-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-base-userspace:
+    name: Build Debian base userspace (${{ matrix.target_arch }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_arch: x86_64
+            debian_arch: amd64
+          - target_arch: aarch64
+            debian_arch: arm64
+          - target_arch: riscv64
+            debian_arch: riscv64
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Check base bootstrap shell syntax
+        run: bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh
+
+      - name: Run base rootfs validator unit tests
+        run: python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+
+      - name: Install Debian bootstrap and foreign architecture emulation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mmdebstrap qemu-user-static binfmt-support curl gnupg
+          sudo systemctl restart systemd-binfmt.service
+          for target in aarch64 riscv64; do
+            handler="/proc/sys/fs/binfmt_misc/qemu-$target"
+            if [[ ! -r "$handler" ]] || ! grep -Eq '^flags:.*F' "$handler"; then
+              echo "error: chroot-safe QEMU binfmt handler is missing or lacks the F flag: $handler" >&2
+              [[ -r "$handler" ]] && cat "$handler" >&2
+              exit 1
+            fi
+          done
+          sudo bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
+
+      - name: Build target-native Debian root filesystem
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
+          DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
+
+      - name: Upload root filesystem, package manifest, and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-base-userspace-${{ matrix.target_arch }}
+          path: |
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz.sha256
+            build/base-userspace/${{ matrix.target_arch }}/packages.tsv
+            build/base-userspace/${{ matrix.target_arch }}/build-provenance.txt
+          if-no-files-found: error
+          retention-days: 7
