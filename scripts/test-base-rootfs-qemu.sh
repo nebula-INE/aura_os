@@ -25,7 +25,7 @@ case "$TARGET_ARCH" in
       -append "$KERNEL_CMDLINE"
       -drive if=none,id=auraroot,format=raw,file="$ROOTFS_IMAGE"
       -device virtio-blk-pci,drive=auraroot
-      -netdev user,id=auranet,ipv6=on
+      -netdev user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3
       -device virtio-net-pci,netdev=auranet
       -display none
       -serial stdio
@@ -50,7 +50,7 @@ case "$TARGET_ARCH" in
       -append "$KERNEL_CMDLINE"
       -drive if=none,id=auraroot,format=raw,file="$ROOTFS_IMAGE"
       -device virtio-blk-device,drive=auraroot
-      -netdev user,id=auranet,ipv6=on
+      -netdev user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3
       -device virtio-net-device,netdev=auranet
       -display none
       -serial stdio
@@ -74,7 +74,7 @@ case "$TARGET_ARCH" in
       -append "$KERNEL_CMDLINE"
       -drive if=none,id=auraroot,format=raw,file="$ROOTFS_IMAGE"
       -device virtio-blk-device,drive=auraroot
-      -netdev user,id=auranet,ipv6=on
+      -netdev user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3
       -device virtio-net-device,netdev=auranet
       -display none
       -serial stdio
@@ -118,7 +118,7 @@ PROVENANCE_FILE="$LOG_DIR/$TARGET_ARCH-rootfs-boot-provenance.txt"
   printf 'QEMU: %s\n' "$("$QEMU_BIN" --version | head -n 1)"
   printf 'CPU model: %s\n' "$CPU_MODEL"
   printf 'Memory: 2048 MiB\n'
-  printf 'Network: QEMU user-mode IPv4/IPv6 with DHCP and DNS\n'
+  printf 'Network: QEMU user-mode dual-stack 10.0.2.0/24; DHCP starts at 10.0.2.15; DNS 10.0.2.3\n'
   printf 'Console: %s\n' "$CONSOLE"
   printf 'Kernel command line: %s\n' "$KERNEL_CMDLINE"
   printf 'Kernel SHA-256:\n'
