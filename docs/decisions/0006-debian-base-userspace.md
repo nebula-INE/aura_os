@@ -17,7 +17,8 @@ Use Debian 13 (codename `trixie`) as the first shared base userspace source for 
 - x86-64 maps to Debian `amd64`.
 - AArch64 maps to Debian `arm64`.
 - RISC-V RV64GC maps to Debian `riscv64`.
-- Bootstrap with `mmdebstrap --variant=minbase`, using Debian's signed repository metadata and a target-native root filesystem.
+- Bootstrap with `mmdebstrap --variant=minbase`, using Debian's signed repository metadata and a target-native root filesystem. The CI bootstrap retrieves the official Trixie archive, security, and release public keys, verifies the two published SHA-256 digests and all three full primary-key fingerprints, and passes the resulting keyring to `mmdebstrap`.
+- Include `debian-archive-keyring` in the target rootfs so subsequent apt operations can authenticate Debian updates.
 - Use glibc as the distribution C library.
 - Use apt/dpkg as the package manager and package format.
 - Use systemd as the initial init/service manager through `systemd-sysv`.
@@ -37,6 +38,7 @@ The bootstrap uses `minbase` and a short package list to avoid inheriting a full
 
 - A glibc/systemd base is generally larger than an Alpine/musl/OpenRC base; low memory usage is not assumed.
 - The repository's 512 MiB idle-desktop RAM target remains a measured stretch goal, not a demonstrated result. It must not be reached by disabling basic security, required hardware support, or normal desktop functionality.
+- CI hosts may contain a Debian keyring that predates Trixie's signing keys; the bootstrap therefore prepares an explicit, fingerprint-checked keyring. Its pins must be updated only from Debian's published key announcements and FTP-master key directory.
 - Debian's point-release and security updates can change package versions between builds. Each artifact records the installed package manifest; immutable snapshot pinning is future release-engineering work.
 - This decision does not imply every board/peripheral on the architecture is supported.
 
