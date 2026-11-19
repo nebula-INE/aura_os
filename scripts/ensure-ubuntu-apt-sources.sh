@@ -22,19 +22,13 @@ candidate_version() {
 
 # Do not trust Candidate alone: apt-cache can report an installed package from
 # /var/lib/dpkg/status even when no Ubuntu package index is configured. Require
-# a build-essential version table entry whose Release metadata is from Ubuntu.
+# an actual package-index entry served from an Ubuntu archive host. Ubuntu's
+# mirror.list-based runner sources may omit the usual "release o=Ubuntu" line.
 ubuntu_archive_candidate_available() {
   apt-cache policy build-essential 2>/dev/null |
     awk '
-      /^[[:space:]]*[0-9]+[[:space:]]+https?:\/\// {
-        source_entry = 1
-        next
-      }
-      /^[[:space:]]+release / {
-        if (source_entry && $0 ~ /(^|,)o=Ubuntu(,|$)/) {
-          found = 1
-        }
-        source_entry = 0
+      /^[[:space:]]*[0-9]+[[:space:]]+https?:\/\/[^/]*\.ubuntu\.com\// {
+        found = 1
       }
       END { exit !found }
     '
