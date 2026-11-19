@@ -13,7 +13,7 @@ case "${TARGET_ARCH}" in
   riscv64) CROSS_COMPILE="${CROSS_COMPILE:-riscv64-linux-gnu-}" ;;
   aarch64) CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}" ;;
   *)
-    echo "error: TARGET_ARCH must be riscv64 or aarch64." >&2
+    echo "error: TARGET_ARCH must be x86_64, riscv64, or aarch64." >&2
     exit 2
     ;;
 esac
@@ -27,7 +27,7 @@ require_command() {
   }
 }
 
-for cmd in "$CC" cpio gzip find sort readelf sha256sum; do
+for cmd in "$CC" cpio gzip find sort readelf sha256sum grep; do
   require_command "$cmd"
 done
 if [[ ! -s "$SOURCE_FILE" ]]; then
