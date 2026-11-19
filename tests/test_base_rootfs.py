@@ -15,7 +15,9 @@ from verify_base_rootfs import ARCHITECTURES, validate_rootfs  # noqa: E402
 def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     expected = ARCHITECTURES[target_arch]["elf_machine"]
     for directory in (
-        "etc", "usr/lib/systemd", "usr/lib/systemd/system", "usr/lib/aura", "usr/bin", "sbin", "var/lib/dpkg", "etc/systemd/system/multi-user.target.wants", "etc/systemd/network", "etc/systemd/timesyncd.conf.d"
+        "etc", "usr/lib/systemd", "usr/lib/systemd/system", "usr/lib/systemd/system/sysinit.target.wants",
+        "usr/lib/aura", "usr/bin", "usr/sbin", "sbin", "var/lib/dpkg",
+        "etc/systemd/system/multi-user.target.wants", "etc/systemd/network", "etc/systemd/timesyncd.conf.d"
     ):
         (root / directory).mkdir(parents=True, exist_ok=True)
 
@@ -32,10 +34,14 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "sbin/init").symlink_to("../usr/lib/systemd/systemd")
     (root / "usr/bin/apt-get").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/bin/apt-get").chmod(0o755)
+    (root / "usr/lib/systemd/systemd-udevd").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (root / "usr/lib/systemd/systemd-udevd").chmod(0o755)
+    (root / "usr/sbin/modprobe").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (root / "usr/sbin/modprobe").chmod(0o755)
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "udev"})
         ) + "\n",
         encoding="utf-8",
     )
@@ -56,6 +62,11 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
         (root / "usr/lib/systemd/system" / unit).write_text("[Service]\n", encoding="utf-8")
         (root / "etc/systemd/system/multi-user.target.wants" / unit).symlink_to(
             f"/usr/lib/systemd/system/{unit}"
+        )
+    for unit in ("systemd-udevd.service", "systemd-udev-trigger.service"):
+        (root / "usr/lib/systemd/system" / unit).write_text("[Service]\n", encoding="utf-8")
+        (root / "usr/lib/systemd/system/sysinit.target.wants" / unit).symlink_to(
+            f"../{unit}"
         )
     (root / "etc/systemd/network/20-wired.network").write_text(
         "[Match]\nType=ether\n[Network]\nDHCP=yes\nIPv6AcceptRA=yes\nLinkLocalAddressing=ipv6\n",
@@ -175,7 +186,7 @@ class BaseRootfsTests(unittest.TestCase):
             root = Path(tmp) / "rootfs"
             make_rootfs(root)
             status = root / "var/lib/dpkg/status"
-            packages = {"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv"}
+            packages = {"apt", "dbus", "debian-archive-keyring", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "udev"}
             status.write_text(
                 "\n\n".join(
                     f"Package: {name}\nStatus: install ok installed"
