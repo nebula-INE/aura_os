@@ -87,7 +87,7 @@ jobs:
           fi
 
       - name: Prepare verified Debian Trixie signing keyring
-        run: sudo bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
+        run: bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
 
       - name: Build and verify upstream Linux kernel
         env:
