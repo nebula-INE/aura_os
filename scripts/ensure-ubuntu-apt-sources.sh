@@ -20,14 +20,33 @@ candidate_version() {
     awk '/Candidate:/ { print $2; exit }'
 }
 
+# Do not trust Candidate alone: apt-cache can report an installed package from
+# /var/lib/dpkg/status even when no Ubuntu package index is configured. Require
+# a build-essential version table entry whose Release metadata is from Ubuntu.
+ubuntu_archive_candidate_available() {
+  apt-cache policy build-essential 2>/dev/null |
+    awk '
+      /^[[:space:]]*[0-9]+[[:space:]]+https?:\/\// {
+        source_entry = 1
+        next
+      }
+      /^[[:space:]]+release / {
+        if (source_entry && $0 ~ /(^|,)o=Ubuntu(,|$)/) {
+          found = 1
+        }
+        source_entry = 0
+      }
+      END { exit !found }
+    '
+}
+
 update_status=0
 if ! apt-get update -o Acquire::Retries=3; then
   update_status=1
 fi
 
-candidate="$(candidate_version)"
-if [[ "$update_status" -ne 0 || -z "$candidate" || "$candidate" == "(none)" ]]; then
-  echo "Ubuntu Noble package candidates are unavailable; adding official archive and security sources."
+if [[ "$update_status" -ne 0 ]] || ! ubuntu_archive_candidate_available; then
+  echo "Ubuntu archive package indexes are unavailable; adding official archive and security sources."
 
   cat > /etc/apt/sources.list.d/aura-ubuntu-noble.sources <<'EOF'
 Types: deb
@@ -44,13 +63,20 @@ Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 EOF
 
   apt-get update -o Acquire::Retries=3
-  candidate="$(candidate_version)"
 fi
 
-if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
-  echo "error: build-essential still has no candidate after enabling official Ubuntu Noble sources." >&2
+if ! ubuntu_archive_candidate_available; then
+  echo "error: build-essential has no candidate backed by an Ubuntu archive index." >&2
   echo "APT sources visible to this runner:" >&2
   grep -RhsE '^(URIs:|Suites:|deb )' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null >&2 || true
+  echo "apt-cache policy build-essential:" >&2
+  apt-cache policy build-essential >&2 || true
+  exit 1
+fi
+
+candidate="$(candidate_version)"
+if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
+  echo "error: build-essential has no installable candidate after enabling Ubuntu Noble sources." >&2
   exit 1
 fi
 
