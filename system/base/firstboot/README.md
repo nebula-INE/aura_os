@@ -3,7 +3,7 @@
 The Debian base image deliberately ships without a usable root password and
 without a pre-created human account. On a normal boot, systemd starts
 `aura-firstboot.service` before the login gettys and runs
-`/usr/lib/aura/aura-firstboot` on `/dev/console`.
+`/usr/lib/aura/aura-firstboot` on `/dev/console`. The wizard opens `/dev/console` directly for username input and writes each prompt to that same device instead of relying on a shell prompt being routed through a service's stderr stream.
 
 The setup flow:
 
@@ -27,4 +27,4 @@ The persistent-root QEMU smoke test adds `aura.firstboot.skip` to its kernel
 command line. That test-only argument skips the interactive wizard so the
 automated smoke service can verify systemd startup without a human at the
 console. Normal boots do not include the argument and will run first-boot
-setup.
+setup. The QEMU integration image adds a test-only agetty on `/dev/console` because some emulator kernels expose the console device without creating the matching `/dev/ttyS0` node expected by the generated serial-getty unit. This extra getty is not installed into normal rootfs images.
