@@ -17,8 +17,11 @@ On Debian or Ubuntu, install the bootstrap and foreign-architecture emulation to
 
 ~~~sh
 sudo apt-get update
-sudo apt-get install -y mmdebstrap qemu-user qemu-user-binfmt binfmt-support curl gnupg
+sudo apt-get install -y mmdebstrap qemu-user-static binfmt-support curl gnupg
 sudo systemctl restart systemd-binfmt.service
+# Confirm both foreign architectures use a chroot-safe (F / fix-binary) handler.
+grep -E '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-aarch64
+grep -E '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-riscv64
 sudo bash scripts/prepare-debian-trixie-keyring.sh
 ~~~
 
