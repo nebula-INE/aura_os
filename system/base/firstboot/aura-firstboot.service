@@ -7,7 +7,7 @@ ConditionKernelCommandLine=!aura.firstboot.skip
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/aura/aura-firstboot
+ExecStart=/bin/bash /usr/lib/aura/aura-firstboot
 RemainAfterExit=yes
 StandardInput=tty-force
 StandardOutput=tty
