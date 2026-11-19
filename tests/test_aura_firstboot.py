@@ -32,9 +32,10 @@ class FirstBootSetupTests(unittest.TestCase):
         self._write_command(
             "useradd",
             'for username do :; done\n'
-            'printf "%s\\n" "$username" >> "$AURA_TEST_EXISTING_USERS"\n'
+            'status="${AURA_TEST_USERADD_EXIT:-0}"\n'
+            'if [ "$status" -eq 0 ]; then printf "%s\\n" "$username" >> "$AURA_TEST_EXISTING_USERS"; fi\n'
             'printf "useradd:%s\\n" "$*" >> "$AURA_TEST_COMMAND_LOG"\n'
-            'exit "${AURA_TEST_USERADD_EXIT:-0}"\n',
+            'exit "$status"\n',
         )
         self._write_logged_command("passwd", "AURA_TEST_PASSWD_EXIT")
         self._write_logged_command("userdel", "AURA_TEST_USERDEL_EXIT")
