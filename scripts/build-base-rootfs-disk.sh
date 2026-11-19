@@ -92,14 +92,12 @@ e2fsck -fn "$OUTPUT_IMAGE"
   cd "$(dirname "$OUTPUT_IMAGE")"
   sha256sum "$(basename "$OUTPUT_IMAGE")" > "$(basename "$OUTPUT_IMAGE").sha256"
 )
-if [[ -n "${SUDO_UID:-}" && -n "${SUDO_GID:-}" ]]; then
+if [[ "${SUDO_UID:-}" =~ ^[0-9]+$ && "${SUDO_GID:-}" =~ ^[0-9]+$ ]]; then
   chown "$SUDO_UID:$SUDO_GID" "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
-  chmod 0644 "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
 else
-  # Direct root invocation has no recorded caller; allow the local test user
-  # to open the temporary image read-write rather than silently making it RO.
-  chmod 0666 "$OUTPUT_IMAGE"
-  chmod 0644 "$OUTPUT_IMAGE.sha256"
+  # Direct root invocation is expected to run QEMU as root; do not make the
+  # image world-writable just to accommodate an unknown caller.
+  chmod 0644 "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
 fi
 cat "$OUTPUT_IMAGE.sha256"
 printf 'Created Aura OS %s persistent rootfs image: %s\n' "$TARGET_ARCH" "$OUTPUT_IMAGE"
