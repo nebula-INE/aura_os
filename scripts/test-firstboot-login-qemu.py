@@ -194,7 +194,7 @@ def run_second_boot(qemu: str, kernel: Path, initramfs: Path, image: Path, conso
     )
     try:
         expect_login_prompt(child, reject_wizard=True)
-        authenticate_console(child, verify_sudo=False)
+        authenticate_console(child, verify_sudo=True)
         poweroff_guest(child, log_file)
         log_text = (LOG_DIR / f"aura-{TARGET_ARCH}-firstboot-login-2.log").read_text(
             encoding="utf-8", errors="replace"
