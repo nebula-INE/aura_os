@@ -115,7 +115,7 @@ def expect_firstboot_prompt(child: pexpect.spawn) -> None:
 
 def expect_login_prompt(child: pexpect.spawn, *, reject_wizard: bool = False) -> None:
     patterns = [
-        re.compile(r"login:\\s*", re.IGNORECASE),
+        re.compile(r"login:\s*", re.IGNORECASE),
     ]
     if reject_wizard:
         patterns.insert(0, re.compile(r"New username", re.IGNORECASE))
@@ -126,9 +126,9 @@ def expect_login_prompt(child: pexpect.spawn, *, reject_wizard: bool = False) ->
 
 def authenticate_console(child: pexpect.spawn, *, verify_sudo: bool) -> None:
     child.sendline(USERNAME)
-    child.expect(re.compile(r"Password:\\s*", re.IGNORECASE), timeout=60)
+    child.expect(re.compile(r"Password:\s*", re.IGNORECASE), timeout=60)
     child.sendline(PASSWORD)
-    child.expect(re.compile(r"(?m)[^\\r\\n]*[#$] ?$"), timeout=90)
+    child.expect(re.compile(r"(?m)[^\r\n]*[#$] ?$"), timeout=90)
 
     child.sendline(
         "printf 'AURA_LOGIN_USER=%s\\nAURA_LOGIN_HOME=%s\\nAURA_LOGIN_GROUPS=%s\\n' "
@@ -136,7 +136,7 @@ def authenticate_console(child: pexpect.spawn, *, verify_sudo: bool) -> None:
     )
     child.expect("AURA_LOGIN_USER=" + USERNAME, timeout=30)
     child.expect("AURA_LOGIN_HOME=/home/" + USERNAME, timeout=30)
-    child.expect(re.compile(r"AURA_LOGIN_GROUPS=.*\\bsudo\\b"), timeout=30)
+    child.expect(re.compile(r"AURA_LOGIN_GROUPS=.*\bsudo\b"), timeout=30)
 
     if verify_sudo:
         child.sendline(
@@ -152,7 +152,7 @@ def authenticate_console(child: pexpect.spawn, *, verify_sudo: bool) -> None:
             "&& echo AURA_FIRSTBOOT_MARKER_OK; sudo -n passwd -S root"
         )
         child.expect("AURA_FIRSTBOOT_MARKER_OK", timeout=30)
-        child.expect(re.compile(r"root\\s+L\\s"), timeout=30)
+        child.expect(re.compile(r"root\s+L\s"), timeout=30)
 
 
 def poweroff_guest(child: pexpect.spawn, log_file: object) -> None:
@@ -172,9 +172,9 @@ def run_first_boot(qemu: str, kernel: Path, initramfs: Path, image: Path, consol
     try:
         expect_firstboot_prompt(child)
         child.sendline(USERNAME)
-        child.expect(re.compile(r"New password:\\s*", re.IGNORECASE), timeout=45)
+        child.expect(re.compile(r"New password:\s*", re.IGNORECASE), timeout=45)
         child.sendline(PASSWORD)
-        child.expect(re.compile(r"Retype new password:\\s*", re.IGNORECASE), timeout=45)
+        child.expect(re.compile(r"Retype new password:\s*", re.IGNORECASE), timeout=45)
         child.sendline(PASSWORD)
         child.expect("Aura OS initial administrator account is ready", timeout=90)
         expect_login_prompt(child)
