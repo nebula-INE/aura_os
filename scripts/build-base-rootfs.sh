@@ -155,6 +155,7 @@ tar \
 
 test -s "$ARCHIVE"
 sha256sum "$ARCHIVE" | tee "$CHECKSUM_FILE"
+DEBIAN_KEYRING_SHA256="$(sha256sum "$DEBIAN_KEYRING" | awk -F' ' '{print $1}')"
 
 {
   printf 'Aura OS base userspace build\n'
@@ -165,7 +166,7 @@ sha256sum "$ARCHIVE" | tee "$CHECKSUM_FILE"
   printf 'Bootstrap tool: mmdebstrap --variant=minbase\n'
   printf 'Init/service manager: systemd (systemd-sysv)\n'
   printf 'Package manager: apt/dpkg\n'
-  printf 'Debian keyring SHA-256: %s\n' "$(sha256sum "$DEBIAN_KEYRING" | awk '{print $1}')"
+  printf 'Debian keyring SHA-256: %s\n' "$DEBIAN_KEYRING_SHA256"
   printf 'Root account: locked; no default password configured\n'
   printf 'Desktop: not installed\n'
   printf 'Archive: %s\n' "$ARCHIVE"
