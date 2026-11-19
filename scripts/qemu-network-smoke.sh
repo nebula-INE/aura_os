@@ -66,3 +66,12 @@ wait_for "AURA_NETWORK_DNS_OK" resolves_debian_mirror
 wait_for "AURA_NETWORK_NTP_ENABLED_OK" ntp_is_enabled
 
 report "AURA_ROOTFS_QEMU_PASS"
+
+finish() {
+  local status="$?"
+  if [[ "$status" -ne 0 ]]; then
+    report "AURA_NETWORK_FAIL: smoke script exited with status $status"
+  fi
+  /bin/systemctl --no-block poweroff >/dev/null 2>&1 || true
+}
+trap finish EXIT
