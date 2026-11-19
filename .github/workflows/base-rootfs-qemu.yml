@@ -1,0 +1,146 @@
+name: Aura persistent rootfs QEMU boot
+
+on:
+  push:
+    paths:
+      - "initramfs/init.c"
+      - "kernel/configs/**"
+      - "kernel/linux-version.env"
+      - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs-target.sh"
+      - "scripts/build-base-rootfs.sh"
+      - "scripts/build-base-rootfs-disk.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
+      - "scripts/test-base-rootfs-qemu.sh"
+      - "scripts/verify_base_rootfs.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "system/base/**"
+      - ".github/workflows/base-rootfs-qemu.yml"
+  pull_request:
+    paths:
+      - "initramfs/init.c"
+      - "kernel/configs/**"
+      - "kernel/linux-version.env"
+      - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs-target.sh"
+      - "scripts/build-base-rootfs.sh"
+      - "scripts/build-base-rootfs-disk.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
+      - "scripts/test-base-rootfs-qemu.sh"
+      - "scripts/verify_base_rootfs.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "system/base/**"
+      - ".github/workflows/base-rootfs-qemu.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: base-rootfs-qemu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boot-persistent-rootfs:
+    name: Boot Debian rootfs (${{ matrix.target_arch }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_arch: x86_64
+            cross_packages: ""
+            qemu_package: qemu-system-x86
+          - target_arch: aarch64
+            cross_packages: gcc-aarch64-linux-gnu
+            qemu_package: qemu-system-arm
+          - target_arch: riscv64
+            cross_packages: gcc-riscv64-linux-gnu
+            qemu_package: qemu-system-misc
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax and existing unit tests
+        run: |
+          bash -n scripts/ensure-ubuntu-apt-sources.sh scripts/build-kernel.sh scripts/build-initramfs-target.sh \
+            scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
+            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh
+          python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+          python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
+
+      - name: Install kernel, rootfs, and QEMU dependencies
+        env:
+          CROSS_PACKAGES: ${{ matrix.cross_packages }}
+          QEMU_PACKAGE: ${{ matrix.qemu_package }}
+        run: |
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
+          sudo apt-get install -y \
+            build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
+            git gnupg curl perl cpio gzip binutils e2fsprogs util-linux \
+            mmdebstrap qemu-user-static binfmt-support ${CROSS_PACKAGES} ${QEMU_PACKAGE}
+          sudo systemctl restart systemd-binfmt.service
+          if [[ "${{ matrix.target_arch }}" != "x86_64" ]]; then
+            handler="/proc/sys/fs/binfmt_misc/qemu-${{ matrix.target_arch }}"
+            if [[ ! -r "$handler" ]] || ! grep -Eq '^flags:.*F' "$handler"; then
+              echo "error: chroot-safe QEMU binfmt handler is missing or lacks the F flag: $handler" >&2
+              [[ -r "$handler" ]] && cat "$handler" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Prepare verified Debian Trixie signing keyring
+        run: bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
+
+      - name: Build and verify upstream Linux kernel
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-kernel.sh
+
+      - name: Build target-native persistent-root initramfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: bash scripts/build-initramfs-target.sh
+
+      - name: Build and verify target-native Debian base rootfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
+          DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
+
+      - name: Build ext4 persistent-root disk image
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          ROOTFS_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/rootfs
+          OUTPUT_IMAGE: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4
+        run: sudo --preserve-env=TARGET_ARCH,ROOTFS_DIR,OUTPUT_IMAGE bash scripts/build-base-rootfs-disk.sh
+
+      - name: Boot kernel, switch_root, and start systemd
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          QEMU_TIMEOUT_SECONDS: "180"
+        run: bash scripts/test-base-rootfs-qemu.sh
+
+      - name: Upload kernel, initramfs, rootfs disk, and boot provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-rootfs-boot-${{ matrix.target_arch }}
+          path: |
+            build/kernel/arch/**/boot/bzImage
+            build/kernel/arch/**/boot/Image
+            build/kernel/.config
+            build/kernel/*-kernel-image.sha256
+            build/kernel/source-verification.txt
+            build/initramfs/aura-initramfs-${{ matrix.target_arch }}.cpio.gz
+            build/initramfs/aura-initramfs-${{ matrix.target_arch }}.cpio.gz.sha256
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4.sha256
+            build/qemu/aura-${{ matrix.target_arch }}-rootfs-boot.log
+            build/qemu/${{ matrix.target_arch }}-rootfs-boot-provenance.txt
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

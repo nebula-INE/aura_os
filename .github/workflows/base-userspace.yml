@@ -7,6 +7,7 @@ on:
       - "scripts/build-base-rootfs.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_base_rootfs.py"
       - ".github/workflows/base-userspace.yml"
   pull_request:
@@ -15,6 +16,7 @@ on:
       - "scripts/build-base-rootfs.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_base_rootfs.py"
       - ".github/workflows/base-userspace.yml"
   workflow_dispatch:
@@ -53,7 +55,7 @@ jobs:
 
       - name: Install Debian bootstrap and foreign architecture emulation tools
         run: |
-          sudo apt-get update
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
           sudo apt-get install -y mmdebstrap qemu-user-static binfmt-support curl gnupg
           sudo systemctl restart systemd-binfmt.service
           for target in aarch64 riscv64; do

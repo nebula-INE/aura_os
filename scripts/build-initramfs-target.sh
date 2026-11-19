@@ -9,10 +9,11 @@ ARCHIVE="${OUT_DIR}/aura-initramfs-${TARGET_ARCH}.cpio.gz"
 SOURCE_FILE="${ROOT_DIR}/initramfs/init.c"
 
 case "${TARGET_ARCH}" in
+  x86_64) CROSS_COMPILE="${CROSS_COMPILE:-}" ;;
   riscv64) CROSS_COMPILE="${CROSS_COMPILE:-riscv64-linux-gnu-}" ;;
   aarch64) CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}" ;;
   *)
-    echo "error: TARGET_ARCH must be riscv64 or aarch64." >&2
+    echo "error: TARGET_ARCH must be x86_64, riscv64, or aarch64." >&2
     exit 2
     ;;
 esac
@@ -26,7 +27,7 @@ require_command() {
   }
 }
 
-for cmd in "$CC" cpio gzip find sort readelf sha256sum; do
+for cmd in "$CC" cpio gzip find sort readelf sha256sum grep; do
   require_command "$cmd"
 done
 if [[ ! -s "$SOURCE_FILE" ]]; then
@@ -36,7 +37,7 @@ fi
 
 mkdir -p "$OUT_DIR"
 rm -rf "$ROOTFS_DIR"
-mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,root,tmp}
+mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,root,tmp,newroot}
 chmod 1777 "$ROOTFS_DIR/tmp"
 
 echo "Building static /init for ${TARGET_ARCH} with $CC..."
@@ -58,5 +59,9 @@ readelf -h "$ROOTFS_DIR/init" | grep -E 'Class:|Data:|Machine:'
 )
 
 test -s "$ARCHIVE"
-sha256sum "$ARCHIVE" | tee "$ARCHIVE.sha256"
+(
+  cd "$OUT_DIR"
+  sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256"
+)
+cat "$ARCHIVE.sha256"
 printf 'Created static %s initramfs: %s\n' "$TARGET_ARCH" "$ARCHIVE"
