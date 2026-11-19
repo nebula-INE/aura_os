@@ -1,0 +1,13 @@
+# Minimal shared userspace packages for the first Aura OS base.
+# Keep desktop, network managers, firmware bundles, and optional tools out
+# until their hardware and memory costs are measured.
+systemd-sysv
+dbus
+systemd-resolved
+ca-certificates
+iproute2
+iputils-ping
+locales
+sudo
+e2fsprogs
+util-linux
