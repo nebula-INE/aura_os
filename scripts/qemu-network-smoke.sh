@@ -67,7 +67,7 @@ timesyncd_active() {
 }
 
 has_global_ipv4() {
-  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -4 address show scope global | grep -qE ' inet [0-9]+\\.'
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -4 address show scope global | grep -E ' inet [0-9]+\\.' >/dev/null
 }
 
 has_default_ipv4_route() {
@@ -75,7 +75,7 @@ has_default_ipv4_route() {
 }
 
 has_ipv6_link_local() {
-  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -6 address show scope link | grep -qE ' inet6 fe80:'
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -6 address show scope link | grep -E ' inet6 fe80:' >/dev/null
 }
 
 resolves_debian_mirror() {
