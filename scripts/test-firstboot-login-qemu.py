@@ -85,6 +85,10 @@ def start_guest(
         "-device",
         "virtio-blk-pci,drive=auraroot" if TARGET_ARCH == "x86_64"
         else "virtio-blk-device,drive=auraroot",
+        "-netdev", "user,id=auranet,ipv6=on",
+        "-device",
+        "virtio-net-pci,netdev=auranet" if TARGET_ARCH == "x86_64"
+        else "virtio-net-device,netdev=auranet",
         "-display", "none",
         "-serial", "stdio",
         "-monitor", "none",
