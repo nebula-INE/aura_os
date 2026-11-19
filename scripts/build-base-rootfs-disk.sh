@@ -85,5 +85,9 @@ ln -sfn /etc/systemd/system/aura-rootfs-smoke.service \
 sync
 umount "$MOUNT_DIR"
 e2fsck -fn "$OUTPUT_IMAGE"
-sha256sum "$OUTPUT_IMAGE" | tee "$OUTPUT_IMAGE.sha256"
+(
+  cd "$(dirname "$OUTPUT_IMAGE")"
+  sha256sum "$(basename "$OUTPUT_IMAGE")" > "$(basename "$OUTPUT_IMAGE").sha256"
+)
+cat "$OUTPUT_IMAGE.sha256"
 printf 'Created Aura OS %s persistent rootfs image: %s\n' "$TARGET_ARCH" "$OUTPUT_IMAGE"
