@@ -35,15 +35,14 @@ ubuntu_archive_candidate_available() {
 }
 
 # Ubuntu archive metadata can briefly be inconsistent while a mirror is being
-# synchronized. By-hash avoids fetching an index by its mutable filename, and
-# bounded backoff gives the mirror time to publish a matching Release/index set.
+# synchronized. Retry with bounded backoff instead of failing the entire build.
 apt_update_with_retries() {
   local max_attempts="${1:-4}"
   local attempt=1
 
   while (( attempt <= max_attempts )); do
     echo "Updating APT indexes (attempt ${attempt}/${max_attempts})..."
-    if apt-get update -o Acquire::Retries=3 -o Acquire::By-Hash=force; then
+    if apt-get update -o Acquire::Retries=3; then
       return 0
     fi
 
@@ -73,12 +72,14 @@ URIs: https://archive.ubuntu.com/ubuntu
 Suites: noble noble-updates noble-backports
 Components: main universe restricted multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+By-Hash: force
 
 Types: deb
 URIs: https://security.ubuntu.com/ubuntu
 Suites: noble-security
 Components: main universe restricted multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+By-Hash: force
 EOF
 
   apt_update_with_retries 4
