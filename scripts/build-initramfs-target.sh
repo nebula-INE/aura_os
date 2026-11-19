@@ -9,6 +9,7 @@ ARCHIVE="${OUT_DIR}/aura-initramfs-${TARGET_ARCH}.cpio.gz"
 SOURCE_FILE="${ROOT_DIR}/initramfs/init.c"
 
 case "${TARGET_ARCH}" in
+  x86_64) CROSS_COMPILE="${CROSS_COMPILE:-}" ;;
   riscv64) CROSS_COMPILE="${CROSS_COMPILE:-riscv64-linux-gnu-}" ;;
   aarch64) CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}" ;;
   *)
@@ -36,7 +37,7 @@ fi
 
 mkdir -p "$OUT_DIR"
 rm -rf "$ROOTFS_DIR"
-mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,root,tmp}
+mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,root,tmp,newroot}
 chmod 1777 "$ROOTFS_DIR/tmp"
 
 echo "Building static /init for ${TARGET_ARCH} with $CC..."
