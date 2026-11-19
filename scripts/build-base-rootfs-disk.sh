@@ -76,8 +76,8 @@ case "$INSTALL_QEMU_SMOKE_SERVICE" in
     cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
 Description=Aura OS persistent rootfs and network QEMU smoke test
-Wants=network-online.target
-After=basic.target network-online.target systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
+Wants=network-online.target systemd-networkd-wait-online.service
+After=basic.target network-online.target systemd-networkd.service systemd-networkd-wait-online.service systemd-resolved.service systemd-timesyncd.service
 
 [Service]
 Type=oneshot
