@@ -17,8 +17,9 @@ On Debian or Ubuntu, install the bootstrap and foreign-architecture emulation to
 
 ~~~sh
 sudo apt-get update
-sudo apt-get install -y mmdebstrap qemu-user qemu-user-binfmt binfmt-support
+sudo apt-get install -y mmdebstrap qemu-user qemu-user-binfmt binfmt-support curl gnupg
 sudo systemctl restart systemd-binfmt.service
+sudo bash scripts/prepare-debian-trixie-keyring.sh
 ~~~
 
 Build an architecture-specific root filesystem:
@@ -28,6 +29,8 @@ sudo env TARGET_ARCH=x86_64 bash scripts/build-base-rootfs.sh
 sudo env TARGET_ARCH=aarch64 bash scripts/build-base-rootfs.sh
 sudo env TARGET_ARCH=riscv64 bash scripts/build-base-rootfs.sh
 ~~~
+
+The helper fetches the three Trixie signing keys from Debian's official FTP master. It verifies the published SHA-256 digests for the archive and security keys, checks all three primary-key fingerprints, and writes a dedicated keyring for mmdebstrap. The target root filesystem also installs debian-archive-keyring so apt can authenticate updates after first boot.
 
 Foreign-architecture builds require working QEMU user-mode binfmt support. `mmdebstrap` uses it to run maintainer scripts for the target architecture.
 
