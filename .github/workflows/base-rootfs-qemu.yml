@@ -12,6 +12,7 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
       - "scripts/verify_base_rootfs.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   pull_request:
@@ -25,6 +26,7 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
       - "scripts/verify_base_rootfs.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   workflow_dispatch:
@@ -60,7 +62,7 @@ jobs:
 
       - name: Check shell syntax and existing unit tests
         run: |
-          bash -n scripts/build-kernel.sh scripts/build-initramfs-target.sh \
+          bash -n scripts/ensure-ubuntu-apt-sources.sh scripts/build-kernel.sh scripts/build-initramfs-target.sh \
             scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
             scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
@@ -71,7 +73,7 @@ jobs:
           CROSS_PACKAGES: ${{ matrix.cross_packages }}
           QEMU_PACKAGE: ${{ matrix.qemu_package }}
         run: |
-          sudo apt-get update
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
           sudo apt-get install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
             git gnupg curl perl cpio gzip binutils e2fsprogs util-linux \
