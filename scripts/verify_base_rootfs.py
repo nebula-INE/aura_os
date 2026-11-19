@@ -16,7 +16,7 @@ ARCHITECTURES = {
     "aarch64": {"debian": "arm64", "elf_machine": 183},
     "riscv64": {"debian": "riscv64", "elf_machine": 243},
 }
-REQUIRED_PACKAGES = {"apt", "dbus", "debian-archive-keyring", "libc6", "systemd", "systemd-resolved", "systemd-sysv"}
+REQUIRED_PACKAGES = {"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv"}
 
 
 def _read_os_release(path: Path) -> dict[str, str]:
@@ -127,6 +127,24 @@ def validate_rootfs(
     missing = sorted(REQUIRED_PACKAGES - installed)
     if missing:
         raise ValueError(f"required Debian packages are not installed: {', '.join(missing)}")
+
+    firstboot_program = root / "usr/lib/aura/aura-firstboot"
+    if not firstboot_program.is_file():
+        raise ValueError("root filesystem is missing /usr/lib/aura/aura-firstboot")
+    firstboot_unit = root / "etc/systemd/system/aura-firstboot.service"
+    if not firstboot_unit.is_file():
+        raise ValueError("root filesystem is missing the aura-firstboot systemd unit")
+    firstboot_link = (
+        root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
+    )
+    if not firstboot_link.is_symlink():
+        raise ValueError("aura-firstboot.service must be enabled for multi-user.target")
+    try:
+        firstboot_target = _resolve_rootfs_absolute_symlink(root, firstboot_link)
+    except OSError as exc:
+        raise ValueError(f"aura-firstboot.service enablement link is broken: {exc}") from exc
+    if firstboot_target != firstboot_unit.resolve(strict=True):
+        raise ValueError("aura-firstboot.service enablement link points to the wrong unit")
 
     shadow = root / "etc/shadow"
     if not shadow.is_file():
