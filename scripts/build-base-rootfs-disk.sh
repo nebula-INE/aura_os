@@ -125,6 +125,10 @@ WantedBy=getty.target
 UNIT
     ln -sfn /etc/systemd/system/aura-qemu-console-getty.service \
       "$MOUNT_DIR/etc/systemd/system/getty.target.wants/aura-qemu-console-getty.service"
+    # Avoid the systemd-generated per-device serial gettys in this test
+    # image; the test getty owns /dev/console on every architecture.
+    ln -sfn /dev/null "$MOUNT_DIR/etc/systemd/system/serial-getty@ttyS0.service"
+    ln -sfn /dev/null "$MOUNT_DIR/etc/systemd/system/serial-getty@ttyAMA0.service"
     ;;
   0)
     echo "Skipping the QEMU-only kernel-console getty."
