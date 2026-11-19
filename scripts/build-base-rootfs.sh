@@ -150,7 +150,11 @@ SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-0}" tar \
   -cf - . | gzip -n -9 > "$ARCHIVE"
 
 test -s "$ARCHIVE"
-sha256sum "$ARCHIVE" | tee "$CHECKSUM_FILE"
+(
+  cd "$OUTPUT_DIR"
+  sha256sum "$(basename "$ARCHIVE")" > "$(basename "$CHECKSUM_FILE")"
+)
+cat "$CHECKSUM_FILE"
 
 {
   printf 'Aura OS base userspace build\n'
