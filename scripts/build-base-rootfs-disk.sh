@@ -76,13 +76,14 @@ case "$INSTALL_QEMU_SMOKE_SERVICE" in
     cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
 Description=Aura OS persistent rootfs and network QEMU smoke test
-Wants=network-online.target systemd-networkd-wait-online.service
-After=basic.target network-online.target systemd-networkd.service systemd-networkd-wait-online.service systemd-resolved.service systemd-timesyncd.service
+Wants=systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
+After=basic.target systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/aura/qemu-network-smoke
-TimeoutStartSec=120
+TimeoutStartSec=150
+TimeoutStopSec=10
 StandardOutput=journal+console
 StandardError=journal+console
 
@@ -145,7 +146,6 @@ UNIT
     exit 2
     ;;
 esac
-
 
 sync
 umount "$MOUNT_DIR"
