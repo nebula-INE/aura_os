@@ -97,9 +97,9 @@ for path in "$KERNEL_IMAGE" "$INITRAMFS" "$ROOTFS_IMAGE"; do
     exit 1
   fi
 done
-if [[ ! -r "$ROOTFS_IMAGE" ]]; then
-  echo "error: QEMU runner user cannot read the persistent rootfs image: $ROOTFS_IMAGE" >&2
-  echo "hint: run scripts/build-base-rootfs-disk.sh to apply the runner-readable image permissions." >&2
+if [[ ! -r "$ROOTFS_IMAGE" || ! -w "$ROOTFS_IMAGE" ]]; then
+  echo "error: QEMU runner user cannot open the persistent rootfs image read-write: $ROOTFS_IMAGE" >&2
+  echo "hint: run scripts/build-base-rootfs-disk.sh to transfer image ownership to the invoking user." >&2
   exit 1
 fi
 
