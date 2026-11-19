@@ -117,7 +117,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 ### Phase 2 — Shared system foundation
 
 - [x] Generate and validate the Debian base rootfs on x86-64, AArch64, and RV64GC; all three bootstrap jobs pass and upload archives, package manifests, and provenance.
-- [ ] Boot each Debian rootfs under QEMU, switch_root from initramfs, and verify systemd startup/poweroff (automated workflow added; CI pending).
+- [ ] Boot each Debian rootfs under QEMU, use the Linux 6.18.64-compatible switch_root overmount/chroot handoff (not pivot_root), and verify systemd startup/poweroff (automated workflow added; CI pending).
 - [ ] Establish common userspace and service startup.
 - [ ] Define users, groups, permissions, and privilege boundaries.
 - [ ] Establish storage layout and filesystem support.
