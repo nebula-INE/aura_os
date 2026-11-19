@@ -66,7 +66,7 @@ mkdir -p "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants"
 cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
 Description=Aura OS persistent rootfs QEMU smoke test
-After=multi-user.target
+After=basic.target
 
 [Service]
 Type=oneshot
