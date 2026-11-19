@@ -53,16 +53,16 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
         "root:!:20000:0:99999:7:::\n", encoding="utf-8"
     )
     for unit in ("systemd-networkd.service", "systemd-resolved.service", "systemd-timesyncd.service"):
-        (root / "usr/lib/systemd/system" / unit).write_text("[Service]\\n", encoding="utf-8")
+        (root / "usr/lib/systemd/system" / unit).write_text("[Service]\n", encoding="utf-8")
         (root / "etc/systemd/system/multi-user.target.wants" / unit).symlink_to(
             f"/usr/lib/systemd/system/{unit}"
         )
     (root / "etc/systemd/network/20-wired.network").write_text(
-        "[Match]\\nType=ether\\n[Network]\\nDHCP=yes\\nIPv6AcceptRA=yes\\nLinkLocalAddressing=ipv6\\n",
+        "[Match]\nType=ether\n[Network]\nDHCP=yes\nIPv6AcceptRA=yes\nLinkLocalAddressing=ipv6\n",
         encoding="utf-8",
     )
     (root / "etc/systemd/timesyncd.conf.d/20-aura.conf").write_text(
-        "[Time]\\nFallbackNTP=0.debian.pool.ntp.org 1.debian.pool.ntp.org\\n",
+        "[Time]\nFallbackNTP=0.debian.pool.ntp.org 1.debian.pool.ntp.org\n",
         encoding="utf-8",
     )
     (root / "etc/resolv.conf").symlink_to("../run/systemd/resolve/stub-resolv.conf")
@@ -166,7 +166,7 @@ class BaseRootfsTests(unittest.TestCase):
             root = Path(tmp) / "rootfs"
             make_rootfs(root)
             (root / "etc/resolv.conf").unlink()
-            (root / "etc/resolv.conf").write_text("nameserver 1.1.1.1\\n", encoding="utf-8")
+            (root / "etc/resolv.conf").write_text("nameserver 1.1.1.1\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "systemd-resolved stub"):
                 validate_rootfs(root, "x86_64")
 
@@ -177,10 +177,10 @@ class BaseRootfsTests(unittest.TestCase):
             status = root / "var/lib/dpkg/status"
             packages = {"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv"}
             status.write_text(
-                "\\n\\n".join(
-                    f"Package: {name}\\nStatus: install ok installed"
+                "\n\n".join(
+                    f"Package: {name}\nStatus: install ok installed"
                     for name in sorted(packages)
-                ) + "\\n",
+                ) + "\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "systemd-timesyncd"):
