@@ -197,6 +197,14 @@ class BaseRootfsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "systemd-timesyncd"):
                 validate_rootfs(root, "x86_64")
 
+    def test_qemu_user_network_explicitly_enables_dual_stack_dhcp(self) -> None:
+        script = (SCRIPTS_DIR / "test-base-rootfs-qemu.sh").read_text(encoding="utf-8")
+        expected = (
+            "-netdev user,id=auranet,ipv4=on,ipv6=on,"
+            "net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3"
+        )
+        self.assertEqual(script.count(expected), 3)
+
     def test_rejects_unknown_target_architecture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "rootfs"
