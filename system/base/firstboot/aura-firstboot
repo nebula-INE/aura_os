@@ -105,7 +105,11 @@ for ((attempt = 1; attempt <= MAX_USERNAME_ATTEMPTS; attempt++)); do
 
   write_pending_user "$username"
   if ! useradd --create-home --shell /bin/bash --groups sudo -- "$username"; then
-    rm -f -- "$PENDING_FILE"
+    if account_exists "$username"; then
+      echo "error: account creation returned an error but the account exists; keeping the recovery marker." >&2
+    else
+      rm -f -- "$PENDING_FILE"
+    fi
     echo "error: could not create the requested account." >&2
     exit 1
   fi
