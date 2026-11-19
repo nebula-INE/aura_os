@@ -97,6 +97,11 @@ for path in "$KERNEL_IMAGE" "$INITRAMFS" "$ROOTFS_IMAGE"; do
     exit 1
   fi
 done
+if [[ ! -r "$ROOTFS_IMAGE" ]]; then
+  echo "error: QEMU runner user cannot read the persistent rootfs image: $ROOTFS_IMAGE" >&2
+  echo "hint: run scripts/build-base-rootfs-disk.sh to apply the runner-readable image permissions." >&2
+  exit 1
+fi
 
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/aura-$TARGET_ARCH-rootfs-boot.log"
