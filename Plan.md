@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-18
+> Last updated: 2026-11-19
 
 ## 1. Vision
 
@@ -94,10 +94,10 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Add target-specific kernel, static initramfs, and QEMU smoke-test workflows for RV64GC and AArch64 (initial emulator profiles; hardware support is not implied).
 - [ ] Pass both new cross-architecture CI jobs and inspect their boot artifacts.
 - [x] Add an AArch64 AAVMF UEFI smoke-test path using the Linux EFI stub and an embedded target-native initramfs; CI validation remains pending.
-- [ ] Choose base userspace, init/service model, build system, and packaging direction.
+- [x] Select Debian 13 (trixie), glibc, apt/dpkg, systemd-sysv, and mmdebstrap as the initial three-architecture base-userspace bootstrap policy (ADR 0006); CI and product boot validation remain pending.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
 - [x] Add CI for the initial pinned x86-64 Linux kernel build.
-- [ ] Add CI for formatting, static checks, userspace builds, and boot smoke tests.
+- [ ] Add CI for formatting, static checks, userspace builds, and boot smoke tests. A dedicated multi-architecture base-userspace bootstrap workflow is added; full rootfs boot checks remain pending.
 - [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.
 - [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
 
@@ -116,6 +116,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 ### Phase 2 — Shared system foundation
 
+- [ ] Generate and validate the initial Debian base rootfs on x86-64, AArch64, and RV64GC (bootstrap workflow added; CI pending).
 - [ ] Establish common userspace and service startup.
 - [ ] Define users, groups, permissions, and privilege boundaries.
 - [ ] Establish storage layout and filesystem support.
@@ -362,7 +363,8 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 2. Bring up x86-64 in QEMU first, with serial boot logs and a minimal initramfs.
 3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
-5. Establish per-architecture kernel security-update and regression-test workflows.
+5. Boot the target-native Debian rootfs on all three architectures, switch_root from the temporary initramfs, and validate login, services, reboot, and shutdown.
+6. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
 
