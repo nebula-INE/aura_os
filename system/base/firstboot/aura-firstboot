@@ -29,6 +29,9 @@ write_pending_user() {
     printf '%s\n' "$username" > "$temporary"
   )
   mv -f -- "$temporary" "$PENDING_FILE"
+  # Persist the recovery marker before useradd can make the account durable.
+  # This prevents a power loss from leaving an account without its resume state.
+  sync
 }
 
 mark_setup_complete() {
