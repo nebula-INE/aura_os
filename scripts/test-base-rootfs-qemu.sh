@@ -94,7 +94,7 @@ require_command() {
     exit 1
   }
 }
-for cmd in "$QEMU_BIN" timeout tee grep sha256sum head; do
+for cmd in "$QEMU_BIN" timeout tee grep sha256sum head tr; do
   require_command "$cmd"
 done
 for path in "$KERNEL_IMAGE" "$INITRAMFS" "$ROOTFS_IMAGE"; do
@@ -144,11 +144,26 @@ if grep -qi "Kernel panic" "$LOG_FILE"; then
   echo "error: kernel panic detected during persistent-root boot." >&2
   exit 1
 fi
-grep -Fq "AURA_INIT_OK" "$LOG_FILE" || {
+
+# The serial console emits CRLF; normalize it before exact marker checks so
+# failure messages containing a marker name cannot masquerade as success.
+normalized_log="$(tr -d '\r' < "$LOG_FILE")"
+if grep -Eq '^AURA_NETWORK_FAIL:' <<<"$normalized_log"; then
+  grep -E '^AURA_NETWORK_FAIL:' <<<"$normalized_log" >&2
+  echo "error: network/time smoke service reported a failure." >&2
+  exit 1
+fi
+
+has_exact_marker() {
+  local marker="$1"
+  grep -Fqx "$marker" <<<"$normalized_log"
+}
+
+has_exact_marker "AURA_INIT_OK" || {
   echo "error: initramfs did not start before rootfs switch." >&2
   exit 1
 }
-grep -Fq "AURA_SYSTEMD_ROOTFS_OK" "$LOG_FILE" || {
+has_exact_marker "AURA_SYSTEMD_ROOTFS_OK" || {
   echo "error: systemd did not reach the persistent-root smoke service." >&2
   exit 1
 }
@@ -161,12 +176,12 @@ for marker in \
   AURA_NETWORK_IPV6_OK \
   AURA_NETWORK_DNS_OK \
   AURA_NETWORK_NTP_ENABLED_OK; do
-  grep -Fq "$marker" "$LOG_FILE" || {
+  has_exact_marker "$marker" || {
     echo "error: network/time smoke check did not report $marker." >&2
     exit 1
   }
 done
-grep -Fq "AURA_ROOTFS_QEMU_PASS" "$LOG_FILE" || {
+has_exact_marker "AURA_ROOTFS_QEMU_PASS" || {
   echo "error: persistent-root QEMU smoke service did not report success." >&2
   exit 1
 }
