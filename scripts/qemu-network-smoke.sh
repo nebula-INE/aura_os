@@ -7,6 +7,15 @@ report() {
   printf '%s\n' "$1" > /dev/console
 }
 
+finish() {
+  local status="$?"
+  if [[ "$status" -ne 0 ]]; then
+    report "AURA_NETWORK_FAIL: smoke script exited with status $status"
+  fi
+  /bin/systemctl --no-block poweroff >/dev/null 2>&1 || true
+}
+trap finish EXIT
+
 wait_for() {
   local marker="$1"
   shift
@@ -67,11 +76,3 @@ wait_for "AURA_NETWORK_NTP_ENABLED_OK" ntp_is_enabled
 
 report "AURA_ROOTFS_QEMU_PASS"
 
-finish() {
-  local status="$?"
-  if [[ "$status" -ne 0 ]]; then
-    report "AURA_NETWORK_FAIL: smoke script exited with status $status"
-  fi
-  /bin/systemctl --no-block poweroff >/dev/null 2>&1 || true
-}
-trap finish EXIT
