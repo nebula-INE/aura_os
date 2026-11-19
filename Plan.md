@@ -120,7 +120,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Boot each Debian rootfs under QEMU, use the Linux 6.18.64-compatible switch_root overmount/chroot handoff (not pivot_root), and verify systemd startup/poweroff (automated workflow added; CI pending).
 - [ ] Establish common userspace and service startup.
 - [x] Add an interactive first-boot console flow that creates one local `sudo` administrator, keeps root password-locked, and resumes safely if password setup is interrupted (automated tests added; multi-architecture boot validation pending).
-- [x] Add an interactive QEMU test that creates a first user, logs in over the serial console, authenticates sudo, checks the root lock/completion marker, and repeats the boot against the same disk (multi-architecture CI validation pending).\n- [ ] Confirm console login, sudo access, and repeat-boot behavior pass on all three QEMU architectures.
+- [x] Add an interactive QEMU test that creates a first user, logs in over the serial console, authenticates sudo, checks the root lock/completion marker, and repeats the boot against the same disk (multi-architecture CI validation pending).
+- [ ] Confirm console login, sudo access, and repeat-boot behavior pass on all three QEMU architectures.
 - [ ] Establish storage layout and filesystem support.
 - [ ] Add logging, diagnostics, crash reporting, and recovery.
 - [ ] Establish networking and time configuration.
