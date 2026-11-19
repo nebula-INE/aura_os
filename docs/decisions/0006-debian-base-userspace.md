@@ -1,6 +1,6 @@
 # ADR 0006: Debian base userspace for the first three-architecture bring-up
 
-- **Status:** Proposed; multi-architecture bootstrap CI pending
+- **Status:** Accepted for the three-architecture base rootfs bootstrap; persistent-root QEMU boot validation pending
 - **Date:** 2026-11-19
 - **Scope:** Initial root filesystem, package manager, and init/service baseline; not the final desktop or release image
 
@@ -43,6 +43,8 @@ The bootstrap uses `minbase` and a short package list to avoid inheriting a full
 - This decision does not imply every board/peripheral on the architecture is supported.
 
 ## Validation and acceptance
+
+The bootstrap acceptance checks passed in GitHub Actions run [44428418879](https://github.com/nebula-INE/aura_os/actions/runs/44428418879): amd64, arm64, and riscv64 each generated and uploaded the target-native rootfs, package manifest, checksum, and provenance. The validator checked systemd ELF machine type, `/sbin/init`, required packages, and the locked root account.
 
 The bootstrap is accepted for the next milestone when CI demonstrates:
 
