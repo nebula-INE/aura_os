@@ -9,7 +9,6 @@
 #include <sys/mount.h>
 #include <sys/reboot.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -89,6 +88,13 @@ static void switch_to_debian_rootfs(void) {
     log_message("[Aura OS] persistent-root boot requested");
     wait_for_root_device();
 
+    /* Rootfs is not pivot_root()-able on the pinned Linux 6.18 kernel.
+       Use the traditional switch_root overmount/chroot sequence instead. */
+    if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
+        perror("[Aura OS] ERROR: making initramfs mounts private failed");
+        fail_and_halt("[Aura OS] ERROR: cannot isolate mount propagation");
+    }
+
     if (mount("/dev/vda", "/newroot", "ext4", MS_RELATIME, NULL) != 0) {
         perror("[Aura OS] ERROR: mounting /dev/vda as ext4 failed");
         fail_and_halt("[Aura OS] ERROR: cannot mount the Aura Debian root filesystem");
@@ -107,27 +113,41 @@ static void switch_to_debian_rootfs(void) {
         fail_and_halt("[Aura OS] ERROR: cannot prepare /sys in the new root");
     }
 
+    /* Remove the tiny, known initramfs tree before overmounting rootfs.
+       The running /init inode remains valid until execve() replaces it. */
+    if (unlink("/init") != 0 && errno != ENOENT) {
+        perror("[Aura OS] ERROR: removing initramfs /init failed");
+        fail_and_halt("[Aura OS] ERROR: cannot clean up the temporary initramfs");
+    }
+
+    const char *empty_directories[] = {
+        "/dev", "/proc", "/sys", "/root", "/tmp"
+    };
+    for (size_t i = 0;
+         i < sizeof(empty_directories) / sizeof(empty_directories[0]);
+         ++i) {
+        if (rmdir(empty_directories[i]) != 0 && errno != ENOENT) {
+            perror("[Aura OS] ERROR: removing an empty initramfs directory failed");
+            fail_and_halt("[Aura OS] ERROR: cannot clean up the temporary initramfs");
+        }
+    }
+
+    /* Keep cwd on the new root while moving it over the immutable rootfs. */
     if (chdir("/newroot") != 0) {
         perror("[Aura OS] ERROR: chdir to the new root failed");
         fail_and_halt("[Aura OS] ERROR: cannot enter the new root");
     }
-    if (mkdir("old_root", 0700) != 0 && errno != EEXIST) {
-        perror("[Aura OS] ERROR: creating old_root failed");
-        fail_and_halt("[Aura OS] ERROR: cannot prepare pivot_root");
-    }
-
-    if (syscall(SYS_pivot_root, ".", "old_root") != 0) {
-        perror("[Aura OS] ERROR: pivot_root failed");
+    if (mount("/newroot", "/", NULL, MS_MOVE, NULL) != 0) {
+        perror("[Aura OS] ERROR: moving the new root over / failed");
         fail_and_halt("[Aura OS] ERROR: cannot switch to the Debian root filesystem");
     }
-    if (chdir("/") != 0) {
-        perror("[Aura OS] ERROR: chdir after pivot_root failed");
-        fail_and_halt("[Aura OS] ERROR: cannot enter the new system root");
+    if (chroot(".") != 0) {
+        perror("[Aura OS] ERROR: chroot into the new root failed");
+        fail_and_halt("[Aura OS] ERROR: cannot enter the Debian root filesystem");
     }
-    if (umount2("/old_root", MNT_DETACH) != 0) {
-        perror("[Aura OS] warning: detaching the old initramfs failed");
-    } else {
-        (void)rmdir("/old_root");
+    if (chdir("/") != 0) {
+        perror("[Aura OS] ERROR: chdir after switch_root failed");
+        fail_and_halt("[Aura OS] ERROR: cannot enter the new system root");
     }
 
     log_message("[Aura OS] switched to Debian root filesystem; starting systemd");
