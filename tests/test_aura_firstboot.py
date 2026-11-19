@@ -29,7 +29,13 @@ class FirstBootSetupTests(unittest.TestCase):
             'grep -Fxq -- "$2" "$AURA_TEST_EXISTING_USERS"; then exit 0; fi\n'
             "exit 2\n",
         )
-        self._write_logged_command("useradd", "AURA_TEST_USERADD_EXIT")
+        self._write_command(
+            "useradd",
+            'for username do :; done\\n'
+            'printf "%s\\n" "$username" >> "$AURA_TEST_EXISTING_USERS"\\n'
+            'printf "useradd:%s\\n" "$*" >> "$AURA_TEST_COMMAND_LOG"\\n'
+            'exit "${AURA_TEST_USERADD_EXIT:-0}"\\n',
+        )
         self._write_logged_command("passwd", "AURA_TEST_PASSWD_EXIT")
         self._write_logged_command("userdel", "AURA_TEST_USERDEL_EXIT")
 
