@@ -1,0 +1,22 @@
+[Unit]
+Description=Aura OS first-boot administrator account setup
+After=local-fs.target systemd-sysusers.service
+Before=systemd-user-sessions.service getty.target
+ConditionPathExists=!/var/lib/aura/firstboot/complete
+ConditionKernelCommandLine=!aura.firstboot.skip
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/aura/aura-firstboot
+RemainAfterExit=yes
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=journal+console
+TTYPath=/dev/console
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=no
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target
