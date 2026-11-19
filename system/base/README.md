@@ -9,7 +9,7 @@ It is deliberately not the final desktop installation.
 - Init/service manager: systemd via `systemd-sysv`
 - Package format and manager: Debian packages with apt/dpkg
 - Default desktop: none
-- Root credentials: the root account remains locked; the bootstrap does not create a shared password or first user.
+- Root credentials: the root account remains locked; on normal first boot, a local-console wizard creates one administrator in the `sudo` group and securely prompts for that account's password. No shared/default password is configured.
 
 ## Build one architecture
 
@@ -49,12 +49,12 @@ The output is written to `build/base-userspace/<target>/` and includes:
 
 The repository adds an automated integration workflow, `.github/workflows/base-rootfs-qemu.yml`, that builds the pinned Linux kernel and a static initramfs, places the generated Debian rootfs on a raw ext4 disk image, and boots it under QEMU for each architecture.
 
-The test kernel command line includes `aura.rootfs=1`. In this mode, the PID 1 initramfs program mounts `/dev/vda`, moves `/dev`, `/proc`, and `/sys` into the new root, uses the classic `switch_root` overmount/chroot sequence, and executes `/sbin/init`. The Debian rootfs contains a one-shot systemd test service that writes `AURA_SYSTEMD_ROOTFS_OK` and `AURA_ROOTFS_QEMU_PASS` to the serial console before requesting poweroff. The older initramfs-only kernel and UEFI smoke tests remain on their original path when `aura.rootfs=1` is absent.
+The test kernel command line includes `aura.rootfs=1`. In this mode, the PID 1 initramfs program mounts `/dev/vda`, moves `/dev`, `/proc`, and `/sys` into the new root, uses the classic `switch_root` overmount/chroot sequence, and executes `/sbin/init`. The Debian rootfs contains a first-boot account setup service and a one-shot systemd test service. The QEMU smoke command line includes `aura.firstboot.skip`, which bypasses the interactive account wizard only for automation; the test service writes `AURA_SYSTEMD_ROOTFS_OK` and `AURA_ROOTFS_QEMU_PASS` to the serial console before requesting poweroff. The older initramfs-only kernel and UEFI smoke tests remain on their original path when `aura.rootfs=1` is absent.
 
 Run the integration workflow from a pull request or GitHub Actions after the base userspace is available. Its artifact includes the kernel, initramfs, ext4 image, serial log, and checksums. Passing this QEMU path demonstrates boot into the Debian userspace under the emulator profile; it does not yet establish a login-ready, installable, or hardware-supported OS.
 
 ## Scope and safety
 
-The image is a build artifact, not an installer or a complete bootable disk. No user account, password, desktop session, display manager, network manager, firmware bundle, bootloader, or application set is configured. Do not install it over a host filesystem.
+The image is a build artifact, not an installer or a complete bootable disk. A normal boot can create one local console administrator; it does not install a desktop session, display manager, network manager, firmware bundle, bootloader, or application set. The test-only `aura.firstboot.skip` argument bypasses this prompt. Do not install it over a host filesystem.
 
 The package manifest is intentionally small. Add components only with a reason and validate their availability on all three Debian architectures. The 512 MiB idle desktop RAM target is a stretch goal, not a current measurement or promise; systemd and glibc memory costs must be measured on representative hardware before the service and desktop set is finalized.
