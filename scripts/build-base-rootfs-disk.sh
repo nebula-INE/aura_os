@@ -94,6 +94,46 @@ UNIT
     ;;
 esac
 
+INSTALL_QEMU_CONSOLE_GETTY="${AURA_INSTALL_QEMU_CONSOLE_GETTY:-0}"
+case "$INSTALL_QEMU_CONSOLE_GETTY" in
+  1)
+    cat > "$MOUNT_DIR/etc/systemd/system/aura-qemu-console-getty.service" <<'UNIT'
+[Unit]
+Description=Aura OS QEMU kernel-console login for integration tests
+After=systemd-user-sessions.service
+Before=getty.target
+Conflicts=serial-getty@ttyS0.service serial-getty@ttyAMA0.service
+ConditionPathExists=/dev/console
+
+[Service]
+ExecStart=-/sbin/agetty --noclear --keep-baud - 115200,38400,9600 linux
+Type=idle
+Restart=always
+RestartSec=0
+UtmpIdentifier=cons
+TTYPath=/dev/console
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=no
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+
+[Install]
+WantedBy=getty.target
+UNIT
+    ln -sfn /etc/systemd/system/aura-qemu-console-getty.service \
+      "$MOUNT_DIR/etc/systemd/system/getty.target.wants/aura-qemu-console-getty.service"
+    ;;
+  0)
+    echo "Skipping the QEMU-only kernel-console getty."
+    ;;
+  *)
+    echo "error: AURA_INSTALL_QEMU_CONSOLE_GETTY must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
+
 sync
 umount "$MOUNT_DIR"
 e2fsck -fn "$OUTPUT_IMAGE"
