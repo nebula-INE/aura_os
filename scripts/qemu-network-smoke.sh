@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-TIMEOUT_SECONDS="${AURA_NETWORK_WAIT_SECONDS:-60}"
+TOTAL_WAIT_SECONDS="${AURA_NETWORK_TOTAL_WAIT_SECONDS:-120}"
+PROBE_TIMEOUT_SECONDS="${AURA_NETWORK_PROBE_TIMEOUT_SECONDS:-3}"
+DEADLINE=$((SECONDS + TOTAL_WAIT_SECONDS))
 
 report() {
-  printf '%s\n' "$1" > /dev/console
+  printf '%s\\n' "$1" > /dev/console
 }
 
 finish() {
@@ -14,21 +16,35 @@ finish() {
   fi
   /bin/systemctl --no-block poweroff >/dev/null 2>&1 || true
 }
+
+terminate() {
+  local signal="$1"
+  trap - EXIT TERM INT
+  report "AURA_NETWORK_FAIL: interrupted by $signal"
+  /bin/systemctl --no-block poweroff >/dev/null 2>&1 || true
+  exit 143
+}
+
 trap finish EXIT
+trap 'terminate SIGTERM' TERM
+trap 'terminate SIGINT' INT
 
 wait_for() {
   local marker="$1"
   shift
 
-  for ((attempt = 0; attempt < TIMEOUT_SECONDS; attempt++)); do
-    if "$@"; then
+  while ((SECONDS < DEADLINE)); do
+    # Bound each probe as well as the overall smoke test. In particular,
+    # resolver retransmissions must not turn a nominal 120-second wait into
+    # several minutes of blocking inside getent.
+    if timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" "$@"; then
       report "$marker"
       return 0
     fi
     sleep 1
   done
 
-  report "AURA_NETWORK_FAIL: ${marker}"
+  report "AURA_NETWORK_FAIL: deadline reached waiting for ${marker}"
   return 1
 }
 
@@ -45,7 +61,7 @@ timesyncd_active() {
 }
 
 has_global_ipv4() {
-  ip -o -4 address show scope global | grep -qE ' inet [0-9]+\.'
+  ip -o -4 address show scope global | grep -qE ' inet [0-9]+\\.'
 }
 
 has_default_ipv4_route() {
@@ -75,4 +91,3 @@ wait_for "AURA_NETWORK_DNS_OK" resolves_debian_mirror
 wait_for "AURA_NETWORK_NTP_ENABLED_OK" ntp_is_enabled
 
 report "AURA_ROOTFS_QEMU_PASS"
-
