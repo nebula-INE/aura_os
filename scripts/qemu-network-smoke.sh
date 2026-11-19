@@ -8,7 +8,7 @@ DEADLINE=$((SECONDS + TOTAL_WAIT_SECONDS))
 command -v timeout >/dev/null 2>&1 || { echo "error: timeout command is required" >&2; exit 1; }
 
 report() {
-  printf '%s\\n' "$1" > /dev/console
+  printf '%s\n' "$1" > /dev/console
 }
 
 finish() {
@@ -63,7 +63,7 @@ timesyncd_active() {
 }
 
 has_global_ipv4() {
-  ip -o -4 address show scope global | grep -qE ' inet [0-9]+\\.'
+  ip -o -4 address show scope global | grep -qE ' inet [0-9]+\.'
 }
 
 has_default_ipv4_route() {
