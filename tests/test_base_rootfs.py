@@ -35,7 +35,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "libc6", "systemd", "systemd-sysv"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "libc6", "systemd", "systemd-resolved", "systemd-sysv"})
         ) + "\n",
         encoding="utf-8",
     )
