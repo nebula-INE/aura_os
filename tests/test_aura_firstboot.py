@@ -41,7 +41,7 @@ class FirstBootSetupTests(unittest.TestCase):
         )
         self._write_command(
             "sync",
-            'printf "sync\\n" >> "$AURA_TEST_COMMAND_LOG"\\n',
+            'echo sync >> "$AURA_TEST_COMMAND_LOG"\n',
         )
         self._write_logged_command("passwd", "AURA_TEST_PASSWD_EXIT")
         self._write_logged_command("userdel", "AURA_TEST_USERDEL_EXIT")
@@ -102,7 +102,7 @@ class FirstBootSetupTests(unittest.TestCase):
         commands = self._commands()
         self.assertIn("useradd:", commands)
         # The pending marker must be flushed before useradd persists the account.
-        self.assertLess(commands.index("sync\\n"), commands.index("useradd:"))
+        self.assertLess(commands.index("sync\n"), commands.index("useradd:"))
         self.assertIn("--groups sudo -- auraadmin", commands)
         self.assertIn("passwd:auraadmin", commands)
         self.assertIn("New username", self.console_output.read_text(encoding="utf-8"))
