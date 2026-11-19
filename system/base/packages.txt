@@ -4,6 +4,7 @@
 systemd-sysv
 dbus
 systemd-resolved
+systemd-timesyncd
 debian-archive-keyring
 ca-certificates
 iproute2
