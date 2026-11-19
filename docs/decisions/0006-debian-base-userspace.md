@@ -17,7 +17,7 @@ Use Debian 13 (codename `trixie`) as the first shared base userspace source for 
 - x86-64 maps to Debian `amd64`.
 - AArch64 maps to Debian `arm64`.
 - RISC-V RV64GC maps to Debian `riscv64`.
-- Bootstrap with `mmdebstrap --variant=minbase`, using Debian's signed repository metadata and a target-native root filesystem. The CI bootstrap retrieves the official Trixie archive, security, and release public keys, verifies the two published SHA-256 digests and all three full primary-key fingerprints, and passes the resulting keyring to `mmdebstrap`.
+- Bootstrap with `mmdebstrap --variant=minbase`, using Debian's signed repository metadata and a target-native root filesystem. Foreign-architecture maintainer scripts run through QEMU user-mode static interpreters registered with binfmt_misc using the `F` (fix-binary) flag, so the interpreter remains usable inside the chroot. The CI bootstrap retrieves the official Trixie archive, security, and release public keys, verifies the two published SHA-256 digests and all three full primary-key fingerprints, and passes the resulting keyring to `mmdebstrap`.
 - Include `debian-archive-keyring` in the target rootfs so subsequent apt operations can authenticate Debian updates.
 - Use glibc as the distribution C library.
 - Use apt/dpkg as the package manager and package format.
