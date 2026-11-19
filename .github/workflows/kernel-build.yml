@@ -13,6 +13,7 @@ on:
       - "scripts/build-kernel-aarch64-uefi.sh"
       - "scripts/test-kernel-qemu-aarch64-uefi.sh"
       - "scripts/verify_aarch64_efi_image.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_aarch64_efi_image.py"
       - ".github/workflows/kernel-build.yml"
   pull_request:
@@ -27,6 +28,7 @@ on:
       - "scripts/build-kernel-aarch64-uefi.sh"
       - "scripts/test-kernel-qemu-aarch64-uefi.sh"
       - "scripts/verify_aarch64_efi_image.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_aarch64_efi_image.py"
       - ".github/workflows/kernel-build.yml"
   workflow_dispatch:
@@ -49,7 +51,7 @@ jobs:
 
       - name: Install kernel, verification, initramfs, and QEMU dependencies
         run: |
-          sudo apt-get update
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
           sudo apt-get install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
             git gnupg curl busybox-static cpio gzip qemu-system-x86 ovmf grub-efi-amd64-bin mtools parted
@@ -105,7 +107,7 @@ jobs:
         env:
           CROSS_PACKAGES: ${{ matrix.cross_packages }}
         run: |
-          sudo apt-get update
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
           sudo apt-get install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
             git gnupg curl cpio gzip ${CROSS_PACKAGES}
@@ -129,7 +131,7 @@ jobs:
       - name: Install AArch64 UEFI firmware and image tools
         if: matrix.target_arch == 'aarch64'
         run: |
-          sudo apt-get update
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
           sudo apt-get install -y qemu-efi-aarch64 mtools parted
 
       - name: Build AArch64 EFI-stub kernel with embedded initramfs
