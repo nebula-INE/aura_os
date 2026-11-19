@@ -12,6 +12,8 @@ on:
       - "scripts/test-kernel-qemu-multiarch.sh"
       - "scripts/build-kernel-aarch64-uefi.sh"
       - "scripts/test-kernel-qemu-aarch64-uefi.sh"
+      - "scripts/verify_aarch64_efi_image.py"
+      - "tests/test_aarch64_efi_image.py"
       - ".github/workflows/kernel-build.yml"
   pull_request:
     paths:
@@ -24,6 +26,8 @@ on:
       - "scripts/test-kernel-qemu-multiarch.sh"
       - "scripts/build-kernel-aarch64-uefi.sh"
       - "scripts/test-kernel-qemu-aarch64-uefi.sh"
+      - "scripts/verify_aarch64_efi_image.py"
+      - "tests/test_aarch64_efi_image.py"
       - ".github/workflows/kernel-build.yml"
   workflow_dispatch:
 
@@ -93,6 +97,10 @@ jobs:
       - name: Check out Aura OS
         uses: actions/checkout@v4
 
+      - name: Run AArch64 EFI image validator unit tests
+        if: matrix.target_arch == 'aarch64'
+        run: python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
+
       - name: Install cross toolchain and QEMU
         env:
           CROSS_PACKAGES: ${{ matrix.cross_packages }}
@@ -122,7 +130,7 @@ jobs:
         if: matrix.target_arch == 'aarch64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-efi-aarch64 mtools parted file
+          sudo apt-get install -y qemu-efi-aarch64 mtools parted
 
       - name: Build AArch64 EFI-stub kernel with embedded initramfs
         if: matrix.target_arch == 'aarch64'

@@ -6,7 +6,7 @@
 
 ## Context
 
-Aura OS has an AArch64 QEMU direct-kernel smoke test, but it does not exercise a real UEFI firmware handoff. AArch64 is a first-class Aura OS target, so the project needs a repeatable firmware-mediated validation path in addition to direct Linux loading.
+Aura OS has an AArch64 QEMU direct-kernel smoke test, but it does not exercise a firmware-mediated UEFI handoff. AArch64 is a first-class Aura OS target, so the project needs a repeatable firmware-mediated validation path in addition to direct Linux loading.
 
 ## Decision
 
@@ -31,14 +31,21 @@ console=ttyAMA0,115200 rdinit=/init panic=-1
 
 The EFI image is copied as `BOOTAA64.EFI` to the standard AArch64 removable-media fallback path on the FAT32 ESP. No separate GRUB binary is required for this first UEFI handoff test.
 
-The test must preserve a complete serial log and firmware/kernel/ESP checksums, use a bounded timeout, reject a kernel panic, and require both `AURA_INIT_OK` and `AURA_QEMU_TEST_PASS` before accepting the guest poweroff.
+## Linux ARM64 EFI image validation
+
+The generic `file` utility identifies the output as a Linux ARM64 `Image` and does not reliably describe its embedded EFI header as PE32+. That file-type label is not a valid EFI-stub acceptance test.
+
+The build and boot scripts therefore use `scripts/verify_aarch64_efi_image.py`. It checks the Linux ARM64 image magic at offset `0x38`, follows the PE header offset stored at `0x3c`, and validates the PE signature, ARM64 machine type, PE32+ optional-header magic, and EFI Application subsystem. This checks the structure the AArch64 Linux EFI image actually uses rather than relying on a host `file` database description.
+
+The test preserves full serial output and firmware/kernel/ESP checksums, uses a bounded timeout, rejects a kernel panic, and requires both `AURA_INIT_OK` and `AURA_QEMU_TEST_PASS` before accepting the guest poweroff.
 
 ## Rationale
 
 - Testing the kernel EFI stub directly isolates the UEFI firmware-to-kernel handoff without introducing a second architecture-specific bootloader build dependency.
 - Embedding the tiny test initramfs avoids relying on firmware-specific mechanisms for loading an external initrd.
-- A separate output tree preserves the ordinary AArch64 `Image` used by the direct QEMU loader test.
+- A separate output tree preserves the ordinary AArch64 `Image` used by direct boot.
 - A disposable variables store makes each CI run repeatable and avoids mutating the package's firmware template.
+- Parsing the Linux ARM64 boot header validates the embedded EFI header without assuming that generic file identification recognizes it.
 
 ## Consequences and limitations
 
@@ -51,7 +58,7 @@ The test must preserve a complete serial log and firmware/kernel/ESP checksums, 
 
 This ADR remains proposed until the AArch64 UEFI CI job passes. Acceptance requires:
 1. The kernel build configuration proves EFI, EFI stub, initramfs embedding, and the forced serial command line are enabled.
-2. The resulting image is recognized as a PE32+ AArch64 EFI application.
+2. The resulting Linux ARM64 Image contains a valid PE32+ ARM64 EFI Application header, verified by the repository parser.
 3. AAVMF discovers and executes `EFI/BOOT/BOOTAA64.EFI` from the GPT/FAT32 ESP.
 4. The kernel executes `/init`, emits both Aura success markers, powers off cleanly, and does not panic.
 5. The artifact retains the kernel image, checksums, firmware provenance, ESP image, and complete serial log.

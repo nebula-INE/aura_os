@@ -22,7 +22,7 @@ require_command() {
 }
 
 for cmd in "$QEMU_BIN" truncate mformat mmd mcopy mdir parted sha256sum \
-           dpkg-query timeout tee grep file; do
+           dpkg-query timeout tee grep python3; do
   require_command "$cmd"
 done
 for path in "$KERNEL_IMAGE" "$OVMF_CODE" "$OVMF_VARS"; do
@@ -32,11 +32,9 @@ for path in "$KERNEL_IMAGE" "$OVMF_CODE" "$OVMF_VARS"; do
   fi
 done
 
-IMAGE_TYPE="$(file -b "$KERNEL_IMAGE")"
-if ! grep -qi 'PE32+' <<<"$IMAGE_TYPE"; then
-  echo "error: UEFI boot payload is not a PE32+ EFI-stub image: $IMAGE_TYPE" >&2
-  exit 1
-fi
+echo "Validating the Linux AArch64 PE/COFF EFI application header..."
+EFI_IMAGE_VALIDATION="$(python3 "$ROOT_DIR/scripts/verify_aarch64_efi_image.py" "$KERNEL_IMAGE")"
+printf '%s\n' "$EFI_IMAGE_VALIDATION"
 
 mkdir -p "$LOG_DIR" "$ESP_DIR/EFI/BOOT"
 rm -f "$ESP_IMAGE" "$OVMF_VARS_COPY"
@@ -70,7 +68,7 @@ cp "$OVMF_VARS" "$OVMF_VARS_COPY"
   printf 'Firmware code and variables SHA-256:\n'
   sha256sum "$OVMF_CODE" "$OVMF_VARS"
   printf 'EFI fallback application: EFI/BOOT/BOOTAA64.EFI (Linux EFI stub)\n'
-  printf 'Kernel image type: %s\n' "$IMAGE_TYPE"
+  printf 'Kernel image validation: %s\n' "$EFI_IMAGE_VALIDATION"
   printf 'Kernel SHA-256:\n'
   sha256sum "$KERNEL_IMAGE"
   printf 'ESP image SHA-256:\n'

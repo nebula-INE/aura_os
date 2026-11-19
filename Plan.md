@@ -92,9 +92,9 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Record the initial upstream Linux longterm baseline and x86-64 bring-up configuration in architecture decision records.
 - [x] Build the pinned upstream Linux 6.18.64 x86-64 kernel in CI; generate a minimal initramfs and verify first boot through OVMF UEFI in QEMU (AURA_INIT_OK / AURA_QEMU_TEST_PASS; CI run 44301482434).
 - [x] Add target-specific kernel, static initramfs, and QEMU smoke-test workflows for RV64GC and AArch64 (initial emulator profiles; hardware support is not implied).
-- [ ] Pass both new cross-architecture CI jobs and inspect their boot artifacts.
-- [x] Add an AArch64 AAVMF UEFI smoke-test path using the Linux EFI stub and an embedded target-native initramfs; CI validation remains pending.
-- [x] Select Debian 13 (trixie), glibc, apt/dpkg, systemd-sysv, and mmdebstrap as the initial three-architecture base-userspace bootstrap policy (ADR 0006); CI and product boot validation remain pending.
+- [x] Pass the RV64GC and AArch64 direct-boot CI jobs and inspect their uploaded boot artifacts.
+- [x] Add an AArch64 AAVMF UEFI smoke-test path using the Linux EFI stub and an embedded target-native initramfs; structural Linux ARM64 PE/COFF validation and the AAVMF QEMU boot pass in CI.
+- [x] Select Debian 13 (trixie), glibc, apt/dpkg, systemd-sysv, and mmdebstrap as the initial three-architecture base-userspace bootstrap policy (ADR 0006); three-architecture bootstrap CI passes, while persistent-root boot validation remains pending.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
 - [x] Add CI for the initial pinned x86-64 Linux kernel build.
 - [ ] Add CI for formatting, static checks, userspace builds, and boot smoke tests. A dedicated multi-architecture base-userspace bootstrap workflow is added; full rootfs boot checks remain pending.
@@ -116,7 +116,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 ### Phase 2 — Shared system foundation
 
-- [ ] Generate and validate the initial Debian base rootfs on x86-64, AArch64, and RV64GC (bootstrap workflow added; CI pending).
+- [x] Generate and validate the Debian base rootfs on x86-64, AArch64, and RV64GC; all three bootstrap jobs pass and upload archives, package manifests, and provenance. QEMU boot and switch_root remain pending.
 - [ ] Establish common userspace and service startup.
 - [ ] Define users, groups, permissions, and privilege boundaries.
 - [ ] Establish storage layout and filesystem support.
@@ -369,7 +369,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 ## 12. Open design decisions
 
 - Linux distribution/base userspace versus a minimal custom userspace.
-- Init/service manager and system library choices.
+- [x] Initial init/service baseline: systemd with glibc; final default service set and desktop session remain open.
 - Desktop/compositor and graphics stack.
 - Package format, repositories, installation, and atomic update model.
 - Exact reference hardware and minimum CPU/ISA baselines for all three targets.
