@@ -63,7 +63,10 @@ tar --numeric-owner --xattrs --acls -C "$ROOTFS_DIR" -cf - . |
   tar --numeric-owner --xattrs --acls -xf - -C "$MOUNT_DIR"
 
 mkdir -p "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants"
-cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
+INSTALL_QEMU_SMOKE_SERVICE="${AURA_INSTALL_QEMU_SMOKE_SERVICE:-1}"
+case "$INSTALL_QEMU_SMOKE_SERVICE" in
+  1)
+    cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
 Description=Aura OS persistent rootfs QEMU smoke test
 After=basic.target
@@ -79,8 +82,17 @@ StandardError=journal+console
 [Install]
 WantedBy=multi-user.target
 UNIT
-ln -sfn /etc/systemd/system/aura-rootfs-smoke.service \
-  "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants/aura-rootfs-smoke.service"
+    ln -sfn /etc/systemd/system/aura-rootfs-smoke.service \
+      "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants/aura-rootfs-smoke.service"
+    ;;
+  0)
+    echo "Skipping the auto-poweroff smoke service for interactive first-boot login testing."
+    ;;
+  *)
+    echo "error: AURA_INSTALL_QEMU_SMOKE_SERVICE must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
 
 sync
 umount "$MOUNT_DIR"
