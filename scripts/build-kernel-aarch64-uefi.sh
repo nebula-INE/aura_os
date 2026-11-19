@@ -22,7 +22,7 @@ require_command() {
   }
 }
 
-for cmd in "$COMPILER" make cp grep sha256sum file; do
+for cmd in "$COMPILER" make cp grep sha256sum python3; do
   require_command "$cmd"
 done
 for path in "$SOURCE_DIR/Makefile" "$BASE_OUT_DIR/.config"; do
@@ -40,7 +40,7 @@ mkdir -p "$OUT_DIR"
 cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"
 
 # Keep the normal AArch64 direct-boot image intact. This separate output tree
-# builds a PE/COFF EFI-stub kernel and embeds the same target-native /init.
+# builds the Linux arm64 Image with its PE/COFF EFI entry and embedded /init.
 "$SOURCE_DIR/scripts/config" --file "$OUT_DIR/.config" \
   --enable BLK_DEV_INITRD \
   --enable EFI \
@@ -60,11 +60,11 @@ for option in CONFIG_BLK_DEV_INITRD CONFIG_EFI CONFIG_EFI_STUB \
     exit 1
   }
 done
-grep -Fqx "CONFIG_INITRAMFS_SOURCE=\"${INITRAMFS_ROOTFS}\"" "$OUT_DIR/.config" || {
+grep -Fqx "CONFIG_INITRAMFS_SOURCE=\"$INITRAMFS_ROOTFS\"" "$OUT_DIR/.config" || {
   echo "error: kernel did not retain the embedded initramfs source path." >&2
   exit 1
 }
-grep -Fqx "CONFIG_CMDLINE=\"${KERNEL_CMDLINE}\"" "$OUT_DIR/.config" || {
+grep -Fqx "CONFIG_CMDLINE=\"$KERNEL_CMDLINE\"" "$OUT_DIR/.config" || {
   echo "error: kernel did not retain the forced UEFI command line." >&2
   exit 1
 }
@@ -74,12 +74,8 @@ ARCH=arm64 CROSS_COMPILE="$CROSS_COMPILE" \
   make -C "$SOURCE_DIR" O="$OUT_DIR" -j"$JOBS" Image
 
 test -s "$IMAGE"
-IMAGE_TYPE="$(file -b "$IMAGE")"
-printf 'EFI image type: %s\n' "$IMAGE_TYPE"
-if ! grep -qi 'PE32+' <<<"$IMAGE_TYPE"; then
-  echo "error: AArch64 kernel image does not contain a PE32+ EFI-stub header." >&2
-  exit 1
-fi
+echo "Validating Linux AArch64 PE/COFF EFI header..."
+python3 "$ROOT_DIR/scripts/verify_aarch64_efi_image.py" "$IMAGE"
 
 cp "${BASE_OUT_DIR}/source-verification.txt" "$OUT_DIR/source-verification.txt"
 sha256sum "$IMAGE" | tee "$OUT_DIR/aarch64-uefi-kernel-image.sha256"
