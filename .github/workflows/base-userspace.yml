@@ -45,6 +45,9 @@ jobs:
       - name: Check out Aura OS
         uses: actions/checkout@v4
 
+      - name: Check base bootstrap shell syntax
+        run: bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh
+
       - name: Run base rootfs validator unit tests
         run: python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
 
