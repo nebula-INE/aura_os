@@ -70,6 +70,10 @@ dump_network_diagnostics() {
     timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" networkctl --no-pager --all status || true
   fi
 
+  if command -v udevadm >/dev/null 2>&1; then
+    timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" udevadm info --query=property --path=/sys/class/net/eth0 || true
+  fi
+
   if command -v journalctl >/dev/null 2>&1; then
     timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" journalctl -b -u systemd-networkd.service --no-pager -n 60 || true
     timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" journalctl -b -k --no-pager -n 100 |
@@ -85,6 +89,10 @@ dump_network_diagnostics() {
   done
   report "AURA_NETWORK_INTERFACES_END"
   report "AURA_NETWORK_DIAGNOSTICS_END"
+}
+
+udevd_active() {
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" systemctl is-active --quiet systemd-udevd.service
 }
 
 networkd_active() {
@@ -135,6 +143,7 @@ ntp_is_enabled() {
 }
 
 report "AURA_SYSTEMD_ROOTFS_OK"
+wait_for "AURA_UDEV_OK" udevd_active
 wait_for "AURA_NETWORK_NETWORKD_OK" networkd_active
 wait_for "AURA_NETWORK_RESOLVED_OK" resolved_active
 wait_for "AURA_NETWORK_TIMESYNCD_OK" timesyncd_active
