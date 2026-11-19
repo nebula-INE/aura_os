@@ -51,7 +51,7 @@ The repository adds an automated integration workflow, `.github/workflows/base-r
 
 The test kernel command line includes `aura.rootfs=1`. In this mode, the PID 1 initramfs program mounts `/dev/vda`, moves `/dev`, `/proc`, and `/sys` into the new root, uses the classic `switch_root` overmount/chroot sequence, and executes `/sbin/init`. The Debian rootfs contains a first-boot account setup service and a one-shot systemd test service. The QEMU smoke command line includes `aura.firstboot.skip`, which bypasses the interactive account wizard only for automation; the test service writes `AURA_SYSTEMD_ROOTFS_OK` and `AURA_ROOTFS_QEMU_PASS` to the serial console before requesting poweroff. The older initramfs-only kernel and UEFI smoke tests remain on their original path when `aura.rootfs=1` is absent.
 
-Run the integration workflow from a pull request or GitHub Actions after the base userspace is available. Its artifact includes the kernel, initramfs, ext4 image, serial log, and checksums. Passing this QEMU path demonstrates boot into the Debian userspace under the emulator profile; it does not yet establish a login-ready, installable, or hardware-supported OS.
+Run the integration workflow from a pull request or GitHub Actions after the base userspace is available. Its artifact includes the kernel, initramfs, ext4 image, serial logs, and checksums. Passing the persistent-root test demonstrates boot into Debian under the emulator profile; passing the interactive test additionally demonstrates first-user setup, console login, sudo authentication, and repeat-boot persistence in QEMU. Neither test establishes an installable image or physical-hardware support.
 
 ## Scope and safety
 
