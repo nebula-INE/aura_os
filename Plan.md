@@ -119,7 +119,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Generate and validate the Debian base rootfs on x86-64, AArch64, and RV64GC; all three bootstrap jobs pass and upload archives, package manifests, and provenance.
 - [ ] Boot each Debian rootfs under QEMU, use the Linux 6.18.64-compatible switch_root overmount/chroot handoff (not pivot_root), and verify systemd startup/poweroff (automated workflow added; CI pending).
 - [ ] Establish common userspace and service startup.
-- [ ] Define users, groups, permissions, and privilege boundaries.
+- [x] Add an interactive first-boot console flow that creates one local `sudo` administrator, keeps root password-locked, and resumes safely if password setup is interrupted (automated tests added; multi-architecture boot validation pending).
+- [ ] Validate console login, sudo access, and first-boot behavior on all three QEMU architectures.
 - [ ] Establish storage layout and filesystem support.
 - [ ] Add logging, diagnostics, crash reporting, and recovery.
 - [ ] Establish networking and time configuration.
@@ -364,7 +365,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 2. Bring up x86-64 in QEMU first, with serial boot logs and a minimal initramfs.
 3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
-5. Pass the persistent-root QEMU integration workflow on all three architectures; then add first-user provisioning and validate login, services, reboot, and shutdown.
+5. Pass the persistent-root QEMU integration workflow on all three architectures; then validate first-user creation, console login, sudo, reboot, and shutdown.
 6. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
