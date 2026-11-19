@@ -59,5 +59,9 @@ readelf -h "$ROOTFS_DIR/init" | grep -E 'Class:|Data:|Machine:'
 )
 
 test -s "$ARCHIVE"
-sha256sum "$ARCHIVE" | tee "$ARCHIVE.sha256"
+(
+  cd "$OUT_DIR"
+  sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256"
+)
+cat "$ARCHIVE.sha256"
 printf 'Created static %s initramfs: %s\n' "$TARGET_ARCH" "$ARCHIVE"
