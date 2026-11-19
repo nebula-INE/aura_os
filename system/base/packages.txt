@@ -10,5 +10,6 @@ iproute2
 iputils-ping
 locales
 sudo
+passwd
 e2fsprogs
 util-linux
