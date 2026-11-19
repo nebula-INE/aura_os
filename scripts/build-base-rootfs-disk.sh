@@ -97,6 +97,7 @@ esac
 INSTALL_QEMU_CONSOLE_GETTY="${AURA_INSTALL_QEMU_CONSOLE_GETTY:-0}"
 case "$INSTALL_QEMU_CONSOLE_GETTY" in
   1)
+    mkdir -p "$MOUNT_DIR/etc/systemd/system/getty.target.wants"
     cat > "$MOUNT_DIR/etc/systemd/system/aura-qemu-console-getty.service" <<'UNIT'
 [Unit]
 Description=Aura OS QEMU kernel-console login for integration tests
