@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TARGET_ARCH="${TARGET_ARCH:-}"
-TIMEOUT_SECONDS="${QEMU_TIMEOUT_SECONDS:-180}"
+TIMEOUT_SECONDS="${QEMU_TIMEOUT_SECONDS:-240}"
 ROOTFS_IMAGE="${ROOTFS_IMAGE:-$ROOT_DIR/build/base-userspace/$TARGET_ARCH/aura-base-$TARGET_ARCH.ext4}"
 INITRAMFS="$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz"
 LOG_DIR="$ROOT_DIR/build/qemu"
@@ -25,6 +25,8 @@ case "$TARGET_ARCH" in
       -append "$KERNEL_CMDLINE"
       -drive if=none,id=auraroot,format=raw,file="$ROOTFS_IMAGE"
       -device virtio-blk-pci,drive=auraroot
+      -netdev user,id=auranet,ipv6=on
+      -device virtio-net-pci,netdev=auranet
       -display none
       -serial stdio
       -monitor none
@@ -48,6 +50,8 @@ case "$TARGET_ARCH" in
       -append "$KERNEL_CMDLINE"
       -drive if=none,id=auraroot,format=raw,file="$ROOTFS_IMAGE"
       -device virtio-blk-device,drive=auraroot
+      -netdev user,id=auranet,ipv6=on
+      -device virtio-net-device,netdev=auranet
       -display none
       -serial stdio
       -monitor none
@@ -70,6 +74,8 @@ case "$TARGET_ARCH" in
       -append "$KERNEL_CMDLINE"
       -drive if=none,id=auraroot,format=raw,file="$ROOTFS_IMAGE"
       -device virtio-blk-device,drive=auraroot
+      -netdev user,id=auranet,ipv6=on
+      -device virtio-net-device,netdev=auranet
       -display none
       -serial stdio
       -monitor none
@@ -112,6 +118,7 @@ PROVENANCE_FILE="$LOG_DIR/$TARGET_ARCH-rootfs-boot-provenance.txt"
   printf 'QEMU: %s\n' "$("$QEMU_BIN" --version | head -n 1)"
   printf 'CPU model: %s\n' "$CPU_MODEL"
   printf 'Memory: 2048 MiB\n'
+  printf 'Network: QEMU user-mode IPv4/IPv6 with DHCP and DNS\n'
   printf 'Console: %s\n' "$CONSOLE"
   printf 'Kernel command line: %s\n' "$KERNEL_CMDLINE"
   printf 'Kernel SHA-256:\n'
@@ -145,6 +152,20 @@ grep -Fq "AURA_SYSTEMD_ROOTFS_OK" "$LOG_FILE" || {
   echo "error: systemd did not reach the persistent-root smoke service." >&2
   exit 1
 }
+for marker in \
+  AURA_NETWORK_NETWORKD_OK \
+  AURA_NETWORK_RESOLVED_OK \
+  AURA_NETWORK_TIMESYNCD_OK \
+  AURA_NETWORK_IPV4_OK \
+  AURA_NETWORK_DEFAULT_ROUTE_OK \
+  AURA_NETWORK_IPV6_OK \
+  AURA_NETWORK_DNS_OK \
+  AURA_NETWORK_NTP_ENABLED_OK; do
+  grep -Fq "$marker" "$LOG_FILE" || {
+    echo "error: network/time smoke check did not report $marker." >&2
+    exit 1
+  }
+done
 grep -Fq "AURA_ROOTFS_QEMU_PASS" "$LOG_FILE" || {
   echo "error: persistent-root QEMU smoke service did not report success." >&2
   exit 1
