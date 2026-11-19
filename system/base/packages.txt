@@ -4,6 +4,7 @@
 systemd-sysv
 dbus
 systemd-resolved
+debian-archive-keyring
 ca-certificates
 iproute2
 iputils-ping
