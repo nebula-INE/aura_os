@@ -155,7 +155,7 @@ tar \
 
 test -s "$ARCHIVE"
 sha256sum "$ARCHIVE" | tee "$CHECKSUM_FILE"
-DEBIAN_KEYRING_SHA256="$(sha256sum "$DEBIAN_KEYRING" | awk -F' ' '{print $1}')"
+read -r DEBIAN_KEYRING_SHA256 _ < <(sha256sum "$DEBIAN_KEYRING")
 
 {
   printf 'Aura OS base userspace build\n'
