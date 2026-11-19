@@ -34,8 +34,33 @@ ubuntu_archive_candidate_available() {
     '
 }
 
+# Ubuntu archive metadata can briefly be inconsistent while a mirror is being
+# synchronized. By-hash avoids fetching an index by its mutable filename, and
+# bounded backoff gives the mirror time to publish a matching Release/index set.
+apt_update_with_retries() {
+  local max_attempts="${1:-4}"
+  local attempt=1
+
+  while (( attempt <= max_attempts )); do
+    echo "Updating APT indexes (attempt ${attempt}/${max_attempts})..."
+    if apt-get update -o Acquire::Retries=3 -o Acquire::By-Hash=force; then
+      return 0
+    fi
+
+    if (( attempt < max_attempts )); then
+      local delay=$((attempt * 5))
+      echo "APT index update failed; retrying in ${delay}s to allow mirror synchronization." >&2
+      sleep "$delay"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  echo "error: apt-get update failed after ${max_attempts} attempts." >&2
+  return 1
+}
+
 update_status=0
-if ! apt-get update -o Acquire::Retries=3; then
+if ! apt_update_with_retries 2; then
   update_status=1
 fi
 
@@ -44,19 +69,19 @@ if [[ "$update_status" -ne 0 ]] || ! ubuntu_archive_candidate_available; then
 
   cat > /etc/apt/sources.list.d/aura-ubuntu-noble.sources <<'EOF'
 Types: deb
-URIs: http://archive.ubuntu.com/ubuntu
+URIs: https://archive.ubuntu.com/ubuntu
 Suites: noble noble-updates noble-backports
 Components: main universe restricted multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 
 Types: deb
-URIs: http://security.ubuntu.com/ubuntu
+URIs: https://security.ubuntu.com/ubuntu
 Suites: noble-security
 Components: main universe restricted multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 EOF
 
-  apt-get update -o Acquire::Retries=3
+  apt_update_with_retries 4
 fi
 
 if ! ubuntu_archive_candidate_available; then
