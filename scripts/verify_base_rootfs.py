@@ -16,7 +16,20 @@ ARCHITECTURES = {
     "aarch64": {"debian": "arm64", "elf_machine": 183},
     "riscv64": {"debian": "riscv64", "elf_machine": 243},
 }
-REQUIRED_PACKAGES = {"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd"}
+REQUIRED_PACKAGES = {
+    "apt",
+    "dbus",
+    "debian-archive-keyring",
+    "kmod",
+    "libc6",
+    "passwd",
+    "sudo",
+    "systemd",
+    "systemd-resolved",
+    "systemd-sysv",
+    "systemd-timesyncd",
+    "udev",
+}
 
 
 def _read_os_release(path: Path) -> dict[str, str]:
@@ -74,13 +87,18 @@ def _resolve_rootfs_absolute_symlink(rootfs: Path, link: Path) -> Path:
     return candidate.resolve(strict=True)
 
 
-def _validate_enabled_systemd_unit(root: Path, unit_name: str) -> None:
+def _validate_enabled_systemd_unit(
+    root: Path,
+    unit_name: str,
+    target_name: str = "multi-user.target",
+    wants_directory: str = "etc/systemd/system",
+) -> None:
     unit = root / "usr/lib/systemd/system" / unit_name
     if not unit.is_file():
         raise ValueError(f"root filesystem is missing systemd unit {unit_name}")
-    link = root / "etc/systemd/system/multi-user.target.wants" / unit_name
+    link = root / wants_directory / f"{target_name}.wants" / unit_name
     if not link.is_symlink():
-        raise ValueError(f"{unit_name} must be enabled for multi-user.target")
+        raise ValueError(f"{unit_name} must be enabled for {target_name}")
     try:
         target = _resolve_rootfs_absolute_symlink(root, link)
     except OSError as exc:
@@ -161,6 +179,20 @@ def validate_rootfs(
     if firstboot_target != firstboot_unit.resolve(strict=True):
         raise ValueError("aura-firstboot.service enablement link points to the wrong unit")
 
+    # udev must enumerate QEMU's virtio NIC before networkd can configure it.
+    udevd = root / "usr/lib/systemd/systemd-udevd"
+    if not udevd.is_file() or not os.access(udevd, os.X_OK):
+        raise ValueError("root filesystem is missing executable /usr/lib/systemd/systemd-udevd")
+    modprobe = root / "usr/sbin/modprobe"
+    if not modprobe.is_file() or not os.access(modprobe, os.X_OK):
+        raise ValueError("root filesystem is missing executable /usr/sbin/modprobe")
+    _validate_enabled_systemd_unit(
+        root, "systemd-udevd.service", "sysinit.target", "usr/lib/systemd/system"
+    )
+    _validate_enabled_systemd_unit(
+        root, "systemd-udev-trigger.service", "sysinit.target", "usr/lib/systemd/system"
+    )
+
     # systemd-networkd handles wired Ethernet using DHCP and IPv6 RA.
     network_config = root / "etc/systemd/network/20-wired.network"
     if not network_config.is_file():
@@ -208,6 +240,8 @@ def validate_rootfs(
         "init": "systemd",
         "package_manager": "apt/dpkg",
         "required_packages": sorted(REQUIRED_PACKAGES),
+        "device_management": "udev",
+        "kernel_module_loader": "kmod",
         "wired_network": "systemd-networkd DHCP and IPv6 RA",
         "dns": "systemd-resolved",
         "time_sync": "systemd-timesyncd",
