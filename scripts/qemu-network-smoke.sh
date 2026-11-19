@@ -115,7 +115,7 @@ has_ethernet_interface() {
 
 has_global_ipv4() {
   timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -4 address show scope global |
-    grep -E ' inet ([0-9]{1,3}\\.){3}[0-9]{1,3}/' >/dev/null
+    grep -E ' inet ([0-9]{1,3}\.){3}[0-9]{1,3}/' >/dev/null
 }
 
 has_default_ipv4_route() {
