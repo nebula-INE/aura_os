@@ -21,7 +21,7 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod; do
+for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod chown; do
   command -v "$cmd" >/dev/null 2>&1 || {
     echo "error: required command not found: $cmd" >&2
     exit 1
@@ -86,13 +86,20 @@ sync
 umount "$MOUNT_DIR"
 e2fsck -fn "$OUTPUT_IMAGE"
 
-# The image is built under sudo, but QEMU runs as the unprivileged runner user.
-# Grant read-only access without changing the root-owned contents of the image.
-chmod 0644 "$OUTPUT_IMAGE"
+# The image is built under sudo, but QEMU runs as the original unprivileged
+# runner user and opens the disk read-write. Return ownership to that caller.
 (
   cd "$(dirname "$OUTPUT_IMAGE")"
   sha256sum "$(basename "$OUTPUT_IMAGE")" > "$(basename "$OUTPUT_IMAGE").sha256"
 )
-chmod 0644 "$OUTPUT_IMAGE.sha256"
+if [[ -n "${SUDO_UID:-}" && -n "${SUDO_GID:-}" ]]; then
+  chown "$SUDO_UID:$SUDO_GID" "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
+  chmod 0644 "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
+else
+  # Direct root invocation has no recorded caller; allow the local test user
+  # to open the temporary image read-write rather than silently making it RO.
+  chmod 0666 "$OUTPUT_IMAGE"
+  chmod 0644 "$OUTPUT_IMAGE.sha256"
+fi
 cat "$OUTPUT_IMAGE.sha256"
 printf 'Created Aura OS %s persistent rootfs image: %s\n' "$TARGET_ARCH" "$OUTPUT_IMAGE"
