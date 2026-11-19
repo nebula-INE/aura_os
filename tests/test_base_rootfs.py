@@ -15,7 +15,7 @@ from verify_base_rootfs import ARCHITECTURES, validate_rootfs  # noqa: E402
 def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     expected = ARCHITECTURES[target_arch]["elf_machine"]
     for directory in (
-        "etc", "usr/lib/systemd", "usr/bin", "sbin", "var/lib/dpkg"
+        "etc", "usr/lib/systemd", "usr/lib/aura", "usr/bin", "sbin", "var/lib/dpkg", "etc/systemd/system/multi-user.target.wants"
     ):
         (root / directory).mkdir(parents=True, exist_ok=True)
 
@@ -35,10 +35,20 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "libc6", "systemd", "systemd-resolved", "systemd-sysv"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv"})
         ) + "\n",
         encoding="utf-8",
     )
+    (root / "usr/lib/aura/aura-firstboot").write_text(
+        "#!/bin/bash\\nexit 0\\n", encoding="utf-8"
+    )
+    (root / "etc/systemd/system/aura-firstboot.service").write_text(
+        "[Service]\\nExecStart=/bin/bash /usr/lib/aura/aura-firstboot\\n",
+        encoding="utf-8",
+    )
+    (
+        root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
+    ).symlink_to("/etc/systemd/system/aura-firstboot.service")
     (root / "etc/shadow").write_text(
         "root:!:20000:0:99999:7:::\n", encoding="utf-8"
     )
@@ -100,6 +110,24 @@ class BaseRootfsTests(unittest.TestCase):
             make_rootfs(root)
             (root / "var/lib/dpkg/status").write_text("Package: apt\nStatus: install ok installed\n")
             with self.assertRaisesRegex(ValueError, "required Debian packages"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_missing_firstboot_service(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (root / "usr/lib/aura/aura-firstboot").unlink()
+            with self.assertRaisesRegex(ValueError, "missing /usr/lib/aura/aura-firstboot"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_disabled_firstboot_service(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (
+                root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
+            ).unlink()
+            with self.assertRaisesRegex(ValueError, "must be enabled"):
                 validate_rootfs(root, "x86_64")
 
     def test_rejects_unknown_target_architecture(self) -> None:
