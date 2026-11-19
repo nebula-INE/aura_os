@@ -5,6 +5,8 @@ STATE_DIR="${AURA_FIRSTBOOT_STATE_DIR:-/var/lib/aura/firstboot}"
 COMPLETE_FILE="$STATE_DIR/complete"
 PENDING_FILE="$STATE_DIR/pending-user"
 MAX_USERNAME_ATTEMPTS=5
+CONSOLE_INPUT_PATH="${AURA_FIRSTBOOT_INPUT_PATH:-/dev/console}"
+CONSOLE_OUTPUT_PATH="${AURA_FIRSTBOOT_OUTPUT_PATH:-/dev/console}"
 
 export LC_ALL=C
 
@@ -71,6 +73,15 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
+if ! exec 3< "$CONSOLE_INPUT_PATH"; then
+  echo "error: cannot open the system console for first-boot input: $CONSOLE_INPUT_PATH" >&2
+  exit 1
+fi
+
+console_print() {
+  printf '%s' "$1" >> "$CONSOLE_OUTPUT_PATH"
+}
+
 printf '\nWelcome to Aura OS.\n'
 printf 'Create the first local administrator account. The root account stays locked.\n'
 
@@ -88,7 +99,8 @@ fi
 
 for ((attempt = 1; attempt <= MAX_USERNAME_ATTEMPTS; attempt++)); do
   username=""
-  if ! IFS= read -r -p "New username (lowercase letters, digits, _ or -, 1–32 characters): " username; then
+  console_print "New username (lowercase letters, digits, _ or -, 1–32 characters): "
+  if ! IFS= read -r username <&3; then
     echo "error: no username was provided on the system console." >&2
     exit 1
   fi
