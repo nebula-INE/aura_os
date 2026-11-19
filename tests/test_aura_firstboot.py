@@ -19,6 +19,8 @@ class FirstBootSetupTests(unittest.TestCase):
         self.bin_dir.mkdir()
         self.state_dir = self.root / "state"
         self.command_log = self.root / "commands.log"
+        self.console_input = self.root / "console-input"
+        self.console_output = self.root / "console-output"
         self.existing_users = self.root / "existing-users"
         self.existing_users.write_text("", encoding="utf-8")
 
@@ -47,6 +49,8 @@ class FirstBootSetupTests(unittest.TestCase):
                 "AURA_FIRSTBOOT_STATE_DIR": str(self.state_dir),
                 "AURA_TEST_COMMAND_LOG": str(self.command_log),
                 "AURA_TEST_EXISTING_USERS": str(self.existing_users),
+                "AURA_FIRSTBOOT_INPUT_PATH": str(self.console_input),
+                "AURA_FIRSTBOOT_OUTPUT_PATH": str(self.console_output),
                 "AURA_TEST_USERADD_EXIT": "0",
                 "AURA_TEST_PASSWD_EXIT": "0",
                 "AURA_TEST_USERDEL_EXIT": "0",
@@ -69,9 +73,10 @@ class FirstBootSetupTests(unittest.TestCase):
         )
 
     def _run_setup(self, input_text: str = "") -> subprocess.CompletedProcess[str]:
+        self.console_input.write_text(input_text, encoding="utf-8")
         return subprocess.run(
             ["bash", str(FIRSTBOOT_SCRIPT)],
-            input=input_text,
+            input="",
             text=True,
             capture_output=True,
             env=self.env,
@@ -94,6 +99,7 @@ class FirstBootSetupTests(unittest.TestCase):
         self.assertIn("useradd:", commands)
         self.assertIn("--groups sudo -- auraadmin", commands)
         self.assertIn("passwd:auraadmin", commands)
+        self.assertIn("New username", self.console_output.read_text(encoding="utf-8"))
 
         second = self._run_setup()
         self.assertEqual(second.returncode, 0, second.stderr)
@@ -143,6 +149,7 @@ class FirstBootSetupTests(unittest.TestCase):
         unit = FIRSTBOOT_UNIT.read_text(encoding="utf-8")
         self.assertIn("ConditionKernelCommandLine=!aura.firstboot.skip", unit)
         self.assertIn("StandardInput=tty-force", unit)
+        self.assertIn("StandardError=tty", unit)
         self.assertIn("TTYPath=/dev/console", unit)
         self.assertIn("Before=systemd-user-sessions.service getty.target", unit)
 
