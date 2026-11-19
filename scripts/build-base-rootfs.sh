@@ -40,7 +40,7 @@ require_command() {
   fi
 }
 
-for cmd in mmdebstrap tar gzip sha256sum dpkg-query python3 sed sort; do
+for cmd in mmdebstrap tar gzip sha256sum dpkg-query python3 sed sort install; do
   require_command "$cmd"
 done
 
@@ -123,6 +123,20 @@ printf '%s\n' \
 printf 'NAME="Aura OS"\nBASE="Debian GNU/Linux"\nVERSION_CODENAME="%s"\nTARGET_ARCH="%s"\nDEBIAN_ARCH="%s"\n' \
   "$DEBIAN_SUITE" "$TARGET_ARCH" "$DEBIAN_ARCH" \
   > "$ROOTFS_DIR/etc/aura-release"
+
+echo "Installing Aura first-boot account setup..."
+FIRSTBOOT_SOURCE="$ROOT_DIR/system/base/firstboot"
+if [[ ! -s "$FIRSTBOOT_SOURCE/aura-firstboot" || ! -s "$FIRSTBOOT_SOURCE/aura-firstboot.service" ]]; then
+  echo "error: first-boot account setup source files are missing." >&2
+  exit 1
+fi
+install -D -m 0644 "$FIRSTBOOT_SOURCE/aura-firstboot" \
+  "$ROOTFS_DIR/usr/lib/aura/aura-firstboot"
+install -D -m 0644 "$FIRSTBOOT_SOURCE/aura-firstboot.service" \
+  "$ROOTFS_DIR/etc/systemd/system/aura-firstboot.service"
+mkdir -p "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants"
+ln -sfn /etc/systemd/system/aura-firstboot.service \
+  "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
 
 echo "Verifying the generated root filesystem..."
 python3 "$ROOT_DIR/scripts/verify_base_rootfs.py" \
