@@ -8,7 +8,7 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
-      - "tests/test_base_rootfs.py"
+      - "tests/test_base_rootfs.py"\n      - "tests/test_aura_firstboot.py"
       - ".github/workflows/base-userspace.yml"
   pull_request:
     paths:
@@ -17,7 +17,7 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
-      - "tests/test_base_rootfs.py"
+      - "tests/test_base_rootfs.py"\n      - "tests/test_aura_firstboot.py"
       - ".github/workflows/base-userspace.yml"
   workflow_dispatch:
 
@@ -48,10 +48,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check base bootstrap shell syntax
-        run: bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh
+        run: bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh system/base/firstboot/aura-firstboot
 
       - name: Run base rootfs validator unit tests
-        run: python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+        run: |\n          python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v\n          python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
 
       - name: Install Debian bootstrap and foreign architecture emulation tools
         run: |
