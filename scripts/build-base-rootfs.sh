@@ -8,6 +8,7 @@ DEBIAN_MIRROR="${DEBIAN_MIRROR:-https://deb.debian.org/debian}"
 PACKAGES_FILE="${ROOT_DIR}/system/base/packages.txt"
 BASE_OUTPUT_DIR="${ROOT_DIR}/build/base-userspace"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
+DEBIAN_KEYRING="${DEBIAN_KEYRING:-${ROOT_DIR}/build/base-userspace/debian-trixie-keyring.gpg"}
 
 case "$TARGET_ARCH" in
   x86_64) DEBIAN_ARCH="amd64" ;;
@@ -44,6 +45,11 @@ for cmd in mmdebstrap tar gzip sha256sum dpkg-query python3; do
 done
 if [[ ! -s "$PACKAGES_FILE" ]]; then
   echo "error: package manifest is missing or empty: $PACKAGES_FILE" >&2
+  exit 1
+fi
+if [[ ! -s "$DEBIAN_KEYRING" ]]; then
+  echo "error: verified Debian Trixie keyring is missing: $DEBIAN_KEYRING" >&2
+  echo "hint: run scripts/prepare-debian-trixie-keyring.sh first." >&2
   exit 1
 fi
 
@@ -91,11 +97,12 @@ echo "  Packages: $INCLUDE_PACKAGES"
 rm -rf -- "$ROOTFS_DIR" "$ARCHIVE" "$CHECKSUM_FILE" "$MANIFEST_FILE" "$PROVENANCE_FILE"
 mkdir -p "$OUTPUT_DIR"
 
-mmdebstrap \
+DEBIAN_FRONTEND=noninteractive mmdebstrap \
   --mode=root \
   --variant=minbase \
   --architectures="$DEBIAN_ARCH" \
   --components=main \
+  --keyring="$DEBIAN_KEYRING" \
   --include="$INCLUDE_PACKAGES" \
   --aptopt='APT::Install-Recommends "false";' \
   --aptopt='Acquire::Retries "3";' \
@@ -158,6 +165,7 @@ sha256sum "$ARCHIVE" | tee "$CHECKSUM_FILE"
   printf 'Bootstrap tool: mmdebstrap --variant=minbase\n'
   printf 'Init/service manager: systemd (systemd-sysv)\n'
   printf 'Package manager: apt/dpkg\n'
+  printf 'Debian keyring SHA-256: %s\n' "$(sha256sum "$DEBIAN_KEYRING" | awk '{print $1}')"
   printf 'Root account: locked; no default password configured\n'
   printf 'Desktop: not installed\n'
   printf 'Archive: %s\n' "$ARCHIVE"
