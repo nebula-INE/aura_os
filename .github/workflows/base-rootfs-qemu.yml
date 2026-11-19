@@ -139,7 +139,8 @@ jobs:
           ROOTFS_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/rootfs
           OUTPUT_IMAGE: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/aura-firstboot-${{ matrix.target_arch }}.ext4
           AURA_INSTALL_QEMU_SMOKE_SERVICE: "0"
-        run: sudo --preserve-env=TARGET_ARCH,ROOTFS_DIR,OUTPUT_IMAGE,AURA_INSTALL_QEMU_SMOKE_SERVICE bash scripts/build-base-rootfs-disk.sh
+          AURA_INSTALL_QEMU_CONSOLE_GETTY: "1"
+        run: sudo --preserve-env=TARGET_ARCH,ROOTFS_DIR,OUTPUT_IMAGE,AURA_INSTALL_QEMU_SMOKE_SERVICE,AURA_INSTALL_QEMU_CONSOLE_GETTY bash scripts/build-base-rootfs-disk.sh
 
       - name: Create first user, log in, verify sudo, and repeat boot
         env:
