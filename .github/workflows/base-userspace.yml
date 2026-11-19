@@ -5,6 +5,7 @@ on:
     paths:
       - "system/base/**"
       - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
       - "tests/test_base_rootfs.py"
       - ".github/workflows/base-userspace.yml"
@@ -49,14 +50,16 @@ jobs:
       - name: Install Debian bootstrap and foreign architecture emulation tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y mmdebstrap qemu-user qemu-user-binfmt binfmt-support
+          sudo apt-get install -y mmdebstrap qemu-user qemu-user-binfmt binfmt-support curl gnupg
           sudo systemctl restart systemd-binfmt.service
+          sudo bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
 
       - name: Build target-native Debian root filesystem
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
           OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
-        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR bash scripts/build-base-rootfs.sh
+          DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
 
       - name: Upload root filesystem, package manifest, and provenance
         uses: actions/upload-artifact@v4
