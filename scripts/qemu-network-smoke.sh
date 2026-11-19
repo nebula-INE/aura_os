@@ -36,9 +36,13 @@ wait_for() {
   shift
 
   while ((SECONDS < DEADLINE)); do
-    # Bound each probe as well as the overall smoke test. In particular,
-    # resolver retransmissions must not turn a nominal 120-second wait into
-    # several minutes of blocking inside getent.
+    local remaining=$((DEADLINE - SECONDS))
+    local probe_timeout="$PROBE_TIMEOUT_SECONDS"
+    if ((probe_timeout > remaining)); then
+      probe_timeout="$remaining"
+    fi
+    # Functions below apply this per-probe limit to every external command.
+    local PROBE_TIMEOUT_SECONDS="$probe_timeout"
     if "$@"; then
       report "$marker"
       return 0
@@ -51,27 +55,27 @@ wait_for() {
 }
 
 networkd_active() {
-  systemctl is-active --quiet systemd-networkd.service
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" systemctl is-active --quiet systemd-networkd.service
 }
 
 resolved_active() {
-  systemctl is-active --quiet systemd-resolved.service
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" systemctl is-active --quiet systemd-resolved.service
 }
 
 timesyncd_active() {
-  systemctl is-active --quiet systemd-timesyncd.service
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" systemctl is-active --quiet systemd-timesyncd.service
 }
 
 has_global_ipv4() {
-  ip -o -4 address show scope global | grep -qE ' inet [0-9]+\.'
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -4 address show scope global | grep -qE ' inet [0-9]+\\.'
 }
 
 has_default_ipv4_route() {
-  ip -4 route show default | grep -q '^default '
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -4 route show default | grep -q '^default '
 }
 
 has_ipv6_link_local() {
-  ip -o -6 address show scope link | grep -qE ' inet6 fe80:'
+  timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" ip -o -6 address show scope link | grep -qE ' inet6 fe80:'
 }
 
 resolves_debian_mirror() {
@@ -79,7 +83,7 @@ resolves_debian_mirror() {
 }
 
 ntp_is_enabled() {
-  [[ "$(timedatectl show -p NTP --value)" == "yes" ]]
+  [[ "$(timeout --foreground "${PROBE_TIMEOUT_SECONDS}s" timedatectl show -p NTP --value)" == "yes" ]]
 }
 
 report "AURA_SYSTEMD_ROOTFS_OK"
