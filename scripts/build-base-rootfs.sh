@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd -P)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+
 TARGET_ARCH="${TARGET_ARCH:-}"
 DEBIAN_SUITE="${DEBIAN_SUITE:-trixie}"
 DEBIAN_MIRROR="${DEBIAN_MIRROR:-https://deb.debian.org/debian}"
-PACKAGES_FILE="${ROOT_DIR}/system/base/packages.txt"
-BASE_OUTPUT_DIR="${ROOT_DIR}/build/base-userspace"
+PACKAGES_FILE="$ROOT_DIR/system/base/packages.txt"
+BASE_OUTPUT_DIR="$ROOT_DIR/build/base-userspace"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
-DEBIAN_KEYRING="${DEBIAN_KEYRING:-${ROOT_DIR}/build/base-userspace/debian-trixie-keyring.gpg"}
+DEBIAN_KEYRING="${DEBIAN_KEYRING:-$BASE_OUTPUT_DIR/debian-trixie-keyring.gpg}"
 
 case "$TARGET_ARCH" in
   x86_64) DEBIAN_ARCH="amd64" ;;
@@ -20,29 +23,27 @@ case "$TARGET_ARCH" in
     ;;
 esac
 
-case "$DEBIAN_SUITE" in
-  trixie) ;;
-  *)
-    echo "error: only the reviewed Debian suite 'trixie' is supported." >&2
-    exit 2
-    ;;
-esac
+if [[ "$DEBIAN_SUITE" != "trixie" ]]; then
+  echo "error: only the reviewed Debian suite 'trixie' is supported." >&2
+  exit 2
+fi
 
 if [[ "$EUID" -ne 0 ]]; then
-  echo "error: run this builder as root (for example: sudo env TARGET_ARCH=$TARGET_ARCH bash scripts/build-base-rootfs.sh)." >&2
+  echo "error: run this builder as root; use sudo env TARGET_ARCH=$TARGET_ARCH bash scripts/build-base-rootfs.sh." >&2
   exit 1
 fi
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || {
+  if ! command -v "$1" >/dev/null 2>&1; then
     echo "error: required command not found: $1" >&2
     exit 1
-  }
+  fi
 }
 
-for cmd in mmdebstrap tar gzip sha256sum dpkg-query python3; do
+for cmd in mmdebstrap tar gzip sha256sum dpkg-query python3 sed sort; do
   require_command "$cmd"
 done
+
 if [[ ! -s "$PACKAGES_FILE" ]]; then
   echo "error: package manifest is missing or empty: $PACKAGES_FILE" >&2
   exit 1
@@ -53,7 +54,6 @@ if [[ ! -s "$DEBIAN_KEYRING" ]]; then
   exit 1
 fi
 
-# Restrict destructive cleanup to the repository's build directory.
 if [[ -z "$OUTPUT_DIR" ]]; then
   OUTPUT_DIR="$BASE_OUTPUT_DIR/$TARGET_ARCH"
 fi
@@ -64,13 +64,14 @@ case "$OUTPUT_DIR" in
     exit 2
     ;;
 esac
-mkdir -p "$OUTPUT_DIR"
-OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
-BASE_OUTPUT_DIR="$(mkdir -p "$BASE_OUTPUT_DIR" && cd "$BASE_OUTPUT_DIR" && pwd -P)"
+
+mkdir -p "$BASE_OUTPUT_DIR" "$OUTPUT_DIR"
+BASE_OUTPUT_DIR="$(cd -- "$BASE_OUTPUT_DIR" && pwd -P)"
+OUTPUT_DIR="$(cd -- "$OUTPUT_DIR" && pwd -P)"
 case "$OUTPUT_DIR/" in
   "$BASE_OUTPUT_DIR"/*/) ;;
   *)
-    echo "error: OUTPUT_DIR must be a subdirectory of $BASE_OUTPUT_DIR (got $OUTPUT_DIR)." >&2
+    echo "error: OUTPUT_DIR must be a subdirectory of $BASE_OUTPUT_DIR." >&2
     exit 2
     ;;
 esac
@@ -89,10 +90,10 @@ fi
 INCLUDE_PACKAGES="$(IFS=,; printf '%s' "${PACKAGES[*]}")"
 
 echo "Building Aura OS base userspace:"
-echo "  Debian suite: $DEBIAN_SUITE"
-echo "  Debian architecture: $DEBIAN_ARCH"
-echo "  Target architecture: $TARGET_ARCH"
-echo "  Packages: $INCLUDE_PACKAGES"
+printf '  Debian suite: %s\n' "$DEBIAN_SUITE"
+printf '  Debian architecture: %s\n' "$DEBIAN_ARCH"
+printf '  Target architecture: %s\n' "$TARGET_ARCH"
+printf '  Packages: %s\n' "$INCLUDE_PACKAGES"
 
 rm -rf -- "$ROOTFS_DIR" "$ARCHIVE" "$CHECKSUM_FILE" "$MANIFEST_FILE" "$PROVENANCE_FILE"
 mkdir -p "$OUTPUT_DIR"
@@ -110,22 +111,18 @@ DEBIAN_FRONTEND=noninteractive mmdebstrap \
 
 mkdir -p "$ROOTFS_DIR/etc"
 printf 'aura-os\n' > "$ROOTFS_DIR/etc/hostname"
-cat > "$ROOTFS_DIR/etc/hosts" <<'EOF'
-127.0.0.1 localhost
-127.0.1.1 aura-os
-::1 localhost ip6-localhost ip6-loopback
-EOF
-cat > "$ROOTFS_DIR/etc/issue" <<'EOF'
-Aura OS — early base userspace
-Kernel and platform support are under active development.
-EOF
-cat > "$ROOTFS_DIR/etc/aura-release" <<EOF
-NAME="Aura OS"
-BASE="Debian GNU/Linux"
-VERSION_CODENAME="$DEBIAN_SUITE"
-TARGET_ARCH="$TARGET_ARCH"
-DEBIAN_ARCH="$DEBIAN_ARCH"
-EOF
+printf '%s\n' \
+  '127.0.0.1 localhost' \
+  '127.0.1.1 aura-os' \
+  '::1 localhost ip6-localhost ip6-loopback' \
+  > "$ROOTFS_DIR/etc/hosts"
+printf '%s\n' \
+  'Aura OS — early base userspace' \
+  'Kernel and platform support are under active development.' \
+  > "$ROOTFS_DIR/etc/issue"
+printf 'NAME="Aura OS"\nBASE="Debian GNU/Linux"\nVERSION_CODENAME="%s"\nTARGET_ARCH="%s"\nDEBIAN_ARCH="%s"\n' \
+  "$DEBIAN_SUITE" "$TARGET_ARCH" "$DEBIAN_ARCH" \
+  > "$ROOTFS_DIR/etc/aura-release"
 
 echo "Verifying the generated root filesystem..."
 python3 "$ROOT_DIR/scripts/verify_base_rootfs.py" \
@@ -141,10 +138,9 @@ dpkg-query \
   | LC_ALL=C sort > "$MANIFEST_FILE"
 
 echo "Creating root filesystem archive with normalized tar metadata..."
-SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-0}"
-tar \
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-0}" tar \
   --sort=name \
-  --mtime="@${SOURCE_DATE_EPOCH}" \
+  --mtime="@${SOURCE_DATE_EPOCH:-0}" \
   --numeric-owner \
   --owner=0 \
   --group=0 \
@@ -155,7 +151,6 @@ tar \
 
 test -s "$ARCHIVE"
 sha256sum "$ARCHIVE" | tee "$CHECKSUM_FILE"
-read -r DEBIAN_KEYRING_SHA256 _ < <(sha256sum "$DEBIAN_KEYRING")
 
 {
   printf 'Aura OS base userspace build\n'
@@ -166,11 +161,12 @@ read -r DEBIAN_KEYRING_SHA256 _ < <(sha256sum "$DEBIAN_KEYRING")
   printf 'Bootstrap tool: mmdebstrap --variant=minbase\n'
   printf 'Init/service manager: systemd (systemd-sysv)\n'
   printf 'Package manager: apt/dpkg\n'
-  printf 'Debian keyring SHA-256: %s\n' "$DEBIAN_KEYRING_SHA256"
   printf 'Root account: locked; no default password configured\n'
   printf 'Desktop: not installed\n'
   printf 'Archive: %s\n' "$ARCHIVE"
   printf 'Installed package manifest: %s\n' "$MANIFEST_FILE"
-} | tee "$PROVENANCE_FILE"
+  printf 'Debian keyring SHA-256: '
+  sha256sum "$DEBIAN_KEYRING" | awk '{print $1}'
+} > "$PROVENANCE_FILE"
 
 printf 'Created Aura OS base userspace archive: %s\n' "$ARCHIVE"
