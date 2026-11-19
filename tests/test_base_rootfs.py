@@ -15,7 +15,9 @@ from verify_base_rootfs import ARCHITECTURES, validate_rootfs  # noqa: E402
 def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     expected = ARCHITECTURES[target_arch]["elf_machine"]
     for directory in (
-        "etc", "usr/lib/systemd", "usr/lib/aura", "usr/bin", "sbin", "var/lib/dpkg", "etc/systemd/system/multi-user.target.wants"
+        "etc", "usr/lib/systemd", "usr/lib/systemd/system", "usr/lib/systemd/system/sysinit.target.wants",
+        "usr/lib/aura", "usr/bin", "usr/sbin", "sbin", "var/lib/dpkg",
+        "etc/systemd/system/multi-user.target.wants", "etc/systemd/network", "etc/systemd/timesyncd.conf.d"
     ):
         (root / directory).mkdir(parents=True, exist_ok=True)
 
@@ -32,10 +34,14 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "sbin/init").symlink_to("../usr/lib/systemd/systemd")
     (root / "usr/bin/apt-get").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/bin/apt-get").chmod(0o755)
+    (root / "usr/lib/systemd/systemd-udevd").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (root / "usr/lib/systemd/systemd-udevd").chmod(0o755)
+    (root / "usr/sbin/modprobe").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (root / "usr/sbin/modprobe").chmod(0o755)
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "udev"})
         ) + "\n",
         encoding="utf-8",
     )
@@ -52,6 +58,26 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "etc/shadow").write_text(
         "root:!:20000:0:99999:7:::\n", encoding="utf-8"
     )
+    for unit in ("systemd-networkd.service", "systemd-resolved.service", "systemd-timesyncd.service"):
+        (root / "usr/lib/systemd/system" / unit).write_text("[Service]\n", encoding="utf-8")
+        (root / "etc/systemd/system/multi-user.target.wants" / unit).symlink_to(
+            f"/usr/lib/systemd/system/{unit}"
+        )
+    for unit in ("systemd-udevd.service", "systemd-udev-trigger.service"):
+        (root / "usr/lib/systemd/system" / unit).write_text("[Service]\n", encoding="utf-8")
+        (root / "usr/lib/systemd/system/sysinit.target.wants" / unit).symlink_to(
+            f"../{unit}"
+        )
+    (root / "etc/systemd/network/20-wired.network").write_text(
+        "[Match]\nType=ether\n[Network]\nDHCP=yes\nIPv6AcceptRA=yes\nLinkLocalAddressing=ipv6\n",
+        encoding="utf-8",
+    )
+    (root / "etc/systemd/timesyncd.conf.d/20-aura.conf").write_text(
+        "[Time]\nFallbackNTP=0.debian.pool.ntp.org 1.debian.pool.ntp.org\n",
+        encoding="utf-8",
+    )
+    (root / "etc/resolv.conf").symlink_to("../run/systemd/resolve/stub-resolv.conf")
+
 
 
 class BaseRootfsTests(unittest.TestCase):
@@ -128,6 +154,47 @@ class BaseRootfsTests(unittest.TestCase):
                 root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
             ).unlink()
             with self.assertRaisesRegex(ValueError, "must be enabled"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_missing_wired_network_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (root / "etc/systemd/network/20-wired.network").unlink()
+            with self.assertRaisesRegex(ValueError, "20-wired.network"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_disabled_network_service(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (root / "etc/systemd/system/multi-user.target.wants/systemd-networkd.service").unlink()
+            with self.assertRaisesRegex(ValueError, "systemd-networkd.service must be enabled"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_unmanaged_resolv_conf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (root / "etc/resolv.conf").unlink()
+            (root / "etc/resolv.conf").write_text("nameserver 1.1.1.1\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "systemd-resolved stub"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_missing_timesyncd_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            status = root / "var/lib/dpkg/status"
+            packages = {"apt", "dbus", "debian-archive-keyring", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "udev"}
+            status.write_text(
+                "\n\n".join(
+                    f"Package: {name}\nStatus: install ok installed"
+                    for name in sorted(packages)
+                ) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "systemd-timesyncd"):
                 validate_rootfs(root, "x86_64")
 
     def test_rejects_unknown_target_architecture(self) -> None:

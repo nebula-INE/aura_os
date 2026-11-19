@@ -21,7 +21,7 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod chown; do
+for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod chown install; do
   command -v "$cmd" >/dev/null 2>&1 || {
     echo "error: required command not found: $cmd" >&2
     exit 1
@@ -66,16 +66,24 @@ mkdir -p "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants"
 INSTALL_QEMU_SMOKE_SERVICE="${AURA_INSTALL_QEMU_SMOKE_SERVICE:-1}"
 case "$INSTALL_QEMU_SMOKE_SERVICE" in
   1)
+    NETWORK_SMOKE_SOURCE="$ROOT_DIR/scripts/qemu-network-smoke.sh"
+    if [[ ! -s "$NETWORK_SMOKE_SOURCE" ]]; then
+      echo "error: QEMU network smoke script is missing: $NETWORK_SMOKE_SOURCE" >&2
+      exit 1
+    fi
+    install -D -m 0755 "$NETWORK_SMOKE_SOURCE" \
+      "$MOUNT_DIR/usr/lib/aura/qemu-network-smoke"
     cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
-Description=Aura OS persistent rootfs QEMU smoke test
-After=basic.target
+Description=Aura OS persistent rootfs and network QEMU smoke test
+Wants=systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
+After=basic.target systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'echo AURA_SYSTEMD_ROOTFS_OK > /dev/console; echo AURA_ROOTFS_QEMU_PASS > /dev/console'
-ExecStartPost=/bin/systemctl --no-block poweroff
-TimeoutStartSec=30
+ExecStart=/usr/lib/aura/qemu-network-smoke
+TimeoutStartSec=150
+TimeoutStopSec=10
 StandardOutput=journal+console
 StandardError=journal+console
 

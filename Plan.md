@@ -124,7 +124,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Confirm console login, sudo access, and repeat-boot behavior pass on all three QEMU architectures.
 - [ ] Establish storage layout and filesystem support.
 - [ ] Add logging, diagnostics, crash reporting, and recovery.
-- [ ] Establish networking and time configuration.
+- [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback (multi-architecture QEMU validation pending).
+- [ ] Validate DHCP, DNS, IPv6, and NTP behavior on x86-64, AArch64, and RV64GC.
 - [ ] Define package installation, updates, and rollback.
 - [ ] Add architecture-independent integration tests.
 

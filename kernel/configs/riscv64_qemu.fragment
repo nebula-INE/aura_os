@@ -8,11 +8,16 @@ CONFIG_SERIAL_8250_CONSOLE=y
 CONFIG_SERIAL_OF_PLATFORM=y
 CONFIG_PRINTK=y
 CONFIG_BINFMT_ELF=y
+CONFIG_NET=y
+CONFIG_NETDEVICES=y
+CONFIG_INET=y
+CONFIG_IPV6=y
 
 # Virtio-MMIO storage and ext4 for the persistent Debian rootfs.
 CONFIG_VIRTIO=y
 CONFIG_VIRTIO_MMIO=y
 CONFIG_VIRTIO_BLK=y
+CONFIG_VIRTIO_NET=y
 
 # Persistent Debian rootfs support (built into the kernel for early boot).
 CONFIG_EXT4_FS=y

@@ -12,6 +12,7 @@ on:
       - "scripts/build-base-rootfs-disk.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
+      - "scripts/qemu-network-smoke.sh"
       - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
@@ -29,6 +30,7 @@ on:
       - "scripts/build-base-rootfs-disk.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
+      - "scripts/qemu-network-smoke.sh"
       - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
@@ -70,7 +72,7 @@ jobs:
         run: |
           bash -n scripts/ensure-ubuntu-apt-sources.sh scripts/build-kernel.sh scripts/build-initramfs-target.sh \
             scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
-            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh
+            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh scripts/qemu-network-smoke.sh
           bash -n system/base/firstboot/aura-firstboot
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
@@ -83,7 +85,11 @@ jobs:
           QEMU_PACKAGE: ${{ matrix.qemu_package }}
         run: |
           sudo bash scripts/ensure-ubuntu-apt-sources.sh
-          sudo apt-get install -y \
+          sudo apt-get \
+            -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=60 \
+            -o Acquire::https::Timeout=60 \
+            install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
             git gnupg curl perl cpio gzip binutils e2fsprogs util-linux \
             mmdebstrap qemu-user-static binfmt-support python3-pexpect ${CROSS_PACKAGES} ${QEMU_PACKAGE}
@@ -128,7 +134,7 @@ jobs:
       - name: Boot kernel, switch_root, and start systemd
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
-          QEMU_TIMEOUT_SECONDS: "180"
+          QEMU_TIMEOUT_SECONDS: "240"
         run: bash scripts/test-base-rootfs-qemu.sh
 
       - name: Build interactive first-boot login test disk image

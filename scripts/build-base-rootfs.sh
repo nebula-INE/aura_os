@@ -138,6 +138,33 @@ mkdir -p "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants"
 ln -sfn /etc/systemd/system/aura-firstboot.service \
   "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
 
+echo "Installing Aura network and time configuration..."
+NETWORK_SOURCE="$ROOT_DIR/system/base/network"
+for source in "$NETWORK_SOURCE/20-wired.network" "$NETWORK_SOURCE/20-aura-timesyncd.conf"; do
+  if [[ ! -s "$source" ]]; then
+    echo "error: network/time configuration source is missing: $source" >&2
+    exit 1
+  fi
+done
+install -D -m 0644 "$NETWORK_SOURCE/20-wired.network" \
+  "$ROOTFS_DIR/etc/systemd/network/20-wired.network"
+install -D -m 0644 "$NETWORK_SOURCE/20-aura-timesyncd.conf" \
+  "$ROOTFS_DIR/etc/systemd/timesyncd.conf.d/20-aura.conf"
+
+for unit in systemd-networkd.service systemd-resolved.service systemd-timesyncd.service; do
+  unit_path="$ROOTFS_DIR/usr/lib/systemd/system/$unit"
+  if [[ ! -s "$unit_path" ]]; then
+    echo "error: required network/time systemd unit is missing: $unit_path" >&2
+    exit 1
+  fi
+  ln -sfn "/usr/lib/systemd/system/$unit" \
+    "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/$unit"
+done
+
+# Route libc DNS lookups through systemd-resolved's local stub listener.
+rm -f "$ROOTFS_DIR/etc/resolv.conf"
+ln -s ../run/systemd/resolve/stub-resolv.conf "$ROOTFS_DIR/etc/resolv.conf"
+
 echo "Verifying the generated root filesystem..."
 python3 "$ROOT_DIR/scripts/verify_base_rootfs.py" \
   --rootfs "$ROOTFS_DIR" \
@@ -179,6 +206,9 @@ cat "$CHECKSUM_FILE"
   printf 'Bootstrap tool: mmdebstrap --variant=minbase\n'
   printf 'Init/service manager: systemd (systemd-sysv)\n'
   printf 'Package manager: apt/dpkg\n'
+  printf 'Wired networking: systemd-networkd with DHCPv4/DHCPv6 and IPv6 RA\n'
+  printf 'DNS: systemd-resolved stub resolver\n'
+  printf 'Time synchronization: systemd-timesyncd with DHCP NTP and Debian fallback\n'
   printf 'Root account: locked; no default password configured\n'
   printf 'Desktop: not installed\n'
   printf 'Archive: %s\n' "$ARCHIVE"
