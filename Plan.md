@@ -368,7 +368,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 2. Bring up x86-64 in QEMU first, with serial boot logs and a minimal initramfs.
 3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
-5. Pass the persistent-root QEMU integration workflow on all three architectures; then validate first-user creation, console login, sudo, reboot, and shutdown.
+5. [x] Pass the persistent-root QEMU integration workflow on all three architectures and validate first-user creation, console login, sudo, repeat boot, and shutdown (CI run 44646382671).
 6. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
