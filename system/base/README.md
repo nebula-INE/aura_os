@@ -53,6 +53,22 @@ The test kernel command line includes `aura.rootfs=1`. In this mode, the PID 1 i
 
 Run the integration workflow from a pull request or GitHub Actions after the base userspace is available. Its artifact includes the kernel, initramfs, ext4 image, serial logs, and checksums. Passing the persistent-root test demonstrates boot into Debian under the emulator profile; passing the interactive test additionally demonstrates first-user setup, console login, sudo authentication, and repeat-boot persistence in QEMU. Neither test establishes an installable image or physical-hardware support.
 
+## Storage image contract
+
+The current QEMU root-volume format is a raw image whose entire device is ext4. It is labelled **AURA_ROOTFS** and receives a filesystem UUID from mkfs.ext4. This is intentionally a minimal emulator baseline, not a partitioned install disk.
+
+After unmounting the image, scripts/build-base-rootfs-disk.sh runs scripts/verify_storage_image.py. The validator uses blkid -p to require ext4, the expected label, and a valid UUID, then runs e2fsck -f -n as a forced read-only consistency check. Any non-zero filesystem-check exit status fails the build. A JSON report is written beside the image as <image>.storage.json and is uploaded with the image and SHA-256 checksum.
+
+Run the validator manually with:
+
+~~~sh
+python3 scripts/verify_storage_image.py \
+  --image build/base-userspace/x86_64/aura-base-x86_64.ext4 \
+  --json
+~~~
+
+The current initramfs still mounts /dev/vda; the UUID is recorded for verification and future stable-device discovery, but is not yet used for root selection. GPT/MBR partitions, an EFI System Partition, swap, separate data/home volumes, encryption, snapshots, rollback, and installation to physical disks remain out of scope. See ADR 0008 for the storage decision.
+
 ## Scope and safety
 
 The image is a build artifact, not an installer or a complete bootable disk. A normal boot can create one local console administrator and bring up supported wired Ethernet; Wi-Fi, a desktop session, display manager, firmware bundle, bootloader, and application set are not included. The test-only `aura.firstboot.skip` argument bypasses this prompt. Do not install it over a host filesystem.
