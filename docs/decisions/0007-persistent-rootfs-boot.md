@@ -17,8 +17,8 @@ Use a small statically linked C program as the first-stage initramfs PID 1. Keep
 The persistent-root handoff uses the classic `switch_root` overmount/chroot sequence:
 
 1. Mount devtmpfs, proc, and sysfs in the initramfs.
-2. Wait for the QEMU virtio block device `/dev/vda`.
-3. Mount the raw ext4 root filesystem image at `/newroot`.
+2. Read the standard `root=UUID=<filesystem-uuid>` kernel argument. Enumerate `/sys/class/block`, open visible block devices, and compare the ext4 superblock UUID at its defined offset. Wait for device discovery within a bounded deadline.
+3. Mount the matching raw ext4 root filesystem image at `/newroot`. A legacy `/dev/vda` fallback is retained only when no `root=` argument is supplied.
 4. Move `/dev`, `/proc`, and `/sys` mount points into the new root.
 5. Remove the known, empty temporary initramfs directories and unlink the running `/init` pathname. The running process remains alive until it is replaced by `execve`.
 6. Change the current working directory to `/newroot`, move that mount over `/`, then `chroot(".")` into it.
@@ -34,23 +34,23 @@ The kernel configuration enables ext4, the virtio block transport used by each Q
 
 - The static initramfs PID 1 avoids needing BusyBox or a second shell in each cross-architecture image.
 - The overmount/chroot handoff is compatible with the pinned 6.18.64 rootfs semantics and follows the conventional `switch_root` model.
-- The explicit `aura.rootfs=1` flag preserves existing kernel-only and UEFI smoke tests.
+- The explicit `aura.rootfs=1` flag preserves existing kernel-only and UEFI smoke tests. Persistent-root QEMU tests pass the filesystem UUID via `root=UUID=...`; initramfs resolves that UUID without depending on a particular block-device name.
 - A systemd service marker proves the test reached the real Debian userspace; an initramfs marker alone would not be sufficient.
 
 ## Limitations
 
 - The current QEMU profile uses a raw ext4 root image on virtio block and direct kernel loading. It does not validate a partition table, installer, GRUB/systemd-boot, Secure Boot, encryption, removable media, or physical firmware.
 - The non-interactive network smoke service powers off automatically. Interactive login and first-user provisioning are tested separately. These emulator tests do not demonstrate persistent upgrade behavior, desktop startup, or physical-hardware compatibility.
-- `/dev/vda` is an explicit first-emulator contract. A later general boot flow must discover the root device by stable identifiers or a configurable kernel command line.
+- The initial UUID resolver recognizes unencrypted ext4 filesystems visible through `/sys/class/block`. Encrypted containers, device-mapper/LVM discovery before activation, network root filesystems, and a full initramfs device-event manager remain out of scope.
 - The traditional switch-root flow leaves the kernel's special rootfs mount underneath the overmounted Debian root. It removes the temporary archive's known contents but does not claim that the rootfs mount itself is detached.
 - Hardware compatibility remains separate from architecture compilation and QEMU boot validation.
 
 ## Acceptance
 
 This decision is accepted for the initial emulator handoff after all three matrix jobs in `.github/workflows/base-rootfs-qemu.yml` passed in CI run 44646382671. The jobs:
-1. Build a target-native Linux kernel and static initramfs.
+1. Build a target-native Linux kernel and static initramfs, including the tested root UUID parser.
 2. Build and verify the Debian rootfs and ext4 image.
-3. Reach the systemd, network, DNS, and NTP-service-activation success markers through the switch-root path.
+3. Resolve `root=UUID=...` to the matching ext4 block device and reach the systemd, network, DNS, and NTP-service-activation success markers through the switch-root path.
 4. Pass first-user setup, interactive serial login, sudo authentication, and repeat-boot checks.
 5. Power off cleanly with no kernel panic.
 6. Upload the boot log, kernel, initramfs, disk image, and checksums.
