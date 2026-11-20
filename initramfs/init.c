@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
+#include <dirent.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <linux/reboot.h>
 #include <stdio.h>
@@ -11,6 +13,8 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "root_uuid.h"
 
 static void write_fully(int fd, const char *buffer, size_t length) {
     while (length > 0) {
@@ -72,21 +76,144 @@ static int has_kernel_argument(const char *wanted) {
     return found;
 }
 
-static void wait_for_root_device(void) {
-    const struct timespec delay = {.tv_sec = 0, .tv_nsec = 50000000L};
+static int read_root_uuid_from_cmdline(char uuid[AURA_UUID_STRING_SIZE]) {
+    FILE *cmdline = fopen("/proc/cmdline", "r");
+    char buffer[4096];
+    int result;
 
+    if (cmdline == NULL) {
+        return -1;
+    }
+    if (fgets(buffer, sizeof(buffer), cmdline) == NULL) {
+        fclose(cmdline);
+        return -1;
+    }
+    fclose(cmdline);
+    result = aura_parse_root_uuid(buffer, uuid);
+    return result;
+}
+
+static int block_device_matches_uuid(const char *device_path, const char *uuid) {
+    unsigned char superblock[AURA_EXT4_SUPERBLOCK_SIZE];
+    size_t total = 0;
+    int fd = open(device_path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+
+    if (fd < 0) {
+        return 0;
+    }
+
+    while (total < sizeof(superblock)) {
+        ssize_t count = pread(
+            fd,
+            superblock + total,
+            sizeof(superblock) - total,
+            (off_t)(AURA_EXT4_SUPERBLOCK_OFFSET + total)
+        );
+        if (count > 0) {
+            total += (size_t)count;
+            continue;
+        }
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        (void)close(fd);
+        return 0;
+    }
+
+    (void)close(fd);
+    return aura_ext4_superblock_matches_uuid(superblock, uuid);
+}
+
+static int find_block_device_by_uuid(const char *uuid,
+                                     char *device_path,
+                                     size_t device_path_size) {
+    DIR *blocks = opendir("/sys/class/block");
+    struct dirent *entry;
+    int found = 0;
+
+    if (blocks == NULL) {
+        return -1;
+    }
+
+    while ((entry = readdir(blocks)) != NULL) {
+        char candidate[PATH_MAX];
+        struct stat status;
+        int length;
+
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        length = snprintf(candidate, sizeof(candidate), "/dev/%s", entry->d_name);
+        if (length < 0 || (size_t)length >= sizeof(candidate)) {
+            continue;
+        }
+        if (stat(candidate, &status) != 0 || !S_ISBLK(status.st_mode)) {
+            continue;
+        }
+        if (!block_device_matches_uuid(candidate, uuid)) {
+            continue;
+        }
+
+        length = snprintf(device_path, device_path_size, "%s", candidate);
+        if (length < 0 || (size_t)length >= device_path_size) {
+            found = -1;
+            break;
+        }
+        found = 1;
+        break;
+    }
+
+    (void)closedir(blocks);
+    return found;
+}
+
+static void wait_for_root_device(char *device_path, size_t device_path_size) {
+    const struct timespec delay = {.tv_sec = 0, .tv_nsec = 50000000L};
+    char uuid[AURA_UUID_STRING_SIZE];
+    int uuid_status = read_root_uuid_from_cmdline(uuid);
+
+    if (uuid_status < 0) {
+        fail_and_halt("[Aura OS] ERROR: root= must contain one valid root=UUID= value");
+    }
+
+    if (uuid_status == 0) {
+        /* Compatibility for older emulator profiles; production tests pass root=UUID=. */
+        for (int attempt = 0; attempt < 200; ++attempt) {
+            struct stat status;
+            if (stat("/dev/vda", &status) == 0 && S_ISBLK(status.st_mode)) {
+                (void)snprintf(device_path, device_path_size, "%s", "/dev/vda");
+                log_message("AURA_ROOT_DEVICE_LEGACY_FALLBACK");
+                return;
+            }
+            (void)nanosleep(&delay, NULL);
+        }
+        fail_and_halt("[Aura OS] ERROR: legacy root device /dev/vda did not appear");
+    }
+
+    log_message("AURA_ROOT_UUID_REQUESTED");
     for (int attempt = 0; attempt < 200; ++attempt) {
-        if (access("/dev/vda", F_OK) == 0) {
+        int result = find_block_device_by_uuid(uuid, device_path, device_path_size);
+        if (result > 0) {
+            char message[PATH_MAX + 80];
+            (void)snprintf(message, sizeof(message),
+                           "[Aura OS] selected root filesystem device %s", device_path);
+            log_message(message);
+            log_message("AURA_ROOT_DEVICE_MATCHED");
             return;
+        }
+        if (result < 0) {
+            fail_and_halt("[Aura OS] ERROR: cannot enumerate /sys/class/block");
         }
         (void)nanosleep(&delay, NULL);
     }
-    fail_and_halt("[Aura OS] ERROR: /dev/vda did not appear after 10 seconds");
+
+    fail_and_halt("[Aura OS] ERROR: no ext4 block device matched root=UUID after 10 seconds");
 }
 
 static void switch_to_debian_rootfs(void) {
+    char root_device[PATH_MAX];
     log_message("[Aura OS] persistent-root boot requested");
-    wait_for_root_device();
+    wait_for_root_device(root_device, sizeof(root_device));
 
     /* Rootfs is not pivot_root()-able on the pinned Linux 6.18 kernel.
        Use the traditional switch_root overmount/chroot sequence instead. */
@@ -95,8 +222,8 @@ static void switch_to_debian_rootfs(void) {
         fail_and_halt("[Aura OS] ERROR: cannot isolate mount propagation");
     }
 
-    if (mount("/dev/vda", "/newroot", "ext4", MS_RELATIME, NULL) != 0) {
-        perror("[Aura OS] ERROR: mounting /dev/vda as ext4 failed");
+    if (mount(root_device, "/newroot", "ext4", MS_RELATIME, NULL) != 0) {
+        perror("[Aura OS] ERROR: mounting the selected root device as ext4 failed");
         fail_and_halt("[Aura OS] ERROR: cannot mount the Aura Debian root filesystem");
     }
 
