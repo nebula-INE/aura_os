@@ -34,7 +34,7 @@ The checks are shared by every target architecture and run as part of image crea
 - Image identity and filesystem integrity become explicit, repeatable quality gates before boot.
 - A raw filesystem image is useful for the current emulator bring-up but is not a complete installable disk.
 - The layout does not yet provide a GPT/MBR partition table, EFI System Partition, swap, separate data/home volume, encryption, removable-media layout, or installer.
-- The initramfs currently discovers unencrypted ext4 filesystems by filesystem UUID. GPT partitioning, partition UUID selection, encrypted-volume activation, LVM/device-mapper activation, and hotplug-driven device discovery remain future work.
+- The initramfs currently discovers unencrypted ext4 filesystems by filesystem UUID and refuses to choose when multiple block devices carry the same UUID. GPT partitioning, partition UUID selection, encrypted-volume activation, LVM/device-mapper activation, and hotplug-driven device discovery remain future work.
 - The read-only check detects filesystem inconsistencies; it does not provide backup, snapshot, rollback, or recovery semantics.
 
 ## Acceptance
