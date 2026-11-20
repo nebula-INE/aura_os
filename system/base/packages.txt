@@ -4,11 +4,15 @@
 systemd-sysv
 dbus
 systemd-resolved
+systemd-timesyncd
+udev
+kmod
 debian-archive-keyring
 ca-certificates
 iproute2
 iputils-ping
 locales
 sudo
+passwd
 e2fsprogs
 util-linux

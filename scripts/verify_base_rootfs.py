@@ -16,7 +16,20 @@ ARCHITECTURES = {
     "aarch64": {"debian": "arm64", "elf_machine": 183},
     "riscv64": {"debian": "riscv64", "elf_machine": 243},
 }
-REQUIRED_PACKAGES = {"apt", "dbus", "debian-archive-keyring", "libc6", "systemd", "systemd-resolved", "systemd-sysv"}
+REQUIRED_PACKAGES = {
+    "apt",
+    "dbus",
+    "debian-archive-keyring",
+    "kmod",
+    "libc6",
+    "passwd",
+    "sudo",
+    "systemd",
+    "systemd-resolved",
+    "systemd-sysv",
+    "systemd-timesyncd",
+    "udev",
+}
 
 
 def _read_os_release(path: Path) -> dict[str, str]:
@@ -74,6 +87,26 @@ def _resolve_rootfs_absolute_symlink(rootfs: Path, link: Path) -> Path:
     return candidate.resolve(strict=True)
 
 
+def _validate_enabled_systemd_unit(
+    root: Path,
+    unit_name: str,
+    target_name: str = "multi-user.target",
+    wants_directory: str = "etc/systemd/system",
+) -> None:
+    unit = root / "usr/lib/systemd/system" / unit_name
+    if not unit.is_file():
+        raise ValueError(f"root filesystem is missing systemd unit {unit_name}")
+    link = root / wants_directory / f"{target_name}.wants" / unit_name
+    if not link.is_symlink():
+        raise ValueError(f"{unit_name} must be enabled for {target_name}")
+    try:
+        target = _resolve_rootfs_absolute_symlink(root, link)
+    except OSError as exc:
+        raise ValueError(f"{unit_name} enablement link is broken: {exc}") from exc
+    if target != unit.resolve(strict=True):
+        raise ValueError(f"{unit_name} enablement link points to the wrong unit")
+
+
 def validate_rootfs(
     rootfs: str | Path, target_arch: str, suite: str = "trixie"
 ) -> dict[str, Any]:
@@ -128,6 +161,62 @@ def validate_rootfs(
     if missing:
         raise ValueError(f"required Debian packages are not installed: {', '.join(missing)}")
 
+    firstboot_program = root / "usr/lib/aura/aura-firstboot"
+    if not firstboot_program.is_file():
+        raise ValueError("root filesystem is missing /usr/lib/aura/aura-firstboot")
+    firstboot_unit = root / "etc/systemd/system/aura-firstboot.service"
+    if not firstboot_unit.is_file():
+        raise ValueError("root filesystem is missing the aura-firstboot systemd unit")
+    firstboot_link = (
+        root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
+    )
+    if not firstboot_link.is_symlink():
+        raise ValueError("aura-firstboot.service must be enabled for multi-user.target")
+    try:
+        firstboot_target = _resolve_rootfs_absolute_symlink(root, firstboot_link)
+    except OSError as exc:
+        raise ValueError(f"aura-firstboot.service enablement link is broken: {exc}") from exc
+    if firstboot_target != firstboot_unit.resolve(strict=True):
+        raise ValueError("aura-firstboot.service enablement link points to the wrong unit")
+
+    # udev must enumerate QEMU's virtio NIC before networkd can configure it.
+    udevd = root / "usr/lib/systemd/systemd-udevd"
+    if not udevd.is_file() or not os.access(udevd, os.X_OK):
+        raise ValueError("root filesystem is missing executable /usr/lib/systemd/systemd-udevd")
+    modprobe = root / "usr/sbin/modprobe"
+    if not modprobe.is_file() or not os.access(modprobe, os.X_OK):
+        raise ValueError("root filesystem is missing executable /usr/sbin/modprobe")
+    _validate_enabled_systemd_unit(
+        root, "systemd-udevd.service", "sysinit.target", "usr/lib/systemd/system"
+    )
+    _validate_enabled_systemd_unit(
+        root, "systemd-udev-trigger.service", "sysinit.target", "usr/lib/systemd/system"
+    )
+
+    # systemd-networkd handles wired Ethernet using DHCP and IPv6 RA.
+    network_config = root / "etc/systemd/network/20-wired.network"
+    if not network_config.is_file():
+        raise ValueError("root filesystem is missing /etc/systemd/network/20-wired.network")
+    network_text = network_config.read_text(encoding="utf-8")
+    for setting in ("Type=ether", "DHCP=yes", "IPv6AcceptRA=yes", "LinkLocalAddressing=ipv6"):
+        if setting not in network_text:
+            raise ValueError(f"wired network configuration is missing {setting}")
+    _validate_enabled_systemd_unit(root, "systemd-networkd.service")
+    _validate_enabled_systemd_unit(root, "systemd-resolved.service")
+    _validate_enabled_systemd_unit(root, "systemd-timesyncd.service")
+
+    timesyncd_config = root / "etc/systemd/timesyncd.conf.d/20-aura.conf"
+    if not timesyncd_config.is_file():
+        raise ValueError("root filesystem is missing the Aura timesyncd fallback configuration")
+    if "FallbackNTP=0.debian.pool.ntp.org" not in timesyncd_config.read_text(encoding="utf-8"):
+        raise ValueError("timesyncd fallback configuration must use the Debian NTP pool")
+
+    resolv_conf = root / "etc/resolv.conf"
+    if not resolv_conf.is_symlink():
+        raise ValueError("/etc/resolv.conf must point to the systemd-resolved stub resolver")
+    if os.readlink(resolv_conf) != "../run/systemd/resolve/stub-resolv.conf":
+        raise ValueError("/etc/resolv.conf must use the systemd-resolved stub resolver")
+
     shadow = root / "etc/shadow"
     if not shadow.is_file():
         raise ValueError("root filesystem is missing /etc/shadow")
@@ -151,6 +240,11 @@ def validate_rootfs(
         "init": "systemd",
         "package_manager": "apt/dpkg",
         "required_packages": sorted(REQUIRED_PACKAGES),
+        "device_management": "udev",
+        "kernel_module_loader": "kmod",
+        "wired_network": "systemd-networkd DHCP and IPv6 RA",
+        "dns": "systemd-resolved",
+        "time_sync": "systemd-timesyncd",
         "root_account_locked": True,
         "desktop_installed": False,
     }

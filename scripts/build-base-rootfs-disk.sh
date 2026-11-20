@@ -21,7 +21,7 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod chown; do
+for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod chown install; do
   command -v "$cmd" >/dev/null 2>&1 || {
     echo "error: required command not found: $cmd" >&2
     exit 1
@@ -63,24 +63,89 @@ tar --numeric-owner --xattrs --acls -C "$ROOTFS_DIR" -cf - . |
   tar --numeric-owner --xattrs --acls -xf - -C "$MOUNT_DIR"
 
 mkdir -p "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants"
-cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
+INSTALL_QEMU_SMOKE_SERVICE="${AURA_INSTALL_QEMU_SMOKE_SERVICE:-1}"
+case "$INSTALL_QEMU_SMOKE_SERVICE" in
+  1)
+    NETWORK_SMOKE_SOURCE="$ROOT_DIR/scripts/qemu-network-smoke.sh"
+    if [[ ! -s "$NETWORK_SMOKE_SOURCE" ]]; then
+      echo "error: QEMU network smoke script is missing: $NETWORK_SMOKE_SOURCE" >&2
+      exit 1
+    fi
+    install -D -m 0755 "$NETWORK_SMOKE_SOURCE" \
+      "$MOUNT_DIR/usr/lib/aura/qemu-network-smoke"
+    cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
-Description=Aura OS persistent rootfs QEMU smoke test
-After=basic.target
+Description=Aura OS persistent rootfs and network QEMU smoke test
+Wants=systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
+After=basic.target systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'echo AURA_SYSTEMD_ROOTFS_OK > /dev/console; echo AURA_ROOTFS_QEMU_PASS > /dev/console'
-ExecStartPost=/bin/systemctl --no-block poweroff
-TimeoutStartSec=30
+ExecStart=/usr/lib/aura/qemu-network-smoke
+TimeoutStartSec=150
+TimeoutStopSec=10
 StandardOutput=journal+console
 StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-ln -sfn /etc/systemd/system/aura-rootfs-smoke.service \
-  "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants/aura-rootfs-smoke.service"
+    ln -sfn /etc/systemd/system/aura-rootfs-smoke.service \
+      "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants/aura-rootfs-smoke.service"
+    ;;
+  0)
+    echo "Skipping the auto-poweroff smoke service for interactive first-boot login testing."
+    ;;
+  *)
+    echo "error: AURA_INSTALL_QEMU_SMOKE_SERVICE must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
+
+INSTALL_QEMU_CONSOLE_GETTY="${AURA_INSTALL_QEMU_CONSOLE_GETTY:-0}"
+case "$INSTALL_QEMU_CONSOLE_GETTY" in
+  1)
+    mkdir -p "$MOUNT_DIR/etc/systemd/system/getty.target.wants"
+    cat > "$MOUNT_DIR/etc/systemd/system/aura-qemu-console-getty.service" <<'UNIT'
+[Unit]
+Description=Aura OS QEMU kernel-console login for integration tests
+After=systemd-user-sessions.service
+Before=getty.target
+Conflicts=serial-getty@ttyS0.service serial-getty@ttyAMA0.service
+ConditionPathExists=/dev/console
+
+[Service]
+ExecStart=-/sbin/agetty --noclear --keep-baud - 115200,38400,9600 linux
+Type=idle
+Restart=always
+RestartSec=0
+UtmpIdentifier=cons
+TTYPath=/dev/console
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=no
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+
+[Install]
+WantedBy=getty.target
+UNIT
+    ln -sfn /etc/systemd/system/aura-qemu-console-getty.service \
+      "$MOUNT_DIR/etc/systemd/system/getty.target.wants/aura-qemu-console-getty.service"
+    # Avoid the systemd-generated per-device serial gettys in this test
+    # image; the test getty owns /dev/console on every architecture.
+    ln -sfn /dev/null "$MOUNT_DIR/etc/systemd/system/serial-getty@ttyS0.service"
+    ln -sfn /dev/null "$MOUNT_DIR/etc/systemd/system/serial-getty@ttyAMA0.service"
+    ;;
+  0)
+    echo "Skipping the QEMU-only kernel-console getty."
+    ;;
+  *)
+    echo "error: AURA_INSTALL_QEMU_CONSOLE_GETTY must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
 
 sync
 umount "$MOUNT_DIR"

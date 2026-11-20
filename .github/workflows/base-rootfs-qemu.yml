@@ -12,8 +12,11 @@ on:
       - "scripts/build-base-rootfs-disk.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
+      - "scripts/qemu-network-smoke.sh"
+      - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "tests/test_aura_firstboot.py"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   pull_request:
@@ -27,8 +30,11 @@ on:
       - "scripts/build-base-rootfs-disk.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
+      - "scripts/qemu-network-smoke.sh"
+      - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "tests/test_aura_firstboot.py"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   workflow_dispatch:
@@ -44,7 +50,7 @@ jobs:
   boot-persistent-rootfs:
     name: Boot Debian rootfs (${{ matrix.target_arch }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -66,9 +72,12 @@ jobs:
         run: |
           bash -n scripts/ensure-ubuntu-apt-sources.sh scripts/build-kernel.sh scripts/build-initramfs-target.sh \
             scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
-            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh
+            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh scripts/qemu-network-smoke.sh
+          bash -n system/base/firstboot/aura-firstboot
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+          python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
+          python3 -m py_compile scripts/test-firstboot-login-qemu.py
 
       - name: Install kernel, rootfs, and QEMU dependencies
         env:
@@ -76,10 +85,14 @@ jobs:
           QEMU_PACKAGE: ${{ matrix.qemu_package }}
         run: |
           sudo bash scripts/ensure-ubuntu-apt-sources.sh
-          sudo apt-get install -y \
+          sudo apt-get \
+            -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=60 \
+            -o Acquire::https::Timeout=60 \
+            install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
             git gnupg curl perl cpio gzip binutils e2fsprogs util-linux \
-            mmdebstrap qemu-user-static binfmt-support ${CROSS_PACKAGES} ${QEMU_PACKAGE}
+            mmdebstrap qemu-user-static binfmt-support python3-pexpect ${CROSS_PACKAGES} ${QEMU_PACKAGE}
           sudo systemctl restart systemd-binfmt.service
           if [[ "${{ matrix.target_arch }}" != "x86_64" ]]; then
             handler="/proc/sys/fs/binfmt_misc/qemu-${{ matrix.target_arch }}"
@@ -121,8 +134,24 @@ jobs:
       - name: Boot kernel, switch_root, and start systemd
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
-          QEMU_TIMEOUT_SECONDS: "180"
+          QEMU_TIMEOUT_SECONDS: "240"
         run: bash scripts/test-base-rootfs-qemu.sh
+
+      - name: Build interactive first-boot login test disk image
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          ROOTFS_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/rootfs
+          OUTPUT_IMAGE: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/aura-firstboot-${{ matrix.target_arch }}.ext4
+          AURA_INSTALL_QEMU_SMOKE_SERVICE: "0"
+          AURA_INSTALL_QEMU_CONSOLE_GETTY: "1"
+        run: sudo --preserve-env=TARGET_ARCH,ROOTFS_DIR,OUTPUT_IMAGE,AURA_INSTALL_QEMU_SMOKE_SERVICE,AURA_INSTALL_QEMU_CONSOLE_GETTY bash scripts/build-base-rootfs-disk.sh
+
+      - name: Create first user, log in, verify sudo, and repeat boot
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          ROOTFS_IMAGE: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/aura-firstboot-${{ matrix.target_arch }}.ext4
+          AURA_LOGIN_QEMU_TIMEOUT_SECONDS: "240"
+        run: python3 scripts/test-firstboot-login-qemu.py
 
       - name: Upload kernel, initramfs, rootfs disk, and boot provenance
         if: always()
@@ -140,6 +169,7 @@ jobs:
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4.sha256
             build/qemu/aura-${{ matrix.target_arch }}-rootfs-boot.log
+            build/qemu/aura-${{ matrix.target_arch }}-firstboot-login-*.log
             build/qemu/${{ matrix.target_arch }}-rootfs-boot-provenance.txt
           include-hidden-files: true
           if-no-files-found: warn

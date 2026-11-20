@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+STATE_DIR="${AURA_FIRSTBOOT_STATE_DIR:-/var/lib/aura/firstboot}"
+COMPLETE_FILE="$STATE_DIR/complete"
+PENDING_FILE="$STATE_DIR/pending-user"
+MAX_USERNAME_ATTEMPTS=5
+CONSOLE_INPUT_PATH="${AURA_FIRSTBOOT_INPUT_PATH:-/dev/console}"
+CONSOLE_OUTPUT_PATH="${AURA_FIRSTBOOT_OUTPUT_PATH:-/dev/console}"
+
+export LC_ALL=C
+
+valid_username() {
+  [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+}
+
+account_exists() {
+  getent passwd "$1" >/dev/null 2>&1
+}
+
+write_pending_user() {
+  local username="$1"
+  local temporary="$STATE_DIR/.pending-user.$$"
+
+  mkdir -p "$STATE_DIR"
+  chmod 0700 "$STATE_DIR"
+  (
+    umask 077
+    printf '%s\n' "$username" > "$temporary"
+  )
+  mv -f -- "$temporary" "$PENDING_FILE"
+  # Persist the recovery marker before useradd can make the account durable.
+  # This prevents a power loss from leaving an account without its resume state.
+  sync
+}
+
+mark_setup_complete() {
+  local username="$1"
+  local temporary="$STATE_DIR/.complete.$$"
+
+  mkdir -p "$STATE_DIR"
+  chmod 0700 "$STATE_DIR"
+  (
+    umask 077
+    printf 'version=1\nusername=%s\n' "$username" > "$temporary"
+  )
+  mv -f -- "$temporary" "$COMPLETE_FILE"
+  rm -f -- "$PENDING_FILE"
+  sync
+}
+
+finish_account_setup() {
+  local username="$1"
+
+  printf '\nSet a password for %s. The password will not be displayed.\n' "$username"
+  if ! passwd "$username"; then
+    printf '\nPassword setup did not complete. The account remains locked until setup succeeds.\n' >&2
+    return 1
+  fi
+
+  mark_setup_complete "$username"
+  printf '\nAura OS initial administrator account is ready. You can sign in as %s.\n' "$username"
+}
+
+if [[ ! "$STATE_DIR" = /* || "$STATE_DIR" = "/" ]]; then
+  echo "error: first-boot state directory must be an absolute non-root path." >&2
+  exit 2
+fi
+
+if [[ -f "$COMPLETE_FILE" ]]; then
+  exit 0
+fi
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "error: first-boot account setup must run as root." >&2
+  exit 1
+fi
+
+if ! exec 3< "$CONSOLE_INPUT_PATH"; then
+  echo "error: cannot open the system console for first-boot input: $CONSOLE_INPUT_PATH" >&2
+  exit 1
+fi
+
+console_print() {
+  printf '%s' "$1" >> "$CONSOLE_OUTPUT_PATH"
+}
+
+printf '\nWelcome to Aura OS.\n'
+printf 'Create the first local administrator account. The root account stays locked.\n'
+
+# Resume safely if power was lost after useradd but before passwd completed.
+if [[ -s "$PENDING_FILE" ]]; then
+  pending_username=""
+  IFS= read -r pending_username < "$PENDING_FILE" || true
+  if valid_username "$pending_username" && account_exists "$pending_username"; then
+    printf 'Resuming setup for the unfinished account %s.\n' "$pending_username"
+    finish_account_setup "$pending_username"
+    exit $?
+  fi
+  rm -f -- "$PENDING_FILE"
+fi
+
+for ((attempt = 1; attempt <= MAX_USERNAME_ATTEMPTS; attempt++)); do
+  username=""
+  console_print "New username (lowercase letters, digits, _ or -, 1–32 characters): "
+  if ! IFS= read -r username <&3; then
+    echo "error: no username was provided on the system console." >&2
+    exit 1
+  fi
+
+  if ! valid_username "$username"; then
+    echo "Invalid username. Use a lowercase letter or underscore first, then lowercase letters, digits, _ or - (maximum 32 characters)." >&2
+    continue
+  fi
+
+  if account_exists "$username"; then
+    echo "That username already exists. Choose another one." >&2
+    continue
+  fi
+
+  write_pending_user "$username"
+  if ! useradd --create-home --shell /bin/bash --groups sudo -- "$username"; then
+    if account_exists "$username"; then
+      echo "error: account creation returned an error but the account exists; keeping the recovery marker." >&2
+    else
+      rm -f -- "$PENDING_FILE"
+    fi
+    echo "error: could not create the requested account." >&2
+    exit 1
+  fi
+
+  finish_account_setup "$username"
+  exit $?
+done
+
+echo "error: too many invalid or unavailable usernames; first-boot setup will retry next boot." >&2
+exit 1
