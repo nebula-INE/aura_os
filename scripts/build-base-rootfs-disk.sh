@@ -21,7 +21,7 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck chmod chown install; do
+for cmd in truncate mkfs.ext4 mount umount mountpoint tar sha256sum e2fsck blkid python3 chmod chown install; do
   command -v "$cmd" >/dev/null 2>&1 || {
     echo "error: required command not found: $cmd" >&2
     exit 1
@@ -149,7 +149,8 @@ esac
 
 sync
 umount "$MOUNT_DIR"
-e2fsck -fn "$OUTPUT_IMAGE"
+STORAGE_REPORT="$OUTPUT_IMAGE.storage.json"
+python3 "$ROOT_DIR/scripts/verify_storage_image.py" --image "$OUTPUT_IMAGE" --json > "$STORAGE_REPORT"
 
 # The image is built under sudo, but QEMU runs as the original unprivileged
 # runner user and opens the disk read-write. Return ownership to that caller.
@@ -158,11 +159,12 @@ e2fsck -fn "$OUTPUT_IMAGE"
   sha256sum "$(basename "$OUTPUT_IMAGE")" > "$(basename "$OUTPUT_IMAGE").sha256"
 )
 if [[ "${SUDO_UID:-}" =~ ^[0-9]+$ && "${SUDO_GID:-}" =~ ^[0-9]+$ ]]; then
-  chown "$SUDO_UID:$SUDO_GID" "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
+  chown "$SUDO_UID:$SUDO_GID" "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256" "$STORAGE_REPORT"
 else
   # Direct root invocation is expected to run QEMU as root; do not make the
   # image world-writable just to accommodate an unknown caller.
-  chmod 0644 "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256"
+  chmod 0644 "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.sha256" "$STORAGE_REPORT"
 fi
 cat "$OUTPUT_IMAGE.sha256"
+cat "$STORAGE_REPORT"
 printf 'Created Aura OS %s persistent rootfs image: %s\n' "$TARGET_ARCH" "$OUTPUT_IMAGE"
