@@ -123,7 +123,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Add an interactive QEMU test that creates a first user, logs in over the serial console, authenticates sudo, checks the root lock/completion marker, and repeats the boot against the same disk; all three architecture jobs pass.
 - [x] Confirm console login, sudo access, and repeat-boot behavior pass on all three QEMU architectures (CI run 44646382671).
 - [x] Establish the initial whole-device ext4 root-volume contract: AURA_ROOTFS label, filesystem UUID, read-only e2fsck integrity validation, and JSON provenance (ADR 0008).
-- [x] Implement standard `root=UUID=` root-volume discovery in the static initramfs by matching ext4 superblock UUIDs across `/sys/class/block`; unit and three-architecture QEMU validation is included.
+- [ ] Validate standard `root=UUID=` root-volume discovery in the static initramfs by matching ext4 superblock UUIDs across `/sys/class/block`; C unit and three-architecture QEMU coverage is running in PR #11.
 - [ ] Design and validate a partitioned GPT/EFI layout, optional swap/data volumes, encryption, and installer-facing disk layout; these are not part of the current raw-ext4 image.
 - [ ] Add logging, diagnostics, crash reporting, and recovery.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
