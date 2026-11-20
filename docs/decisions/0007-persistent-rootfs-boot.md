@@ -17,7 +17,7 @@ Use a small statically linked C program as the first-stage initramfs PID 1. Keep
 The persistent-root handoff uses the classic `switch_root` overmount/chroot sequence:
 
 1. Mount devtmpfs, proc, and sysfs in the initramfs.
-2. Read the standard `root=UUID=<filesystem-uuid>` kernel argument. Enumerate `/sys/class/block`, open visible block devices, and compare the ext4 superblock UUID at its defined offset. Wait for device discovery within a bounded deadline.
+2. Read the standard `root=UUID=<filesystem-uuid>` kernel argument. Enumerate `/sys/class/block`, open visible block devices, and compare the ext4 superblock UUID at its defined offset. Wait for device discovery within a bounded deadline; reject duplicate matches instead of choosing by enumeration order.
 3. Mount the matching raw ext4 root filesystem image at `/newroot`. A legacy `/dev/vda` fallback is retained only when no `root=` argument is supplied.
 4. Move `/dev`, `/proc`, and `/sys` mount points into the new root.
 5. Remove the known, empty temporary initramfs directories and unlink the running `/init` pathname. The running process remains alive until it is replaced by `execve`.
@@ -41,7 +41,7 @@ The kernel configuration enables ext4, the virtio block transport used by each Q
 
 - The current QEMU profile uses a raw ext4 root image on virtio block and direct kernel loading. It does not validate a partition table, installer, GRUB/systemd-boot, Secure Boot, encryption, removable media, or physical firmware.
 - The non-interactive network smoke service powers off automatically. Interactive login and first-user provisioning are tested separately. These emulator tests do not demonstrate persistent upgrade behavior, desktop startup, or physical-hardware compatibility.
-- The initial UUID resolver recognizes unencrypted ext4 filesystems visible through `/sys/class/block`. Encrypted containers, device-mapper/LVM discovery before activation, network root filesystems, and a full initramfs device-event manager remain out of scope.
+- The initial UUID resolver recognizes unencrypted ext4 filesystems visible through `/sys/class/block` and fails closed if more than one device has the requested UUID. Encrypted containers, device-mapper/LVM discovery before activation, network root filesystems, and a full initramfs device-event manager remain out of scope.
 - The traditional switch-root flow leaves the kernel's special rootfs mount underneath the overmounted Debian root. It removes the temporary archive's known contents but does not claim that the rootfs mount itself is detached.
 - Hardware compatibility remains separate from architecture compilation and QEMU boot validation.
 
