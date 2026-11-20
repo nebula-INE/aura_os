@@ -49,9 +49,25 @@ The output is written to `build/base-userspace/<target>/` and includes:
 
 The repository adds an automated integration workflow, `.github/workflows/base-rootfs-qemu.yml`, that builds the pinned Linux kernel and a static initramfs, places the generated Debian rootfs on a raw ext4 disk image, and boots it under QEMU for each architecture.
 
-The test kernel command line includes `aura.rootfs=1`. In this mode, the PID 1 initramfs program mounts `/dev/vda`, moves `/dev`, `/proc`, and `/sys` into the new root, uses the classic `switch_root` overmount/chroot sequence, and executes `/sbin/init`. The Debian rootfs enables `systemd-networkd`, `systemd-resolved`, and `systemd-timesyncd`. Wired Ethernet uses DHCP with IPv6 router advertisements and link-local addressing; libc DNS lookups use the `systemd-resolved` stub resolver, and time synchronization accepts DHCP-provided NTP servers with the Debian pool as fallback. A normal first boot also runs the local administrator setup flow. The non-interactive QEMU smoke image skips that prompt with `aura.firstboot.skip` and checks network service state, DHCP IPv4 addressing, the default route, IPv6 link-local addressing, DNS resolution, and NTP service activation before writing its success markers and powering off. Each probe is bounded, including DNS resolution, and the overall network check has a 120-second deadline. The separate interactive QEMU image omits the auto-poweroff smoke service and tests first-user setup, real serial login, sudo authentication, root lock, and repeat-boot behavior. The older initramfs-only kernel and UEFI smoke tests remain on their original path when `aura.rootfs=1` is absent.
+The test kernel command line includes `aura.rootfs=1`. In this mode, the PID 1 initramfs program reads `root=UUID=<filesystem-uuid>`, scans `/sys/class/block` for an ext4 superblock with that UUID, mounts the matching block device, moves `/dev`, `/proc`, and `/sys` into the new root, uses the classic `switch_root` overmount/chroot sequence, and executes `/sbin/init`. A `/dev/vda` fallback remains only for older test command lines that omit `root=`. The Debian rootfs enables `systemd-networkd`, `systemd-resolved`, and `systemd-timesyncd`. Wired Ethernet uses DHCP with IPv6 router advertisements and link-local addressing; libc DNS lookups use the `systemd-resolved` stub resolver, and time synchronization accepts DHCP-provided NTP servers with the Debian pool as fallback. A normal first boot also runs the local administrator setup flow. The non-interactive QEMU smoke image skips that prompt with `aura.firstboot.skip` and checks network service state, DHCP IPv4 addressing, the default route, IPv6 link-local addressing, DNS resolution, and NTP service activation before writing its success markers and powering off. Each probe is bounded, including DNS resolution, and the overall network check has a 120-second deadline. The separate interactive QEMU image omits the auto-poweroff smoke service and tests first-user setup, real serial login, sudo authentication, root lock, and repeat-boot behavior. The older initramfs-only kernel and UEFI smoke tests remain on their original path when `aura.rootfs=1` is absent.
 
 Run the integration workflow from a pull request or GitHub Actions after the base userspace is available. Its artifact includes the kernel, initramfs, ext4 image, serial logs, and checksums. Passing the persistent-root test demonstrates boot into Debian under the emulator profile; passing the interactive test additionally demonstrates first-user setup, console login, sudo authentication, and repeat-boot persistence in QEMU. Neither test establishes an installable image or physical-hardware support.
+
+## Storage image contract
+
+The current QEMU root-volume format is a raw image whose entire device is ext4. It is labelled **AURA_ROOTFS** and receives a filesystem UUID from mkfs.ext4. This is intentionally a minimal emulator baseline, not a partitioned install disk.
+
+After unmounting the image, scripts/build-base-rootfs-disk.sh runs scripts/verify_storage_image.py. The validator uses blkid -p to require ext4, the expected label, and a valid UUID, then runs e2fsck -f -n as a forced read-only consistency check. Any non-zero filesystem-check exit status fails the build. A JSON report is written beside the image as <image>.storage.json and is uploaded with the image and SHA-256 checksum.
+
+Run the validator manually with:
+
+~~~sh
+python3 scripts/verify_storage_image.py \
+  --image build/base-userspace/x86_64/aura-base-x86_64.ext4 \
+  --json
+~~~
+
+The initramfs selects the root ext4 filesystem by UUID from the standard kernel command line. It can therefore boot the same unencrypted ext4 volume regardless of whether the device is named /dev/vda, /dev/sda, or another kernel block-device name. GPT/MBR partitions, an EFI System Partition, swap, separate data/home volumes, encryption, snapshots, rollback, and installation to physical disks remain out of scope. See ADR 0008 for the storage decision.
 
 ## Scope and safety
 
