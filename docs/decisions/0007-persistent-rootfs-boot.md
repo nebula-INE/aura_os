@@ -1,6 +1,6 @@
 # ADR 0007: Persistent Debian rootfs handoff from initramfs
 
-- **Status:** Proposed; three-architecture QEMU integration CI pending
+- **Status:** Accepted for the three-architecture QEMU integration baseline
 - **Date:** 2026-11-19
 - **Scope:** First transition from the temporary kernel initramfs into the target-native Debian root filesystem on the pinned Linux 6.18.64 line
 
@@ -26,7 +26,7 @@ The persistent-root handoff uses the classic `switch_root` overmount/chroot sequ
 
 This is deliberately not a `pivot_root()` call: the pinned 6.18.64 rootfs contract requires the traditional switch-root method.
 
-The QEMU integration workflow creates the ext4 disk image from the generated Debian rootfs and adds a dedicated one-shot systemd service. That service prints `AURA_SYSTEMD_ROOTFS_OK` and `AURA_ROOTFS_QEMU_PASS` to the serial console, then requests guest poweroff. The test accepts a boot only when the initramfs marker, both systemd service markers, and a clean QEMU exit are present and no kernel panic is reported.
+The QEMU integration workflow creates the raw whole-device ext4 disk image from the generated Debian rootfs and adds a dedicated one-shot systemd service. The service verifies networkd, resolved, timesyncd activation, Ethernet enumeration, DHCPv4, the default route, IPv6 link-local addressing, and DNS resolution before printing the success markers and requesting guest poweroff. The separate interactive first-boot test also verifies user creation, serial login, sudo authentication, root lock, and repeat-boot persistence.
 
 The kernel configuration enables ext4, the virtio block transport used by each QEMU machine, cgroup v2, and the core filesystems/controllers required by systemd. x86-64 uses virtio PCI; AArch64 and RV64GC use virtio MMIO.
 
@@ -40,18 +40,19 @@ The kernel configuration enables ext4, the virtio block transport used by each Q
 ## Limitations
 
 - The current QEMU profile uses a raw ext4 root image on virtio block and direct kernel loading. It does not validate a partition table, installer, GRUB/systemd-boot, Secure Boot, encryption, removable media, or physical firmware.
-- The test service powers off automatically; it does not demonstrate interactive login, user provisioning, networking, persistent upgrade behavior, or desktop startup.
+- The non-interactive network smoke service powers off automatically. Interactive login and first-user provisioning are tested separately. These emulator tests do not demonstrate persistent upgrade behavior, desktop startup, or physical-hardware compatibility.
 - `/dev/vda` is an explicit first-emulator contract. A later general boot flow must discover the root device by stable identifiers or a configurable kernel command line.
 - The traditional switch-root flow leaves the kernel's special rootfs mount underneath the overmounted Debian root. It removes the temporary archive's known contents but does not claim that the rootfs mount itself is detached.
 - Hardware compatibility remains separate from architecture compilation and QEMU boot validation.
 
 ## Acceptance
 
-This decision is accepted for the initial emulator handoff only after the three matrix jobs in `.github/workflows/base-rootfs-qemu.yml` all:
+This decision is accepted for the initial emulator handoff after all three matrix jobs in `.github/workflows/base-rootfs-qemu.yml` passed in CI run 44646382671. The jobs:
 1. Build a target-native Linux kernel and static initramfs.
 2. Build and verify the Debian rootfs and ext4 image.
-3. Reach `AURA_SYSTEMD_ROOTFS_OK` and `AURA_ROOTFS_QEMU_PASS` through the switch-root path.
-4. Power off cleanly with no kernel panic.
-5. Upload the boot log, kernel, initramfs, disk image, and checksums.
+3. Reach the systemd, network, DNS, and NTP-service-activation success markers through the switch-root path.
+4. Pass first-user setup, interactive serial login, sudo authentication, and repeat-boot checks.
+5. Power off cleanly with no kernel panic.
+6. Upload the boot log, kernel, initramfs, disk image, and checksums.
 
 After that, add a separate first-user provisioning design and interactive login test before claiming a usable bootable Aura OS base.
