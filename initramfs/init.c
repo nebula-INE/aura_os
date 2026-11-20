@@ -153,6 +153,11 @@ static int find_block_device_by_uuid(const char *uuid,
         if (!block_device_matches_uuid(candidate, uuid)) {
             continue;
         }
+        if (found > 0) {
+            /* Duplicate filesystem UUIDs are ambiguous; never choose by scan order. */
+            found = -2;
+            break;
+        }
 
         length = snprintf(device_path, device_path_size, "%s", candidate);
         if (length < 0 || (size_t)length >= device_path_size) {
@@ -160,7 +165,6 @@ static int find_block_device_by_uuid(const char *uuid,
             break;
         }
         found = 1;
-        break;
     }
 
     (void)closedir(blocks);
@@ -200,6 +204,9 @@ static void wait_for_root_device(char *device_path, size_t device_path_size) {
             log_message(message);
             log_message("AURA_ROOT_DEVICE_MATCHED");
             return;
+        }
+        if (result == -2) {
+            fail_and_halt("[Aura OS] ERROR: multiple block devices match root=UUID; refusing ambiguous root selection");
         }
         if (result < 0) {
             fail_and_halt("[Aura OS] ERROR: cannot enumerate /sys/class/block");
