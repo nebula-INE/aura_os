@@ -55,4 +55,4 @@ This decision is accepted for the initial emulator handoff after all three matri
 5. Power off cleanly with no kernel panic.
 6. Upload the boot log, kernel, initramfs, disk image, and checksums.
 
-After that, add a separate first-user provisioning design and interactive login test before claiming a usable bootable Aura OS base.
+The first-user provisioning and interactive login test are now implemented and pass in the recorded three-architecture QEMU matrix. These emulator results establish a usable base-system bring-up, not an installable desktop release or physical-hardware compatibility.
