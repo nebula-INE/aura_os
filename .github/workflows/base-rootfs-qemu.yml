@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "initramfs/init.c"
+      - "initramfs/root_uuid.h"
+      - "tests/test_initramfs_root_uuid.c"
       - "kernel/configs/**"
       - "kernel/linux-version.env"
       - "scripts/build-kernel.sh"
@@ -24,6 +26,8 @@ on:
   pull_request:
     paths:
       - "initramfs/init.c"
+      - "initramfs/root_uuid.h"
+      - "tests/test_initramfs_root_uuid.c"
       - "kernel/configs/**"
       - "kernel/linux-version.env"
       - "scripts/build-kernel.sh"
