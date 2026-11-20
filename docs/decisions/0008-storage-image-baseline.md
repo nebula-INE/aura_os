@@ -24,7 +24,7 @@ The image contract is:
 - Before the image is handed to QEMU or packaged, blkid -p must identify it as ext4 with the expected label.
 - e2fsck -f -n must complete with exit code zero. This is a forced, read-only consistency check; the validator never repairs or modifies an image.
 - The validator emits a machine-readable JSON report with image size, filesystem type, label, UUID, layout, and integrity-check result.
-- QEMU continues to mount /dev/vda for this emulator-only profile.
+- QEMU supplies the filesystem UUID with the standard `root=UUID=` kernel argument. The initramfs searches `/sys/class/block` and mounts the matching ext4 block device; tests no longer depend on the device being named `/dev/vda`.
 
 The checks are shared by every target architecture and run as part of image creation and CI. Unit tests cover missing/empty images, wrong filesystem type or label, invalid UUIDs, unrecognized images, and failed filesystem checks.
 
@@ -34,7 +34,7 @@ The checks are shared by every target architecture and run as part of image crea
 - Image identity and filesystem integrity become explicit, repeatable quality gates before boot.
 - A raw filesystem image is useful for the current emulator bring-up but is not a complete installable disk.
 - The layout does not yet provide a GPT/MBR partition table, EFI System Partition, swap, separate data/home volume, encryption, removable-media layout, or installer.
-- The UUID is recorded for diagnostics, but current initramfs root discovery still uses /dev/vda; stable UUID-based root discovery remains follow-up work.
+- The initramfs currently discovers unencrypted ext4 filesystems by filesystem UUID. GPT partitioning, partition UUID selection, encrypted-volume activation, LVM/device-mapper activation, and hotplug-driven device discovery remain future work.
 - The read-only check detects filesystem inconsistencies; it does not provide backup, snapshot, rollback, or recovery semantics.
 
 ## Acceptance
