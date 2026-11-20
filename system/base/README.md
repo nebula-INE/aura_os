@@ -67,7 +67,7 @@ python3 scripts/verify_storage_image.py \
   --json
 ~~~
 
-The current initramfs still mounts /dev/vda; the UUID is recorded for verification and future stable-device discovery, but is not yet used for root selection. GPT/MBR partitions, an EFI System Partition, swap, separate data/home volumes, encryption, snapshots, rollback, and installation to physical disks remain out of scope. See ADR 0008 for the storage decision.
+The initramfs selects the root ext4 filesystem by UUID from the standard kernel command line. It can therefore boot the same unencrypted ext4 volume regardless of whether the device is named /dev/vda, /dev/sda, or another kernel block-device name. GPT/MBR partitions, an EFI System Partition, swap, separate data/home volumes, encryption, snapshots, rollback, and installation to physical disks remain out of scope. See ADR 0008 for the storage decision.
 
 ## Scope and safety
 
