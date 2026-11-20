@@ -85,6 +85,8 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_storage_image.py' -v
           python3 -m py_compile scripts/verify_storage_image.py
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -I initramfs tests/test_initramfs_root_uuid.c -o "$RUNNER_TEMP/test-initramfs-root-uuid"
+          "$RUNNER_TEMP/test-initramfs-root-uuid"
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
           python3 -m py_compile scripts/test-firstboot-login-qemu.py
