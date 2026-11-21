@@ -6,6 +6,7 @@ TARGET_ARCH="${TARGET_ARCH:-}"
 ISO_IMAGE="${ISO_IMAGE:-$ROOT_DIR/build/iso/aura-os-$TARGET_ARCH-uefi.iso}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/build/qemu-iso}"
 TIMEOUT_SECONDS="${QEMU_TIMEOUT_SECONDS:-150}"
+BOOT_KEY_DELAY_SECONDS="${ISO_BOOT_KEY_DELAY_SECONDS:-30}"
 QEMU_BIN="${QEMU_BIN:-}"
 
 require_command() {
@@ -110,13 +111,17 @@ PROVENANCE_FILE="$LOG_DIR/$TARGET_ARCH-uefi-iso-qemu-provenance.txt"
 
 echo "Booting the $TARGET_ARCH Aura OS ISO as virtual CD-ROM under QEMU UEFI..."
 set +e
-timeout --signal=TERM --kill-after=10s "$TIMEOUT_SECONDS" \
+(
+  sleep "$BOOT_KEY_DELAY_SECONDS"
+  printf 'p'
+) | timeout --signal=TERM --kill-after=10s "$TIMEOUT_SECONDS" \
   "$QEMU_BIN" "${QEMU_ARGS[@]}" \
     -display none \
     -serial stdio \
     -monitor none \
     -no-reboot 2>&1 | tee "$LOG_FILE"
-qemu_status="${PIPESTATUS[0]}"
+pipeline_status=("${PIPESTATUS[@]}")
+qemu_status="${pipeline_status[1]:-1}"
 set -e
 
 if [[ "$qemu_status" -ne 0 ]]; then
@@ -124,7 +129,7 @@ if [[ "$qemu_status" -ne 0 ]]; then
   exit "$qemu_status"
 fi
 normalized_log="$(tr -d '\r' < "$LOG_FILE")"
-for marker in AURA_INIT_OK AURA_QEMU_TEST_PASS; do
+for marker in AURA_INIT_OK AURA_ISO_BOOT_READY AURA_QEMU_TEST_PASS; do
   grep -Fqx "$marker" <<<"$normalized_log" || {
     echo "error: UEFI ISO boot did not report exact success marker: $marker" >&2
     exit 1
