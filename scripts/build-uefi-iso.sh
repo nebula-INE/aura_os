@@ -12,16 +12,22 @@ case "$TARGET_ARCH" in
     EFI_FILENAME=BOOTX64.EFI
     KERNEL_IMAGE="$ROOT_DIR/build/kernel-efi-iso/x86_64/arch/x86/boot/bzImage"
     FIRMWARE_PROFILE=OVMF-x86_64-UEFI
+    FAT_LABEL=AURAX64
+    ISO_LABEL=AURA_X86_64
     ;;
   aarch64)
     EFI_FILENAME=BOOTAA64.EFI
     KERNEL_IMAGE="$ROOT_DIR/build/kernel-efi-iso/aarch64/arch/arm64/boot/Image"
     FIRMWARE_PROFILE=AAVMF-aarch64-UEFI
+    FAT_LABEL=AURAA64
+    ISO_LABEL=AURA_AARCH64
     ;;
   riscv64)
     EFI_FILENAME=BOOTRISCV64.EFI
     KERNEL_IMAGE="$ROOT_DIR/build/kernel-efi-iso/riscv64/arch/riscv/boot/Image"
     FIRMWARE_PROFILE=EDK2-RISCV64-via-QEMU-virt-firmware
+    FAT_LABEL=AURARV64
+    ISO_LABEL=AURA_RISCV64
     ;;
   *)
     echo "error: TARGET_ARCH must be x86_64, aarch64, or riscv64." >&2
@@ -48,12 +54,12 @@ mkdir -p "$OUTPUT_DIR"
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR/boot" "$STAGING_DIR/EFI/BOOT"
 ESP_IMAGE="$STAGING_DIR/boot/efi.img"
-VOLUME_ID="AURA_${TARGET_ARCH^^}"
+VOLUME_ID="$ISO_LABEL"
 OUTPUT_ISO="$OUTPUT_DIR/aura-os-$TARGET_ARCH-uefi.iso"
 
 echo "Creating a FAT32 El Torito EFI System Partition for $TARGET_ARCH..."
 truncate -s "$ESP_SIZE" "$ESP_IMAGE"
-mformat -i "$ESP_IMAGE" -F -v "$VOLUME_ID" ::
+mformat -i "$ESP_IMAGE" -F -v "$FAT_LABEL" ::
 mmd -i "$ESP_IMAGE" ::/EFI
 mmd -i "$ESP_IMAGE" ::/EFI/BOOT
 mcopy -i "$ESP_IMAGE" "$KERNEL_IMAGE" "::/EFI/BOOT/$EFI_FILENAME"
