@@ -16,6 +16,16 @@ The workflow builds an EFI-stub Linux kernel with a target-native initramfs embe
 
 **Important:** the current images are boot-validation prototypes, not installation ISOs. They do not show an installer, write to a target disk, install a root filesystem, create a user, or launch a desktop. The console is a boot-validation menu, not a general-purpose shell. Do not use them to install Aura OS on a PC.
 
+## Validated prototype downloads
+
+The first three-architecture ISO boot matrix passed on 2026-11-21 in [GitHub Actions run #33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448). Download the corresponding per-architecture artifact from that run:
+
+- `aura-os-uefi-iso-x86_64`
+- `aura-os-uefi-iso-aarch64`
+- `aura-os-uefi-iso-riscv64`
+
+Each artifact ZIP contains a real 128 MiB `.iso`, a SHA-256 file, JSON provenance, an El Torito report, and the serial boot log. GitHub packages the ISO inside a ZIP for artifact transport; extract the ZIP to obtain the bootable `.iso`.
+
 ## Download
 
 1. Open the repository's Actions tab.
