@@ -1,6 +1,6 @@
 # ADR 0009: Architecture-specific UEFI boot ISO baseline
 
-- **Status:** Proposed; three-architecture QEMU ISO boot validation pending
+- **Status:** Accepted for the boot-validation prototype; installer media remains pending
 - **Date:** 2026-11-21
 - **Scope:** First downloadable UEFI boot-media format for x86-64, AArch64, and RV64GC
 
@@ -38,10 +38,16 @@ The next milestone under Issue #12 adds an installer runtime, safe target-disk c
 
 ## Consequences
 
-- Users can receive actual .iso files rather than ZIP archives of raw build artifacts once the matrix passes.
+- Users can receive actual .iso files rather than ZIP archives of raw build artifacts; the first three-architecture matrix passed in [Actions run #33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448).
 - ISO creation is shared, while EFI executable names and QEMU firmware remain architecture-specific.
 - An ISO build alone is not accepted: the CI must boot the image from a virtual CD-ROM through the architecture's UEFI firmware.
 - A green boot-matrix validates the UEFI boot-media prototype only; it does not imply installer or hardware readiness.
+
+## Validation result
+
+The x86-64, AArch64, and RV64GC jobs all passed in [Actions run #33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448) on 2026-11-21. For all three targets, the job completed the kernel build, target-native initramfs build, EFI-stub kernel build, ISO assembly, El Torito/ESP verification, and QEMU UEFI virtual-CD-ROM boot. The serial logs contain AURA_INIT_OK, AURA_ISO_BOOT_READY, and AURA_QEMU_TEST_PASS followed by a clean poweroff. ISO, SHA-256, provenance, El Torito report, and serial log artifacts were uploaded for each architecture.
+
+This validates only the UEFI boot prototype. The images are not installers and are not yet approved for writing to or installing onto a physical disk.
 
 ## Acceptance
 
