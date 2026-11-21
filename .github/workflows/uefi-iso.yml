@@ -2,6 +2,8 @@ name: Aura multi-architecture UEFI ISO boot
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "kernel/**"
       - "initramfs/**"
