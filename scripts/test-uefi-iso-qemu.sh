@@ -61,12 +61,12 @@ case "$TARGET_ARCH" in
     OVMF_VARS="${RISCV_EFI_VARS:-/usr/share/qemu-efi-riscv64/RISCV_VIRT_VARS.fd}"
     OVMF_VARS_COPY="$LOG_DIR/RISCV_VIRT_VARS.fd"
     QEMU_ARGS=(
-      -machine virt,acpi=off,accel=tcg
+      -machine virt,pflash0=pflash0,pflash1=pflash1,acpi=off,accel=tcg
       -cpu rv64
       -m 2048
       -smp 2
-      -drive "if=pflash,format=raw,unit=0,readonly=on,file=$OVMF_CODE"
-      -drive "if=pflash,format=raw,unit=1,file=$OVMF_VARS_COPY"
+      -blockdev "node-name=pflash0,driver=file,read-only=on,filename=$OVMF_CODE"
+      -blockdev "node-name=pflash1,driver=file,filename=$OVMF_VARS_COPY"
       -device virtio-scsi-device,id=scsi0
       -drive if=none,id=cdrom,media=cdrom,readonly=on,format=raw,file="$ISO_IMAGE"
       -device scsi-cd,drive=cdrom,bus=scsi0.0,bootindex=1
