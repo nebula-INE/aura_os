@@ -12,7 +12,7 @@ These are real ISO9660 images with a UEFI El Torito boot catalog and a FAT32 EFI
 | AArch64 | aura-os-aarch64-uefi.iso | EFI/BOOT/BOOTAA64.EFI | AAVMF |
 | RV64GC | aura-os-riscv64-uefi.iso | EFI/BOOT/BOOTRISCV64.EFI | EDK2 RISC-V via QEMU virt firmware |
 
-The workflow builds an EFI-stub Linux kernel with a target-native initramfs embedded, assembles the ISO, then boots it as virtual CD-ROM media under the matching UEFI firmware. The initramfs opens a serial-console boot menu and prints AURA_INIT_OK, AURA_ISO_BOOT_READY, and AURA_QEMU_TEST_PASS. Press p to power off or r to reboot. The CI sends p after the boot-ready marker and verifies a clean poweroff.
+The workflow builds an EFI-stub Linux kernel with a target-native initramfs embedded, assembles the ISO, then boots it as virtual CD-ROM media under the matching UEFI firmware. The initramfs opens a serial-console boot menu and prints AURA_INIT_OK, AURA_ISO_BOOT_READY, and AURA_QEMU_TEST_PASS. Type p then Enter to power off, or r then Enter to reboot. The CI sends p after the boot-ready marker and verifies a clean poweroff.
 
 **Important:** the current images are boot-validation prototypes, not installation ISOs. They do not show an installer, write to a target disk, install a root filesystem, create a user, or launch a desktop. The console is a boot-validation menu, not a general-purpose shell. Do not use them to install Aura OS on a PC.
 
