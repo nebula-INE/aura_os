@@ -77,10 +77,11 @@ config_args=(
   --set-str INITRAMFS_SOURCE "$INITRAMFS_ROOTFS"
   --enable INITRAMFS_COMPRESSION_GZIP
   --set-str CMDLINE "$KERNEL_CMDLINE"
-  --enable CMDLINE_FORCE
 )
 if [[ "$TARGET_ARCH" == x86_64 ]]; then
   config_args+=(--enable CMDLINE_BOOL --enable CMDLINE_OVERRIDE)
+else
+  config_args+=(--enable CMDLINE_FORCE)
 fi
 "$SOURCE_DIR/scripts/config" "${config_args[@]}"
 
