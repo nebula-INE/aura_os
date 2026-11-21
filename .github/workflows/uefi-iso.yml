@@ -1,0 +1,134 @@
+name: Aura multi-architecture UEFI ISO boot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "kernel/**"
+      - "initramfs/**"
+      - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs-target.sh"
+      - "scripts/build-kernel-efi-iso.sh"
+      - "scripts/build-uefi-iso.sh"
+      - "scripts/test-uefi-iso-qemu.sh"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "scripts/verify_aarch64_efi_image.py"
+      - "docs/installation-media.md"
+      - "docs/decisions/0009-uefi-iso-media.md"
+      - "Plan.md"
+      - ".github/workflows/uefi-iso.yml"
+  pull_request:
+    paths:
+      - "kernel/**"
+      - "initramfs/**"
+      - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs-target.sh"
+      - "scripts/build-kernel-efi-iso.sh"
+      - "scripts/build-uefi-iso.sh"
+      - "scripts/test-uefi-iso-qemu.sh"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "scripts/verify_aarch64_efi_image.py"
+      - "docs/installation-media.md"
+      - "docs/decisions/0009-uefi-iso-media.md"
+      - "Plan.md"
+      - ".github/workflows/uefi-iso.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uefi-iso-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-boot-iso:
+    name: Build and boot UEFI ISO (${{ matrix.target_arch }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_arch: x86_64
+            cross_packages: ""
+            qemu_package: qemu-system-x86
+            firmware_packages: ovmf
+          - target_arch: aarch64
+            cross_packages: gcc-aarch64-linux-gnu
+            qemu_package: qemu-system-arm
+            firmware_packages: qemu-efi-aarch64
+          - target_arch: riscv64
+            cross_packages: gcc-riscv64-linux-gnu
+            qemu_package: qemu-system-misc
+            firmware_packages: opensbi qemu-efi-riscv64
+
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax and install build dependencies
+        env:
+          CROSS_PACKAGES: ${{ matrix.cross_packages }}
+          QEMU_PACKAGE: ${{ matrix.qemu_package }}
+          FIRMWARE_PACKAGES: ${{ matrix.firmware_packages }}
+        run: |
+          bash -n scripts/build-kernel.sh scripts/build-initramfs-target.sh \
+            scripts/build-kernel-efi-iso.sh scripts/build-uefi-iso.sh \
+            scripts/test-uefi-iso-qemu.sh
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
+          sudo apt-get \
+            -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=60 \
+            -o Acquire::https::Timeout=60 \
+            install -y \
+            build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
+            git gnupg curl cpio gzip binutils file mtools xorriso \
+            ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
+
+      - name: Build and verify upstream Linux kernel
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-kernel.sh
+
+      - name: Build target-native initramfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: bash scripts/build-initramfs-target.sh
+
+      - name: Build EFI-stub kernel with embedded initramfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-kernel-efi-iso.sh
+
+      - name: Build UEFI El Torito ISO
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: bash scripts/build-uefi-iso.sh
+
+      - name: Boot ISO as virtual CD-ROM through UEFI
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          QEMU_TIMEOUT_SECONDS: "150"
+        run: bash scripts/test-uefi-iso-qemu.sh
+
+      - name: Upload bootable ISO, checksums, provenance, and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-os-uefi-iso-${{ matrix.target_arch }}
+          path: |
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.sha256
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.provenance.json
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.eltorito.txt
+            build/kernel-efi-iso/${{ matrix.target_arch }}/kernel-image.sha256
+            build/kernel-efi-iso/${{ matrix.target_arch }}/efi-kernel-provenance.txt
+            build/qemu-iso/aura-${{ matrix.target_arch }}-uefi-iso-boot.log
+            build/qemu-iso/${{ matrix.target_arch }}-uefi-iso-qemu-provenance.txt
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

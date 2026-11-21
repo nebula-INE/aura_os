@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,6 +65,26 @@ def qemu_configuration() -> tuple[str, Path, Path, list[str], str]:
     raise SystemExit("error: TARGET_ARCH must be x86_64, aarch64, or riscv64.")
 
 
+def root_filesystem_uuid(image: Path) -> str:
+    if shutil.which("blkid") is None:
+        raise RuntimeError("blkid is required to select the root filesystem by UUID")
+    result = subprocess.run(
+        ["blkid", "-s", "UUID", "-o", "value", str(image)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"blkid could not read the root filesystem UUID: {result.stderr.strip()}")
+    value = result.stdout.strip()
+    if not re.fullmatch(
+        r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+        value,
+    ):
+        raise RuntimeError(f"root filesystem has an invalid UUID: {value!r}")
+    return value.lower()
+
+
 def start_guest(
     qemu: str, kernel: Path, initramfs: Path, image: Path, console: str, log_path: Path
 ) -> tuple[pexpect.spawn, object]:
@@ -75,7 +96,8 @@ def start_guest(
     if shutil.which(qemu) is None:
         raise RuntimeError(f"QEMU executable not found: {qemu}")
 
-    command_line = f"console={console},115200 rdinit=/init panic=-1 aura.rootfs=1"
+    root_uuid = root_filesystem_uuid(image)
+    command_line = f"console={console},115200 rdinit=/init panic=-1 aura.rootfs=1 root=UUID={root_uuid}"
     args = [
         *qemu_configuration()[3],
         "-kernel", str(kernel),
@@ -168,6 +190,13 @@ def poweroff_guest(child: pexpect.spawn, log_file: object) -> None:
         raise RuntimeError(f"QEMU exited with status {child.exitstatus} after guest poweroff")
 
 
+def assert_root_uuid_selection(log_path: Path) -> None:
+    log_text = log_path.read_text(encoding="utf-8", errors="replace")
+    for marker in ("AURA_ROOT_UUID_REQUESTED", "AURA_ROOT_DEVICE_MATCHED"):
+        if marker not in log_text.splitlines():
+            raise RuntimeError(f"initramfs did not emit {marker} in {log_path}")
+
+
 def run_first_boot(qemu: str, kernel: Path, initramfs: Path, image: Path, console: str) -> None:
     child, log_file = start_guest(
         qemu, kernel, initramfs, image, console,
@@ -184,6 +213,7 @@ def run_first_boot(qemu: str, kernel: Path, initramfs: Path, image: Path, consol
         expect_login_prompt(child)
         authenticate_console(child, verify_sudo=True)
         poweroff_guest(child, log_file)
+        assert_root_uuid_selection(LOG_DIR / f"aura-{TARGET_ARCH}-firstboot-login-1.log")
     except Exception:
         if child.isalive():
             child.close(force=True)
@@ -200,6 +230,7 @@ def run_second_boot(qemu: str, kernel: Path, initramfs: Path, image: Path, conso
         expect_login_prompt(child, reject_wizard=True)
         authenticate_console(child, verify_sudo=True)
         poweroff_guest(child, log_file)
+        assert_root_uuid_selection(LOG_DIR / f"aura-{TARGET_ARCH}-firstboot-login-2.log")
         log_text = (LOG_DIR / f"aura-{TARGET_ARCH}-firstboot-login-2.log").read_text(
             encoding="utf-8", errors="replace"
         )

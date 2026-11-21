@@ -8,13 +8,28 @@ ROOTFS_IMAGE="${ROOTFS_IMAGE:-$ROOT_DIR/build/base-userspace/$TARGET_ARCH/aura-b
 INITRAMFS="$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz"
 LOG_DIR="$ROOT_DIR/build/qemu"
 
+if [[ ! -s "$ROOTFS_IMAGE" ]]; then
+  echo "error: persistent root image is missing or empty: $ROOTFS_IMAGE" >&2
+  exit 1
+fi
+if ! command -v blkid >/dev/null 2>&1; then
+  echo "error: blkid is required to select the root filesystem by UUID." >&2
+  exit 1
+fi
+ROOT_FS_UUID="$(blkid -s UUID -o value "$ROOTFS_IMAGE" 2>/dev/null || true)"
+if [[ ! "$ROOT_FS_UUID" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]]; then
+  echo "error: root filesystem image has no valid ext4 UUID: $ROOTFS_IMAGE" >&2
+  exit 1
+fi
+ROOT_FS_UUID="${ROOT_FS_UUID,,}"
+
 case "$TARGET_ARCH" in
   x86_64)
     KERNEL_IMAGE="$ROOT_DIR/build/kernel/arch/x86/boot/bzImage"
     QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
     CPU_MODEL="qemu64"
     CONSOLE="ttyS0"
-    KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip"
+    KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip root=UUID=$ROOT_FS_UUID"
     QEMU_ARGS=(
       -machine q35,accel=tcg
       -cpu "$CPU_MODEL"
@@ -38,7 +53,7 @@ case "$TARGET_ARCH" in
     QEMU_BIN="${QEMU_BIN:-qemu-system-riscv64}"
     CPU_MODEL="rv64"
     CONSOLE="ttyS0"
-    KERNEL_CMDLINE="console=ttyS0,115200 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip"
+    KERNEL_CMDLINE="console=ttyS0,115200 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip root=UUID=$ROOT_FS_UUID"
     QEMU_ARGS=(
       -machine virt,accel=tcg
       -cpu "$CPU_MODEL"
@@ -63,7 +78,7 @@ case "$TARGET_ARCH" in
     QEMU_BIN="${QEMU_BIN:-qemu-system-aarch64}"
     CPU_MODEL="cortex-a57"
     CONSOLE="ttyAMA0"
-    KERNEL_CMDLINE="console=ttyAMA0,115200 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip"
+    KERNEL_CMDLINE="console=ttyAMA0,115200 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip root=UUID=$ROOT_FS_UUID"
     QEMU_ARGS=(
       -machine virt,accel=tcg
       -cpu "$CPU_MODEL"
@@ -94,7 +109,7 @@ require_command() {
     exit 1
   }
 }
-for cmd in "$QEMU_BIN" timeout tee grep sha256sum head tr; do
+for cmd in "$QEMU_BIN" timeout tee grep sha256sum head tr blkid; do
   require_command "$cmd"
 done
 for path in "$KERNEL_IMAGE" "$INITRAMFS" "$ROOTFS_IMAGE"; do
@@ -120,6 +135,7 @@ PROVENANCE_FILE="$LOG_DIR/$TARGET_ARCH-rootfs-boot-provenance.txt"
   printf 'Memory: 2048 MiB\n'
   printf 'Network: QEMU user-mode dual-stack 10.0.2.0/24; DHCP starts at 10.0.2.15; DNS 10.0.2.3\n'
   printf 'Console: %s\n' "$CONSOLE"
+  printf 'Root filesystem UUID: %s\n' "$ROOT_FS_UUID"
   printf 'Kernel command line: %s\n' "$KERNEL_CMDLINE"
   printf 'Kernel SHA-256:\n'
   sha256sum "$KERNEL_IMAGE"
@@ -161,6 +177,14 @@ has_exact_marker() {
 
 has_exact_marker "AURA_INIT_OK" || {
   echo "error: initramfs did not start before rootfs switch." >&2
+  exit 1
+}
+has_exact_marker "AURA_ROOT_UUID_REQUESTED" || {
+  echo "error: initramfs did not accept the root filesystem UUID." >&2
+  exit 1
+}
+has_exact_marker "AURA_ROOT_DEVICE_MATCHED" || {
+  echo "error: initramfs did not find a block device matching the root filesystem UUID." >&2
   exit 1
 }
 has_exact_marker "AURA_SYSTEMD_ROOTFS_OK" || {

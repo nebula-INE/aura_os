@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "initramfs/init.c"
+      - "initramfs/root_uuid.h"
+      - "tests/test_initramfs_root_uuid.c"
       - "kernel/configs/**"
       - "kernel/linux-version.env"
       - "scripts/build-kernel.sh"
@@ -15,6 +17,8 @@ on:
       - "scripts/qemu-network-smoke.sh"
       - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
+      - "scripts/verify_storage_image.py"
+      - "tests/test_storage_image.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_aura_firstboot.py"
       - "system/base/**"
@@ -22,6 +26,8 @@ on:
   pull_request:
     paths:
       - "initramfs/init.c"
+      - "initramfs/root_uuid.h"
+      - "tests/test_initramfs_root_uuid.c"
       - "kernel/configs/**"
       - "kernel/linux-version.env"
       - "scripts/build-kernel.sh"
@@ -33,6 +39,8 @@ on:
       - "scripts/qemu-network-smoke.sh"
       - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
+      - "scripts/verify_storage_image.py"
+      - "tests/test_storage_image.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_aura_firstboot.py"
       - "system/base/**"
@@ -75,6 +83,10 @@ jobs:
             scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh scripts/qemu-network-smoke.sh
           bash -n system/base/firstboot/aura-firstboot
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+          python3 -m unittest discover -s tests -p 'test_storage_image.py' -v
+          python3 -m py_compile scripts/verify_storage_image.py
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -I initramfs tests/test_initramfs_root_uuid.c -o "$RUNNER_TEMP/test-initramfs-root-uuid"
+          "$RUNNER_TEMP/test-initramfs-root-uuid"
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
           python3 -m py_compile scripts/test-firstboot-login-qemu.py
@@ -168,6 +180,7 @@ jobs:
             build/initramfs/aura-initramfs-${{ matrix.target_arch }}.cpio.gz.sha256
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4.sha256
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.ext4.storage.json
             build/qemu/aura-${{ matrix.target_arch }}-rootfs-boot.log
             build/qemu/aura-${{ matrix.target_arch }}-firstboot-login-*.log
             build/qemu/${{ matrix.target_arch }}-rootfs-boot-provenance.txt

@@ -7,6 +7,7 @@ OUT_DIR="${ROOT_DIR}/build/initramfs"
 ROOTFS_DIR="${OUT_DIR}/rootfs"
 ARCHIVE="${OUT_DIR}/aura-initramfs-${TARGET_ARCH}.cpio.gz"
 SOURCE_FILE="${ROOT_DIR}/initramfs/init.c"
+ROOT_UUID_HEADER="${ROOT_DIR}/initramfs/root_uuid.h"
 
 case "${TARGET_ARCH}" in
   x86_64) CROSS_COMPILE="${CROSS_COMPILE:-}" ;;
@@ -32,6 +33,10 @@ for cmd in "$CC" cpio gzip find sort readelf sha256sum grep; do
 done
 if [[ ! -s "$SOURCE_FILE" ]]; then
   echo "error: init source is missing: $SOURCE_FILE" >&2
+  exit 1
+fi
+if [[ ! -s "$ROOT_UUID_HEADER" ]]; then
+  echo "error: root UUID helper header is missing: $ROOT_UUID_HEADER" >&2
   exit 1
 fi
 

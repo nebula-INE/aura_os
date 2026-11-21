@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-19
+> Last updated: 2026-11-21
 
 ## 1. Vision
 
@@ -94,16 +94,20 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Add target-specific kernel, static initramfs, and QEMU smoke-test workflows for RV64GC and AArch64 (initial emulator profiles; hardware support is not implied).
 - [x] Pass the RV64GC and AArch64 direct-boot CI jobs and inspect their uploaded boot artifacts.
 - [x] Add an AArch64 AAVMF UEFI smoke-test path using the Linux EFI stub and an embedded target-native initramfs; structural Linux ARM64 PE/COFF validation and the AAVMF QEMU boot pass in CI.
-- [x] Select Debian 13 (trixie), glibc, apt/dpkg, systemd-sysv, and mmdebstrap as the initial three-architecture base-userspace bootstrap policy (ADR 0006); three-architecture bootstrap CI passes, while persistent-root boot validation remains pending.
+- [x] Select Debian 13 (trixie), glibc, apt/dpkg, systemd-sysv, and mmdebstrap as the initial three-architecture base-userspace bootstrap policy (ADR 0006); base userspace, persistent-root boot, and first-user integration validation pass on all three QEMU targets.
 - [ ] Establish repository layout, conventions, and pinned toolchains.
 - [x] Add CI for the initial pinned x86-64 Linux kernel build.
-- [ ] Add CI for formatting, static checks, userspace builds, and boot smoke tests. A dedicated multi-architecture base-userspace bootstrap workflow is added; full rootfs boot checks remain pending.
+- [x] Add CI for base userspace builds and three-architecture QEMU boot/integration smoke tests. Formatting and static-analysis policy remains a separate follow-up.
 - [ ] Define a benchmark harness and capture initial Linux baselines on each reference architecture.
 - [ ] Record idle-service, memory, CPU, startup, and I/O measurements before tuning.
 
 **Exit criteria:** documented Linux kernel policy, defined platform profiles, a reproducible x86-64 kernel build, and a verified QEMU first boot.
 
 ### Phase 1 — Three-architecture bootable base
+
+- [x] Build one architecture-specific UEFI El Torito ISO for x86-64, AArch64, and RV64GC; boot each as a virtual CD-ROM under its matching QEMU UEFI firmware (validated by Actions run [#33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448); ADR 0009 / Issue #12).
+- [x] Publish ISO files, SHA-256 checksums, El Torito inspection reports, firmware provenance, and serial boot logs as CI artifacts (artifacts from run [#33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448)).
+- [x] Keep boot-validation ISOs explicitly separate from installable media until the installer and post-install disk boot tests pass.
 
 - [ ] Produce a bootable x86-64 image.
 - [ ] Produce a bootable RV64GC image for the selected emulator/reference platform.
@@ -117,15 +121,17 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 ### Phase 2 — Shared system foundation
 
 - [x] Generate and validate the Debian base rootfs on x86-64, AArch64, and RV64GC; all three bootstrap jobs pass and upload archives, package manifests, and provenance.
-- [ ] Boot each Debian rootfs under QEMU, use the Linux 6.18.64-compatible switch_root overmount/chroot handoff (not pivot_root), and verify systemd startup/poweroff (automated workflow added; CI pending).
+- [x] Boot each Debian rootfs under QEMU using the Linux 6.18.64-compatible switch_root overmount/chroot handoff (not pivot_root); systemd startup and clean poweroff pass on x86-64, AArch64, and RV64GC (CI run 44646382671).
 - [ ] Establish common userspace and service startup.
-- [x] Add an interactive first-boot console flow that creates one local `sudo` administrator, keeps root password-locked, and resumes safely if password setup is interrupted (automated tests added; multi-architecture boot validation pending).
-- [x] Add an interactive QEMU test that creates a first user, logs in over the serial console, authenticates sudo, checks the root lock/completion marker, and repeats the boot against the same disk (multi-architecture CI validation pending).
-- [ ] Confirm console login, sudo access, and repeat-boot behavior pass on all three QEMU architectures.
-- [ ] Establish storage layout and filesystem support.
+- [x] Add an interactive first-boot console flow that creates one local `sudo` administrator, keeps root password-locked, and resumes safely if password setup is interrupted; the behavior is covered by unit and three-architecture QEMU tests.
+- [x] Add an interactive QEMU test that creates a first user, logs in over the serial console, authenticates sudo, checks the root lock/completion marker, and repeats the boot against the same disk; all three architecture jobs pass.
+- [x] Confirm console login, sudo access, and repeat-boot behavior pass on all three QEMU architectures (CI run 44646382671).
+- [x] Establish the initial whole-device ext4 root-volume contract: AURA_ROOTFS label, filesystem UUID, read-only e2fsck integrity validation, and JSON provenance (ADR 0008).
+- [ ] Validate standard `root=UUID=` root-volume discovery in the static initramfs by matching ext4 superblock UUIDs across `/sys/class/block`; C unit and three-architecture QEMU coverage is running in PR #11.
+- [ ] Design and validate a partitioned GPT/EFI layout, optional swap/data volumes, encryption, and installer-facing disk layout; these are not part of the current raw-ext4 image.
 - [ ] Add logging, diagnostics, crash reporting, and recovery.
-- [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback (multi-architecture QEMU validation pending).
-- [ ] Validate DHCP, DNS, IPv6, and NTP behavior on x86-64, AArch64, and RV64GC.
+- [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
+- [x] Validate DHCPv4 addressing, default route, IPv6 link-local addressing, DNS resolution, and timesyncd service activation on x86-64, AArch64, and RV64GC (CI run 44646382671). Actual NTP synchronization accuracy/time offset is not yet asserted.
 - [ ] Define package installation, updates, and rollback.
 - [ ] Add architecture-independent integration tests.
 
@@ -367,7 +373,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 2. Bring up x86-64 in QEMU first, with serial boot logs and a minimal initramfs.
 3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
-5. Pass the persistent-root QEMU integration workflow on all three architectures; then validate first-user creation, console login, sudo, reboot, and shutdown.
+5. [x] Pass the persistent-root QEMU integration workflow on all three architectures and validate first-user creation, console login, sudo, repeat boot, and shutdown (CI run 44646382671).
 6. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
