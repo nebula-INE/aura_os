@@ -18,6 +18,7 @@ case "${TARGET_ARCH}" in
     IMAGE_TARGET=bzImage
     KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.ci=1"
     EFI_FILENAME=BOOTX64.EFI
+    CMDLINE_FORCE_OPTION=CONFIG_CMDLINE_OVERRIDE
     ;;
   aarch64)
     ARCH=arm64
@@ -26,6 +27,7 @@ case "${TARGET_ARCH}" in
     IMAGE_TARGET=Image
     KERNEL_CMDLINE="console=ttyAMA0,115200 rdinit=/init panic=-1 aura.ci=1"
     EFI_FILENAME=BOOTAA64.EFI
+    CMDLINE_FORCE_OPTION=CONFIG_CMDLINE_FORCE
     ;;
   riscv64)
     ARCH=riscv
@@ -34,6 +36,7 @@ case "${TARGET_ARCH}" in
     IMAGE_TARGET=Image
     KERNEL_CMDLINE="console=ttyS0,115200 rdinit=/init panic=-1 aura.ci=1"
     EFI_FILENAME=BOOTRISCV64.EFI
+    CMDLINE_FORCE_OPTION=CONFIG_CMDLINE_FORCE
     ;;
   *)
     echo "error: TARGET_ARCH must be x86_64, aarch64, or riscv64." >&2
@@ -77,7 +80,7 @@ config_args=(
   --enable CMDLINE_FORCE
 )
 if [[ "$TARGET_ARCH" == x86_64 ]]; then
-  config_args+=(--enable CMDLINE_BOOL)
+  config_args+=(--enable CMDLINE_BOOL --enable CMDLINE_OVERRIDE)
 fi
 "$SOURCE_DIR/scripts/config" "${config_args[@]}"
 
@@ -85,7 +88,7 @@ ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   make -C "$SOURCE_DIR" O="$OUT_DIR" olddefconfig
 
 for option in CONFIG_BLK_DEV_INITRD CONFIG_EFI CONFIG_EFI_STUB \
-              CONFIG_INITRAMFS_COMPRESSION_GZIP CONFIG_CMDLINE_FORCE; do
+              CONFIG_INITRAMFS_COMPRESSION_GZIP "$CMDLINE_FORCE_OPTION"; do
   grep -qx "${option}=y" "$OUT_DIR/.config" || {
     echo "error: required EFI ISO kernel option is not enabled: ${option}" >&2
     exit 1
