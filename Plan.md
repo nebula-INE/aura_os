@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-20
+> Last updated: 2026-11-21
 
 ## 1. Vision
 
@@ -104,6 +104,10 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 **Exit criteria:** documented Linux kernel policy, defined platform profiles, a reproducible x86-64 kernel build, and a verified QEMU first boot.
 
 ### Phase 1 — Three-architecture bootable base
+
+- [x] Build one architecture-specific UEFI El Torito ISO for x86-64, AArch64, and RV64GC; boot each as a virtual CD-ROM under its matching QEMU UEFI firmware (validated by Actions run [#33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448); ADR 0009 / Issue #12).
+- [x] Publish ISO files, SHA-256 checksums, El Torito inspection reports, firmware provenance, and serial boot logs as CI artifacts (artifacts from run [#33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448)).
+- [x] Keep boot-validation ISOs explicitly separate from installable media until the installer and post-install disk boot tests pass.
 
 - [ ] Produce a bootable x86-64 image.
 - [ ] Produce a bootable RV64GC image for the selected emulator/reference platform.
