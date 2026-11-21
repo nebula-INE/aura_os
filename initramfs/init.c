@@ -291,6 +291,44 @@ static void switch_to_debian_rootfs(void) {
     fail_and_halt("[Aura OS] ERROR: unable to start systemd as PID 1");
 }
 
+static void run_iso_boot_console(void) {
+    log_message("AURA_QEMU_TEST_PASS");
+    log_message("AURA_ISO_BOOT_READY");
+    log_message("[Aura OS] UEFI boot media is ready.");
+    log_message("[Aura OS] This prototype has no installer and will not modify disks.");
+    log_message("[Aura OS] Press 'p' to power off or 'r' to reboot.");
+
+    for (;;) {
+        char key;
+        ssize_t count = read(STDIN_FILENO, &key, 1);
+
+        if (count == 1) {
+            if (key == 'p' || key == 'P') {
+                log_message("[Aura OS] powering off on user request");
+                sync();
+                if (reboot(RB_POWER_OFF) != 0) {
+                    perror("[Aura OS] reboot(RB_POWER_OFF) failed");
+                }
+            } else if (key == 'r' || key == 'R') {
+                log_message("[Aura OS] rebooting on user request");
+                sync();
+                if (reboot(RB_AUTOBOOT) != 0) {
+                    perror("[Aura OS] reboot(RB_AUTOBOOT) failed");
+                }
+            }
+            continue;
+        }
+
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count < 0) {
+            perror("[Aura OS] ISO console input failed");
+        }
+        pause();
+    }
+}
+
 int main(void) {
     /* Initramfs starts with an empty /dev; mount devtmpfs before opening console. */
     if (mount_if_needed("devtmpfs", "/dev", "devtmpfs", MS_NOSUID, "mode=0755") != 0) {
@@ -320,6 +358,10 @@ int main(void) {
 
     log_message("[Aura OS] portable initramfs started");
     log_message("AURA_INIT_OK");
+
+    if (has_kernel_argument("aura.iso=1")) {
+        run_iso_boot_console();
+    }
 
     if (has_kernel_argument("aura.rootfs=1")) {
         switch_to_debian_rootfs();
