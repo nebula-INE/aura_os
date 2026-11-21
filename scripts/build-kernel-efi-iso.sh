@@ -3,7 +3,8 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TARGET_ARCH="${TARGET_ARCH:-}"
-SOURCE_DIR="${ROOT_DIR}/build/kernel-src/linux-$(sed -n 's/^LINUX_KERNEL_VERSION=//p' "${ROOT_DIR}/kernel/linux-version.env" | head -n 1)-git"
+source "${ROOT_DIR}/kernel/linux-version.env"
+SOURCE_DIR="${ROOT_DIR}/build/kernel-src/linux-${LINUX_KERNEL_VERSION}-git"
 BASE_OUT_DIR="${ROOT_DIR}/build/kernel"
 OUT_DIR="${ROOT_DIR}/build/kernel-efi-iso/${TARGET_ARCH}"
 INITRAMFS_ROOTFS="${INITRAMFS_ROOTFS:-${ROOT_DIR}/build/initramfs/rootfs}"
@@ -126,4 +127,4 @@ sha256sum "$KERNEL_IMAGE" | tee "$OUT_DIR/kernel-image.sha256"
   sha256sum "$KERNEL_IMAGE"
 } | tee "$OUT_DIR/efi-kernel-provenance.txt"
 
-printf 'Built ${TARGET_ARCH} EFI ISO kernel: %s\n' "$KERNEL_IMAGE"
+printf 'Built %s EFI ISO kernel: %s\n' "$TARGET_ARCH" "$KERNEL_IMAGE"
