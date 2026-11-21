@@ -26,7 +26,7 @@ Each ISO contains:
 - The architecture's Linux EFI-stub kernel at the standard removable-media fallback path.
 - A target-native initramfs embedded in that kernel, with an architecture-specific built-in command line.
 
-The ISO builder emits the .iso, SHA-256 checksum, El Torito report, and JSON provenance. The QEMU test attaches the image as an optical CD-ROM and requires both AURA_INIT_OK and AURA_QEMU_TEST_PASS, with a clean guest poweroff and no kernel panic.
+The ISO builder emits the .iso, SHA-256 checksum, El Torito report, and JSON provenance. The QEMU test attaches the image as an optical CD-ROM and requires AURA_INIT_OK, AURA_ISO_BOOT_READY, and AURA_QEMU_TEST_PASS. The serial console accepts p followed by Enter to power off or r followed by Enter to reboot; CI sends p plus Enter after the ready marker and requires a clean guest poweroff with no kernel panic.
 
 Use separate kernel output directories for ISO EFI-stub images; do not overwrite the existing direct-boot or persistent-rootfs kernel artifacts. Keep firmware and QEMU profiles explicit per architecture.
 
