@@ -12,6 +12,9 @@ on:
       - "scripts/test-uefi-iso-qemu.sh"
       - "scripts/ensure-ubuntu-apt-sources.sh"
       - "scripts/verify_aarch64_efi_image.py"
+      - "docs/installation-media.md"
+      - "docs/decisions/0009-uefi-iso-media.md"
+      - "Plan.md"
       - ".github/workflows/uefi-iso.yml"
   pull_request:
     paths:
@@ -24,6 +27,9 @@ on:
       - "scripts/test-uefi-iso-qemu.sh"
       - "scripts/ensure-ubuntu-apt-sources.sh"
       - "scripts/verify_aarch64_efi_image.py"
+      - "docs/installation-media.md"
+      - "docs/decisions/0009-uefi-iso-media.md"
+      - "Plan.md"
       - ".github/workflows/uefi-iso.yml"
   workflow_dispatch:
 
