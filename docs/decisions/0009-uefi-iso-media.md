@@ -32,7 +32,7 @@ Use separate kernel output directories for ISO EFI-stub images; do not overwrite
 
 ## Scope boundary
 
-The first ISO milestone is a **boot-validation prototype**, not an installer or a desktop live image. Its initramfs reports successful boot and powers off. It does not partition or write a target disk, install the Debian rootfs, create a user, or offer a graphical environment.
+The first ISO milestone is a **boot-validation prototype**, not an installer or a desktop live image. Its initramfs reports successful boot and provides a small serial-console poweroff/reboot menu. It does not partition or write a target disk, install the Debian rootfs, create a user, or offer a graphical environment.
 
 The next milestone under Issue #12 adds an installer runtime, safe target-disk confirmation, GPT + EFI System Partition + root filesystem layout, installation, and post-install boot validation. Legacy BIOS boot for x86-64, Secure Boot signing, physical board support, and a universal combined ISO remain separate decisions.
 
