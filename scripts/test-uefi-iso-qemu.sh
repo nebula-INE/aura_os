@@ -113,7 +113,7 @@ echo "Booting the $TARGET_ARCH Aura OS ISO as virtual CD-ROM under QEMU UEFI..."
 set +e
 (
   sleep "$BOOT_KEY_DELAY_SECONDS"
-  printf 'p\\n'
+  printf 'p\n'
 ) | timeout --signal=TERM --kill-after=10s "$TIMEOUT_SECONDS" \
   "$QEMU_BIN" "${QEMU_ARGS[@]}" \
     -display none \
