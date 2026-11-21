@@ -74,7 +74,7 @@ EFI removable-media loader: EFI/BOOT/$EFI_FILENAME
 Boot medium: UEFI El Torito ISO9660 with an embedded FAT32 EFI System Partition.
 
 This image is a boot-validation prototype. It starts the embedded Aura OS
-initramfs and opens a serial console. Press 'p' to power off or 'r' to reboot.
+initramfs and opens a serial console. Type 'p' then Enter to power off, or 'r' then Enter to reboot.
 It is NOT yet an installer and does not install Aura OS onto a target disk.
 
 See docs/installation-media.md in the Aura OS repository for current status.
