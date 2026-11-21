@@ -16,7 +16,7 @@ case "${TARGET_ARCH}" in
     CROSS_COMPILE="${CROSS_COMPILE:-}"
     IMAGE_RELATIVE_PATH=arch/x86/boot/bzImage
     IMAGE_TARGET=bzImage
-    KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.ci=1"
+    KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.iso=1"
     EFI_FILENAME=BOOTX64.EFI
     CMDLINE_FORCE_OPTION=CONFIG_CMDLINE_OVERRIDE
     ;;
@@ -25,7 +25,7 @@ case "${TARGET_ARCH}" in
     CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
     IMAGE_RELATIVE_PATH=arch/arm64/boot/Image
     IMAGE_TARGET=Image
-    KERNEL_CMDLINE="console=ttyAMA0,115200 rdinit=/init panic=-1 aura.ci=1"
+    KERNEL_CMDLINE="console=ttyAMA0,115200 rdinit=/init panic=-1 aura.iso=1"
     EFI_FILENAME=BOOTAA64.EFI
     CMDLINE_FORCE_OPTION=CONFIG_CMDLINE_FORCE
     ;;
@@ -34,7 +34,7 @@ case "${TARGET_ARCH}" in
     CROSS_COMPILE="${CROSS_COMPILE:-riscv64-linux-gnu-}"
     IMAGE_RELATIVE_PATH=arch/riscv/boot/Image
     IMAGE_TARGET=Image
-    KERNEL_CMDLINE="console=ttyS0,115200 rdinit=/init panic=-1 aura.ci=1"
+    KERNEL_CMDLINE="console=ttyS0,115200 rdinit=/init panic=-1 aura.iso=1"
     EFI_FILENAME=BOOTRISCV64.EFI
     CMDLINE_FORCE_OPTION=CONFIG_CMDLINE_FORCE
     ;;
