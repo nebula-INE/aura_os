@@ -296,7 +296,7 @@ static void run_iso_boot_console(void) {
     log_message("AURA_ISO_BOOT_READY");
     log_message("[Aura OS] UEFI boot media is ready.");
     log_message("[Aura OS] This prototype has no installer and will not modify disks.");
-    log_message("[Aura OS] Press 'p' to power off or 'r' to reboot.");
+    log_message("[Aura OS] Type p + Enter to power off or r + Enter to reboot.");
 
     for (;;) {
         char key;
