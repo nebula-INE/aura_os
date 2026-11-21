@@ -80,7 +80,7 @@ case "$TARGET_ARCH" in
     ;;
 esac
 
-for cmd in "$QEMU_BIN" timeout tee grep sha256sum dpkg-query; do
+for cmd in "$QEMU_BIN" timeout tee grep tr sha256sum dpkg-query; do
   require_command "$cmd"
 done
 for path in "$ISO_IMAGE" "$OVMF_CODE" "$OVMF_VARS"; do
@@ -113,7 +113,7 @@ echo "Booting the $TARGET_ARCH Aura OS ISO as virtual CD-ROM under QEMU UEFI..."
 set +e
 (
   sleep "$BOOT_KEY_DELAY_SECONDS"
-  printf 'p'
+  printf 'p\\n'
 ) | timeout --signal=TERM --kill-after=10s "$TIMEOUT_SECONDS" \
   "$QEMU_BIN" "${QEMU_ARGS[@]}" \
     -display none \
