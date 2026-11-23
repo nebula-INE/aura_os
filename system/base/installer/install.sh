@@ -244,9 +244,6 @@ grub-install \
     --recheck \
     "$TARGET_DISK"
 
-case "$CONSOLE_ARGS" in
-    *tty0*) ;;
-esac
 cat > "$ROOT_MNT/boot/grub/grub.cfg" <<EOF
 set default=0
 set timeout=5
@@ -297,6 +294,6 @@ echo "Power off, remove the installer media, then boot from the installed disk."
 printf 'Press Enter to power off: '
 IFS= read -r _
 sync
-poweroff --force
+poweroff --force --force
 echo "[Aura OS] ERROR: poweroff command returned unexpectedly."
 exec /bin/sh
