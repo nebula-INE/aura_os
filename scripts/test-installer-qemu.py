@@ -32,12 +32,12 @@ def report_serial_log_tail(log_path: Path, *, max_lines: int = 160) -> None:
         print(f"Could not read serial log {log_path}: {exc}", file=sys.stderr)
         return
     print(
-        f"\\n===== Last {min(max_lines, len(lines))} lines of {log_path} =====",
+        f"\n===== Last {min(max_lines, len(lines))} lines of {log_path} =====",
         file=sys.stderr,
     )
     for line in lines[-max_lines:]:
         print(line, file=sys.stderr)
-    print(f"===== End of {log_path} =====\\n", file=sys.stderr)
+    print(f"===== End of {log_path} =====\n", file=sys.stderr)
 
 
 def qemu_profile(
