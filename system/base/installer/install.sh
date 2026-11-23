@@ -49,7 +49,7 @@ case "$ARCH" in
     x86_64)
         GRUB_TARGET=x86_64-efi
         EFI_LOADER=BOOTX64.EFI
-        CONSOLE_ARGS="console=tty0 console=ttyS0,115200n8"
+        CONSOLE_ARGS="console=ttyS0,115200n8"
         ;;
     aarch64)
         GRUB_TARGET=arm64-efi
@@ -97,10 +97,18 @@ for disk in $(lsblk --nodeps --noheadings --paths --output NAME,TYPE |
     mounted="$(lsblk --noheadings --paths --output MOUNTPOINTS "$disk" |
                sed '/^[[:space:]]*$/d')"
     [ -z "$mounted" ] || continue
-    if swapon --noheadings --raw --output NAME 2>/dev/null |
-       grep -Fqx -- "$disk"; then
-        continue
-    fi
+    has_active_swap=0
+    while IFS= read -r active_swap; do
+        [ -n "$active_swap" ] || continue
+        if lsblk --noheadings --paths --output NAME "$disk" |
+           grep -Fqx -- "$active_swap"; then
+            has_active_swap=1
+            break
+        fi
+    done <<SWAP_DEVICES
+$(swapon --noheadings --raw --output NAME 2>/dev/null || true)
+SWAP_DEVICES
+    [ "$has_active_swap" -eq 0 ] || continue
 
     size_bytes="$(blockdev --getsize64 "$disk")"
     [ "$size_bytes" -ge 4294967296 ] || continue
