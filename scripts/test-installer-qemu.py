@@ -252,7 +252,27 @@ def run_installer(architecture: str, iso: Path, disk: Path) -> None:
         child.sendline(f"ERASE {target}")
         child.expect("Final confirmation: type INSTALL AURA to begin writing:")
         child.sendline("INSTALL AURA")
-        child.expect("AURA_INSTALL_COMPLETE", timeout=600)
+        installer_result = child.expect(
+            [
+                "AURA_INSTALL_COMPLETE",
+                "Installer stopped with an error",
+                r"\\[Aura OS\\] ERROR:",
+                r"(?m)^# ",
+                pexpect.EOF,
+            ],
+            timeout=600,
+        )
+        if installer_result != 0:
+            reasons = (
+                "installer returned to the rescue shell",
+                "installer reported an explicit error",
+                "installer returned to the rescue shell prompt",
+                "installer process exited before the success marker",
+            )
+            raise RuntimeError(
+                f"{architecture} installer did not complete: "
+                f"{reasons[installer_result - 1]}; see {log_path}"
+            )
         child.sendline("")
         child.expect(pexpect.EOF, timeout=120)
         child.close()
