@@ -60,6 +60,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("grub-efi-arm64-bin", builder)
         self.assertIn("grub-efi-riscv64-bin", builder)
         self.assertIn("dosfstools", builder)
+        self.assertIn("fdisk", builder)
         self.assertIn("grub2-common", builder)
 
     def test_kernel_has_installer_media_and_gpt_support(self) -> None:
