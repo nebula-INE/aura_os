@@ -170,6 +170,7 @@ TARGET_DISK="$(sed -n "${selection}p" "$CANDIDATES_FILE")"
 
 # Revalidate the selected device immediately before asking for destructive consent.
 [ -b "$TARGET_DISK" ] || fail "selected disk disappeared."
+TARGET_DEVICE_ID="$(cat "/sys/class/block/$(basename "$TARGET_DISK")/dev")"
 [ "$(lsblk --nodeps --noheadings --output TYPE "$TARGET_DISK")" = disk ] ||
     fail "selected device is no longer a whole disk."
 printf '%s\n' "$MEDIA_ANCESTRY" | grep -Fqx -- "$TARGET_DISK" &&
@@ -214,6 +215,42 @@ printf 'Final confirmation: type INSTALL AURA to begin writing: '
 IFS= read -r final_confirmation
 [ "$final_confirmation" = "INSTALL AURA" ] ||
     fail "final installation confirmation did not match."
+
+# Revalidate the exact kernel device identity and every exclusion once more
+# after the destructive confirmations, immediately before the first disk write.
+[ -b "$TARGET_DISK" ] || fail "selected disk disappeared before writing."
+[ "$(lsblk --nodeps --noheadings --output TYPE "$TARGET_DISK")" = disk ] ||
+    fail "selected path is no longer a whole disk."
+CURRENT_DEVICE_ID="$(cat "/sys/class/block/$(basename "$TARGET_DISK")/dev")"
+[ "$CURRENT_DEVICE_ID" = "$TARGET_DEVICE_ID" ] ||
+    fail "selected device identity changed during confirmation."
+printf '%s\n' "$MEDIA_ANCESTRY" | grep -Fqx -- "$TARGET_DISK" &&
+    fail "refusing to overwrite the installer medium."
+[ "$(cat "/sys/class/block/$(basename "$TARGET_DISK")/ro")" = 0 ] ||
+    fail "selected disk became read-only."
+[ "$(blockdev --getsize64 "$TARGET_DISK")" -ge 4294967296 ] ||
+    fail "selected disk became smaller than 4 GiB."
+mounted="$(lsblk --list --noheadings --paths --output MOUNTPOINTS "$TARGET_DISK" |
+           sed '/^[[:space:]]*$/d')"
+[ -z "$mounted" ] || fail "selected disk acquired a mounted filesystem."
+while IFS= read -r active_swap; do
+    [ -n "$active_swap" ] || continue
+    if lsblk --list --noheadings --paths --output NAME "$TARGET_DISK" |
+       grep -Fqx -- "$active_swap"; then
+        fail "selected disk acquired active swap on $active_swap."
+    fi
+done <<SWAP_DEVICES
+$(swapon --noheadings --raw --output NAME 2>/dev/null || true)
+SWAP_DEVICES
+while IFS= read -r child_device; do
+    [ -n "$child_device" ] || continue
+    child_name="$(basename "$child_device")"
+    for holder in "/sys/class/block/$child_name/holders/"*; do
+        [ ! -e "$holder" ] || fail "selected disk acquired a block-device holder."
+    done
+done <<BLOCK_DEVICES
+$(lsblk --list --noheadings --paths --output NAME "$TARGET_DISK")
+BLOCK_DEVICES
 
 echo
 echo "Installing Aura OS to $TARGET_DISK..."
