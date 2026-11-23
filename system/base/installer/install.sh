@@ -75,7 +75,7 @@ mkdir -p "$ROOT_MNT" "$ESP_MNT"
 
 # Resolve the complete ancestry of the live medium so it can never be selected
 # as an installation target (also protects hybrid USB media).
-MEDIA_ANCESTRY="$(lsblk --inverse --noheadings --paths --output NAME "$MEDIA_DEVICE" 2>/dev/null || printf '%s\n' "$MEDIA_DEVICE")"
+MEDIA_ANCESTRY="$(lsblk --inverse --list --noheadings --paths --output NAME "$MEDIA_DEVICE" 2>/dev/null || printf '%s\n' "$MEDIA_DEVICE")"
 : > "$CANDIDATES_FILE"
 
 echo
@@ -100,7 +100,7 @@ for disk in $(lsblk --nodeps --noheadings --paths --output NAME,TYPE |
     has_active_swap=0
     while IFS= read -r active_swap; do
         [ -n "$active_swap" ] || continue
-        if lsblk --noheadings --paths --output NAME "$disk" |
+        if lsblk --list --noheadings --paths --output NAME "$disk" |
            grep -Fqx -- "$active_swap"; then
             has_active_swap=1
             break
@@ -173,7 +173,7 @@ blockdev --rereadpt "$TARGET_DISK" || true
 udevadm settle --timeout=30 || true
 
 partition_for_number() {
-    lsblk --noheadings --paths --output NAME,PARTN "$TARGET_DISK" |
+    lsblk --list --noheadings --paths --output NAME,PARTN "$TARGET_DISK" |
         awk -v wanted="$1" '$2 == wanted { print $1; exit }'
 }
 
