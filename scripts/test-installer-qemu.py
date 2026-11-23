@@ -296,7 +296,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
         child.sendline(password)
         child.expect(r"[$#] ")
         command = (
-            "id -nG; "
+            "id -nG | tr ' ' '\\n' | grep -qx sudo && echo AURA_SUDO_GROUP_OK; "
             "systemctl is-active systemd-networkd.service; "
             "systemctl is-active systemd-resolved.service; "
             "network_ok=0; "
@@ -313,16 +313,15 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "&& echo AURA_USER_LOGIN_OK'"
         )
         child.sendline(command)
+        child.expect("AURA_SUDO_GROUP_OK")
+        group_output = child.before + child.after
         child.expect("AURA_NETWORK_OK")
         network_output = child.before + child.after
         child.expect(r"password for auraci:")
         sudo_prompt_output = child.before
         child.sendline(password)
         child.expect("AURA_USER_LOGIN_OK")
-        command_output = network_output + sudo_prompt_output + child.before + child.after
-        group_lines = [line.strip().split() for line in command_output.splitlines()]
-        if not any(len(fields) > 1 and fields[0] == username and "sudo" in fields[1:] for fields in group_lines):
-            raise RuntimeError("first administrator is not in the sudo group")
+        command_output = group_output + network_output + sudo_prompt_output + child.before + child.after
         if command_output.count("active") < 2:
             raise RuntimeError("networkd/resolved services did not both become active")
         child.sendline("sudo systemctl poweroff")
