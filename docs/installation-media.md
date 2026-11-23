@@ -28,7 +28,7 @@ The initial installation layout is intentionally small and explicit:
 2. 512 MiB FAT32 EFI System Partition, filesystem label `AURA_EFI`.
 3. One ext4 root partition using the remaining disk space, filesystem label `AURA_ROOTFS`.
 
-The installer lists eligible whole disks and does not choose a target automatically. It excludes the installer medium and its block-device ancestry, disks with mounted descendants, read-only disks, disks with active swap on a descendant partition, and disks smaller than 4 GiB. Before writing, the operator must select a disk number, type the exact `ERASE /dev/...` phrase, and then type `INSTALL AURA`.
+The installer lists eligible whole disks and does not choose a target automatically. It excludes the installer medium and its block-device ancestry, disks with mounted descendants, read-only disks, disks with active swap on a descendant partition, disks or partitions held by device-mapper/LVM/RAID/multipath consumers, and disks smaller than 4 GiB. The device identity, mount state, swap state, holder state, read-only flag, and minimum size are checked again after the two confirmations immediately before the first write. Before writing, the operator must select a disk number, type the exact `ERASE /dev/...` phrase, and then type `INSTALL AURA`.
 
 **All existing data on the confirmed target disk is destroyed.** The installer does not provide a partition-preservation mode, encryption, LVM, separate home/data/swap partitions, or rollback. Do not test on a disk containing data you need.
 
@@ -37,12 +37,12 @@ The installer lists eligible whole disks and does not choose a target automatica
 The `Aura installable UEFI media` workflow builds each target independently. Its steps include:
 
 1. Build and validate the upstream Linux kernel and persistent-root initramfs.
-2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including target-matched GRUB EFI modules and FAT formatting tools.
+2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including target-matched GRUB EFI modules GRUB EFI modules, the `grub2-common` package providing `grub-install`, and FAT formatting tools.
 3. Create the separate in-memory installer rootfs/initramfs and installer EFI-stub kernel.
 4. Build a separate GRUB-loaded kernel for the installed system; its boot command line and initramfs are supplied from GRUB rather than forced into the kernel.
 5. Build the installable ISO and record its SHA-256, El Torito report, and provenance.
 6. Attach the ISO and a disposable second disk to QEMU, perform the interactive install, shut down, remove the ISO, and boot from the installed disk.
-7. Verify root UUID discovery, systemd, first administrator creation, serial login, sudo, network services, and clean shutdown.
+7. Verify root UUID discovery against `/etc/fstab` and the installation manifest, ESP UUID and mounted fallback loader, systemd, first administrator creation, serial login, sudo, DHCP/default route/DNS, and clean shutdown. Rootfs, installed-kernel, and persistent-initramfs payload checksums are verified before target-disk selection.
 
 Per-architecture artifacts retain the ISO, checksums, rootfs, installer initramfs, kernel provenance, and QEMU logs. Passing the existing prototype ISO workflow does not imply that the new installer workflow has passed.
 
