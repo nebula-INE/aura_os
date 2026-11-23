@@ -42,7 +42,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("BASE_ARCHIVE=", builder)
         self.assertIn('"$ROOTFS_DIR/init"', builder)
         iso_builder = self.read("scripts/build-uefi-iso.sh")
-        self.assertIn('rootfs/aura-base-$TARGET_ARCH.tar.gz', iso_builder)
+        self.assertIn('$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz', iso_builder)
         self.assertIn('boot/vmlinuz-$TARGET_ARCH', iso_builder)
         self.assertIn('boot/initramfs-$TARGET_ARCH.cpio.gz', iso_builder)
 
