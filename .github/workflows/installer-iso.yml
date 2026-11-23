@@ -108,7 +108,7 @@ jobs:
             git gnupg curl perl cpio gzip binutils file mtools xorriso \
             mmdebstrap qemu-user-static binfmt-support e2fsprogs util-linux \
             dosfstools python3-pexpect \
-            \${CROSS_PACKAGES} \${QEMU_PACKAGE} \${FIRMWARE_PACKAGES}
+            ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
           sudo systemctl restart systemd-binfmt.service
           for target in aarch64 riscv64; do
             handler="/proc/sys/fs/binfmt_misc/qemu-$target"
