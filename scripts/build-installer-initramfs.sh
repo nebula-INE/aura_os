@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")/.." && pwd -P)"
-TARGET_ARCH="\${TARGET_ARCH:-}"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+TARGET_ARCH="${TARGET_ARCH:-}"
 BASE_DIR="$ROOT_DIR/build/base-userspace/$TARGET_ARCH"
 BASE_ARCHIVE="$BASE_DIR/aura-base-$TARGET_ARCH.tar.gz"
 OUT_DIR="$ROOT_DIR/build/installer-initramfs/$TARGET_ARCH"
