@@ -31,6 +31,7 @@ def qemu_profile(
     *,
     iso: Path | None,
 ) -> tuple[str, list[str]]:
+    target_boot_index = "2" if iso is not None else "1"
     common = [
         "-m",
         "2048",
@@ -60,7 +61,7 @@ def qemu_profile(
             "-drive",
             f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
-            "virtio-blk-pci,drive=target",
+            f"virtio-blk-pci,drive=target,bootindex={target_boot_index}",
             "-netdev",
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
@@ -94,7 +95,7 @@ def qemu_profile(
             "-drive",
             f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
-            "virtio-blk-device,drive=target",
+            f"virtio-blk-device,drive=target,bootindex={target_boot_index}",
             "-netdev",
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
