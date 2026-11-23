@@ -115,7 +115,7 @@ for disk in $(lsblk --nodeps --noheadings --paths --output NAME,TYPE |
     [ "$(cat "/sys/class/block/$disk_name/ro")" = 0 ] || continue
 
     # Do not wipe any disk with a mounted descendant or active swap.
-    mounted="$(lsblk --noheadings --paths --output MOUNTPOINTS "$disk" |
+    mounted="$(lsblk --list --noheadings --paths --output MOUNTPOINTS "$disk" |
                sed '/^[[:space:]]*$/d')"
     [ -z "$mounted" ] || continue
     has_active_swap=0
@@ -130,6 +130,24 @@ for disk in $(lsblk --nodeps --noheadings --paths --output NAME,TYPE |
 $(swapon --noheadings --raw --output NAME 2>/dev/null || true)
 SWAP_DEVICES
     [ "$has_active_swap" -eq 0 ] || continue
+
+    # Do not destroy disks or partitions currently held by device-mapper,
+    # LVM, mdraid, multipath, or another kernel block-device consumer.
+    has_holders=0
+    while IFS= read -r child_device; do
+        [ -n "$child_device" ] || continue
+        child_name="$(basename "$child_device")"
+        for holder in "/sys/class/block/$child_name/holders/"*; do
+            if [ -e "$holder" ]; then
+                has_holders=1
+                break
+            fi
+        done
+        [ "$has_holders" -eq 0 ] || break
+    done <<BLOCK_DEVICES
+$(lsblk --list --noheadings --paths --output NAME "$disk")
+BLOCK_DEVICES
+    [ "$has_holders" -eq 0 ] || continue
 
     size_bytes="$(blockdev --getsize64 "$disk")"
     [ "$size_bytes" -ge 4294967296 ] || continue
@@ -156,9 +174,18 @@ TARGET_DISK="$(sed -n "${selection}p" "$CANDIDATES_FILE")"
     fail "selected device is no longer a whole disk."
 printf '%s\n' "$MEDIA_ANCESTRY" | grep -Fqx -- "$TARGET_DISK" &&
     fail "refusing to overwrite the installer medium."
-mounted="$(lsblk --noheadings --paths --output MOUNTPOINTS "$TARGET_DISK" |
+mounted="$(lsblk --list --noheadings --paths --output MOUNTPOINTS "$TARGET_DISK" |
            sed '/^[[:space:]]*$/d')"
 [ -z "$mounted" ] || fail "selected disk now has a mounted filesystem."
+while IFS= read -r child_device; do
+    [ -n "$child_device" ] || continue
+    child_name="$(basename "$child_device")"
+    for holder in "/sys/class/block/$child_name/holders/"*; do
+        [ ! -e "$holder" ] || fail "selected disk or a partition is held by another block-device consumer."
+    done
+done <<BLOCK_DEVICES
+$(lsblk --list --noheadings --paths --output NAME "$TARGET_DISK")
+BLOCK_DEVICES
 [ "$(cat "/sys/class/block/$(basename "$TARGET_DISK")/ro")" = 0 ] ||
     fail "selected disk is read-only."
 [ "$(blockdev --getsize64 "$TARGET_DISK")" -ge 4294967296 ] ||
