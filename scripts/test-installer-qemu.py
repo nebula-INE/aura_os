@@ -9,7 +9,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pexpect
@@ -146,7 +145,7 @@ def qemu_profile(
             "-drive",
             f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
-            "virtio-blk-device,drive=target",
+            f"virtio-blk-device,drive=target,bootindex={target_boot_index}",
             "-netdev",
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
