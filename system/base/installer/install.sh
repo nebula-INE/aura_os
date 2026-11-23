@@ -145,6 +145,10 @@ printf 'Type ERASE %s to confirm: ' "$TARGET_DISK"
 IFS= read -r confirmation
 [ "$confirmation" = "ERASE $TARGET_DISK" ] ||
     fail "disk erase confirmation did not match."
+printf 'Final confirmation: type INSTALL AURA to begin writing: '
+IFS= read -r final_confirmation
+[ "$final_confirmation" = "INSTALL AURA" ] ||
+    fail "final installation confirmation did not match."
 
 echo
 echo "Installing Aura OS to $TARGET_DISK..."
@@ -248,6 +252,7 @@ case "$ARCH" in
 esac
 [ -s "$EFI_DIR/$EFI_LOADER" ] || fail "GRUB did not create the UEFI fallback loader $EFI_LOADER."
 
+mkdir -p "$ROOT_MNT/var/lib/aura"
 {
     printf 'format=1\n'
     printf 'architecture=%s\n' "$ARCH"
