@@ -142,6 +142,15 @@ mounted="$(lsblk --noheadings --paths --output MOUNTPOINTS "$TARGET_DISK" |
     fail "selected disk is read-only."
 [ "$(blockdev --getsize64 "$TARGET_DISK")" -ge 4294967296 ] ||
     fail "selected disk is smaller than 4 GiB."
+while IFS= read -r active_swap; do
+    [ -n "$active_swap" ] || continue
+    if lsblk --list --noheadings --paths --output NAME "$TARGET_DISK" |
+       grep -Fqx -- "$active_swap"; then
+        fail "selected disk has active swap on $active_swap."
+    fi
+done <<SWAP_DEVICES
+$(swapon --noheadings --raw --output NAME 2>/dev/null || true)
+SWAP_DEVICES
 
 echo
 echo "DESTRUCTIVE OPERATION"
