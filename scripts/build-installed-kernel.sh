@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")/.." && pwd -P)"
-TARGET_ARCH="\${TARGET_ARCH:-}"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+TARGET_ARCH="${TARGET_ARCH:-}"
 source "$ROOT_DIR/kernel/linux-version.env"
 SOURCE_DIR="$ROOT_DIR/build/kernel-src/linux-$LINUX_KERNEL_VERSION-git"
 OUT_DIR="$ROOT_DIR/build/kernel"
 OUTPUT_DIR="$ROOT_DIR/build/kernel-installed/$TARGET_ARCH"
-JOBS="\${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
+JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
 
 case "$TARGET_ARCH" in
   x86_64)
     ARCH=x86
-    CROSS_COMPILE="\${CROSS_COMPILE:-}"
+    CROSS_COMPILE="${CROSS_COMPILE:-}"
     IMAGE_RELATIVE_PATH=arch/x86/boot/bzImage
     IMAGE_TARGET=bzImage
     ;;
   aarch64)
     ARCH=arm64
-    CROSS_COMPILE="\${CROSS_COMPILE:-aarch64-linux-gnu-}"
+    CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
     IMAGE_RELATIVE_PATH=arch/arm64/boot/Image
     IMAGE_TARGET=Image
     ;;
   riscv64)
     ARCH=riscv
-    CROSS_COMPILE="\${CROSS_COMPILE:-riscv64-linux-gnu-}"
+    CROSS_COMPILE="${CROSS_COMPILE:-riscv64-linux-gnu-}"
     IMAGE_RELATIVE_PATH=arch/riscv/boot/Image
     IMAGE_TARGET=Image
     ;;
@@ -34,7 +34,7 @@ case "$TARGET_ARCH" in
     ;;
 esac
 export ARCH CROSS_COMPILE
-COMPILER="\${CROSS_COMPILE}gcc"
+COMPILER="${CROSS_COMPILE}gcc"
 
 for cmd in "$COMPILER" make cp grep sha256sum; do
   command -v "$cmd" >/dev/null 2>&1 || {
@@ -69,7 +69,7 @@ ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   make -C "$SOURCE_DIR" O="$OUT_DIR" olddefconfig
 
 for option in CONFIG_BLK_DEV_INITRD CONFIG_EFI CONFIG_EFI_STUB CONFIG_EFI_PARTITION; do
-  grep -qx "\${option}=y" "$OUT_DIR/.config" || {
+  grep -qx "${option}=y" "$OUT_DIR/.config" || {
     echo "error: installed kernel is missing required option: $option" >&2
     exit 1
   }
@@ -79,7 +79,7 @@ grep -Fqx 'CONFIG_INITRAMFS_SOURCE=""' "$OUT_DIR/.config" || {
   exit 1
 }
 for option in CONFIG_CMDLINE_BOOL CONFIG_CMDLINE_OVERRIDE CONFIG_CMDLINE_FORCE; do
-  if grep -qx "\${option}=y" "$OUT_DIR/.config"; then
+  if grep -qx "${option}=y" "$OUT_DIR/.config"; then
     echo "error: installed kernel must accept the GRUB-provided command line ($option)." >&2
     exit 1
   fi
