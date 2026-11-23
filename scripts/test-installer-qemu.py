@@ -308,6 +308,14 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "test \"$network_ok\" -eq 1 && echo AURA_NETWORK_OK; "
             "sudo -S sh -c 'test -s /var/lib/aura/firstboot/complete "
             "&& passwd -S root | grep -q \"^root L \" "
+            "&& root_uuid=$(findmnt -n -o UUID /) "
+            "&& grep -Fxq \"UUID=$root_uuid / ext4 defaults,noatime 0 1\" /etc/fstab "
+            "&& grep -Fxq \"root_uuid=$root_uuid\" /var/lib/aura/install-manifest "
+            "&& esp_uuid=$(findmnt -n -o UUID /boot/efi) "
+            "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
+            "&& loader=$(sed -n 's/^efi_loader=//p' /var/lib/aura/install-manifest) "
+            "&& test -s \"/boot/efi/$loader\" "
+            "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
             "&& cat /var/lib/aura/install-manifest "
             "&& cat /etc/fstab "
             "&& echo AURA_USER_LOGIN_OK'"
@@ -320,6 +328,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
         child.expect(r"password for auraci:")
         sudo_prompt_output = child.before
         child.sendline(password)
+        child.expect("AURA_ROOT_UUID_FSTAB_ESP_OK")
         child.expect("AURA_USER_LOGIN_OK")
         command_output = group_output + network_output + sudo_prompt_output + child.before + child.after
         if command_output.count("active") < 2:
