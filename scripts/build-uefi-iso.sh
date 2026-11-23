@@ -12,6 +12,7 @@ else
 fi
 AURA_INSTALLER_MODE="${AURA_INSTALLER_MODE:-0}"
 ROOTFS_ARCHIVE="${ROOTFS_ARCHIVE:-$ROOT_DIR/build/base-userspace/$TARGET_ARCH/aura-base-$TARGET_ARCH.tar.gz}"
+ROOTFS_CHECKSUM="${ROOTFS_CHECKSUM:-$ROOTFS_ARCHIVE.sha256}"
 INSTALLED_KERNEL="${INSTALLED_KERNEL:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/vmlinuz-$TARGET_ARCH}"
 INSTALLED_INITRAMFS="${INSTALLED_INITRAMFS:-$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz}"
 
@@ -60,7 +61,7 @@ fi
 case "$AURA_INSTALLER_MODE" in
   0) ;;
   1)
-    for payload in "$ROOTFS_ARCHIVE" "$INSTALLED_KERNEL" "$INSTALLED_INITRAMFS"; do
+    for payload in "$ROOTFS_ARCHIVE" "$ROOTFS_CHECKSUM" "$INSTALLED_KERNEL" "$INSTALLED_INITRAMFS"; do
       if [[ ! -s "$payload" ]]; then
         echo "error: installable ISO payload is missing or empty: $payload" >&2
         exit 1
@@ -79,8 +80,14 @@ mkdir -p "$STAGING_DIR/boot" "$STAGING_DIR/EFI/BOOT"
 if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
   mkdir -p "$STAGING_DIR/rootfs"
   cp "$ROOTFS_ARCHIVE" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz"
+  cp "$ROOTFS_CHECKSUM" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz.sha256"
   cp "$INSTALLED_KERNEL" "$STAGING_DIR/boot/vmlinuz-$TARGET_ARCH"
   cp "$INSTALLED_INITRAMFS" "$STAGING_DIR/boot/initramfs-$TARGET_ARCH.cpio.gz"
+  (
+    cd "$STAGING_DIR/boot"
+    sha256sum "vmlinuz-$TARGET_ARCH" > "vmlinuz-$TARGET_ARCH.sha256"
+    sha256sum "initramfs-$TARGET_ARCH.cpio.gz" > "initramfs-$TARGET_ARCH.cpio.gz.sha256"
+  )
 fi
 ESP_IMAGE="$STAGING_DIR/boot/efi.img"
 VOLUME_ID="$ISO_LABEL"
