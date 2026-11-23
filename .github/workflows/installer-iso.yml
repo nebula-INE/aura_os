@@ -154,7 +154,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.target_arch }}
           INITRAMFS_ROOTFS: ${{ github.workspace }}/build/installer-initramfs/${{ matrix.target_arch }}/rootfs
           JOBS: "2"
-        run: bash scripts/build-kernel-efi-iso.sh
+        run: sudo --preserve-env=TARGET_ARCH,INITRAMFS_ROOTFS,JOBS bash scripts/build-kernel-efi-iso.sh
 
       - name: Build the GRUB-loaded kernel for the installed system
         env:
