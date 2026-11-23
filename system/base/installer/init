@@ -31,10 +31,27 @@ exec </dev/console >/dev/console 2>&1
 media_device=""
 attempt=0
 while [ "$attempt" -lt 120 ]; do
-    for candidate in /dev/sr* /dev/cdrom; do
+    # Accept optical media and hybrid ISO written to a USB mass-storage disk.
+    # Only accept a block device whose filesystem is actually ISO9660 and whose
+    # rootfs payload matches this machine's architecture.
+    for candidate in /dev/sr* /dev/cdrom /dev/sd* /dev/vd* /dev/nvme*n* /dev/mmcblk*; do
         [ -b "$candidate" ] || continue
-        media_device="$candidate"
-        break
+        fs_type="$(blkid -p -s TYPE -o value "$candidate" 2>/dev/null || true)"
+        [ "$fs_type" = "iso9660" ] || continue
+        if mount -t iso9660 -o ro "$candidate" /run/aura-media 2>/dev/null; then
+            case "$(uname -m)" in
+                x86_64) media_arch=x86_64 ;;
+                aarch64) media_arch=aarch64 ;;
+                riscv64) media_arch=riscv64 ;;
+                *) media_arch=unsupported ;;
+            esac
+            if [ -n "$media_arch" ] &&
+               [ -s "/run/aura-media/rootfs/aura-base-$media_arch.tar.gz" ]; then
+                media_device="$candidate"
+                break
+            fi
+            umount /run/aura-media
+        fi
     done
     [ -n "$media_device" ] && break
     attempt=$((attempt + 1))
@@ -42,13 +59,8 @@ while [ "$attempt" -lt 120 ]; do
 done
 
 if [ -z "$media_device" ]; then
-    echo "[Aura OS] ERROR: installer media device was not detected."
-    echo "Check that the ISO is attached as a UEFI CD/DVD device."
-    exec /bin/sh
-fi
-
-if ! mount -t iso9660 -o ro "$media_device" /run/aura-media; then
-    echo "[Aura OS] ERROR: cannot mount installer ISO from $media_device."
+    echo "[Aura OS] ERROR: a valid Aura installer ISO9660 device was not detected."
+    echo "Attach the installer ISO as a CD/DVD or write it to a USB storage device."
     exec /bin/sh
 fi
 
