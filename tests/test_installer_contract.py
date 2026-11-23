@@ -72,6 +72,13 @@ class InstallerContractTests(unittest.TestCase):
             self.assertIn("CONFIG_VFAT_FS=y", config)
             self.assertIn("CONFIG_EFI_PARTITION=y", config)
 
+    def test_qemu_install_test_checks_the_installed_uuid_and_efi_loader(self) -> None:
+        qemu_test = self.read("scripts/test-installer-qemu.py")
+        self.assertIn("AURA_ROOT_UUID_FSTAB_ESP_OK", qemu_test)
+        self.assertIn("findmnt -n -o UUID /", qemu_test)
+        self.assertIn("findmnt -n -o UUID /boot/efi", qemu_test)
+        self.assertIn('test -s "/boot/efi/$loader"', qemu_test)
+
     def test_installed_kernel_accepts_grub_command_line_and_external_initramfs(self) -> None:
         builder = self.read("scripts/build-installed-kernel.sh")
         self.assertIn("--disable CMDLINE_OVERRIDE", builder)
