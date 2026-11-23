@@ -311,12 +311,14 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
         )
         child.sendline(command)
         child.expect("AURA_NETWORK_OK")
+        network_output = child.before + child.after
         child.expect(r"password for auraci:")
-        pre_password_output = child.before
+        sudo_prompt_output = child.before
         child.sendline(password)
         child.expect("AURA_USER_LOGIN_OK")
-        command_output = pre_password_output + child.before + child.after
-        if not re.search(r"(?:^|\s)sudo(?:\s|$)", command_output, flags=re.MULTILINE):
+        command_output = network_output + sudo_prompt_output + child.before + child.after
+        group_lines = [line.strip().split() for line in command_output.splitlines()]
+        if not any(len(fields) > 1 and fields[0] == username and "sudo" in fields[1:] for fields in group_lines):
             raise RuntimeError("first administrator is not in the sudo group")
         if command_output.count("active") < 2:
             raise RuntimeError("networkd/resolved services did not both become active")
