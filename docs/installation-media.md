@@ -37,7 +37,7 @@ The installer lists eligible whole disks and does not choose a target automatica
 The `Aura installable UEFI media` workflow builds each target independently. Its steps include:
 
 1. Build and validate the upstream Linux kernel and persistent-root initramfs.
-2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including target-matched GRUB EFI modules GRUB EFI modules, the `grub2-common` package providing `grub-install`, and FAT formatting tools.
+2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including architecture-matched GRUB EFI modules, the `grub2-common` package providing `grub-install`, and FAT formatting tools.
 3. Create the separate in-memory installer rootfs/initramfs and installer EFI-stub kernel.
 4. Build a separate GRUB-loaded kernel for the installed system; its boot command line and initramfs are supplied from GRUB rather than forced into the kernel.
 5. Build the installable ISO and record its SHA-256, El Torito report, and provenance.
