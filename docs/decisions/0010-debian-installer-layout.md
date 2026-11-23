@@ -31,10 +31,10 @@ Swap, a separate home/data partition, encryption, LVM, snapshots, rollback, and 
 
 - Never choose an installation target automatically.
 - Exclude the installer medium and its block-device ancestry.
-- Exclude read-only disks, disks with mounted descendant filesystems, disks with active swap on a descendant, and disks smaller than 4 GiB.
+- Exclude read-only disks, disks with mounted descendant filesystems, disks with active swap on a descendant, disks or partitions held by device-mapper/LVM/RAID/multipath, and disks smaller than 4 GiB.
 - Display the selected disk model/size and layout before writing.
 - Require an explicit disk-number selection, the exact ERASE /dev/<disk> confirmation, and a second INSTALL AURA confirmation.
-- Revalidate the target immediately before destructive operations.
+- Record the selected block device's major/minor identity and revalidate identity, installer-media ancestry, mounted descendants, active swap, block-device holders, read-only state, and minimum size after the two confirmations immediately before the first destructive write.
 - If installation fails after confirmation, leave the installer shell available for diagnosis; do not attempt unattended retries against another disk.
 
 ### Installed boot
@@ -58,13 +58,13 @@ The shared installer logic is architecture-independent; the kernel, GRUB EFI mod
 
 The Aura installable UEFI media workflow must independently complete for each architecture:
 
-1. Build and checksum a target-native Debian 13 rootfs and installer payload.
+1. Build and checksum a target-native Debian 13 rootfs and installer payload; include grub2-common for grub-install and architecture-matched EFI GRUB modules.
 2. Build an ISO9660 image with a UEFI El Torito entry and the expected FAT32 EFI loader.
 3. Boot the ISO as virtual CD-ROM media and reach AURA_INSTALLER_READY.
 4. Confirm the installer exposes only eligible disks and requires all explicit confirmations.
 5. Install to a disposable second QEMU disk.
 6. Power off, detach the ISO, and boot from the installed disk alone.
-7. Verify root UUID discovery, systemd, first-user setup, console login, sudo, wired network services, and clean shutdown.
+7. Verify that the running root UUID matches /etc/fstab and the install manifest, that the ESP UUID and fallback EFI loader are present, and that systemd, first-user setup, console login, sudo, DHCP/default route/DNS, and clean shutdown pass.
 8. Upload ISO, checksums, provenance, disk metadata, and install/boot logs.
 
 The static installer contract tests do not replace the destructive integration test. Do not mark this ADR accepted until the three-architecture matrix passes and logs are reviewed.
