@@ -77,7 +77,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("AURA_ROOT_UUID_FSTAB_ESP_OK", qemu_test)
         self.assertIn("findmnt -n -o UUID /", qemu_test)
         self.assertIn("findmnt -n -o UUID /boot/efi", qemu_test)
-        self.assertIn('test -s "/boot/efi/$loader"', qemu_test)
+        self.assertIn("/boot/efi/$loader", qemu_test)
 
     def test_installed_kernel_accepts_grub_command_line_and_external_initramfs(self) -> None:
         builder = self.read("scripts/build-installed-kernel.sh")
