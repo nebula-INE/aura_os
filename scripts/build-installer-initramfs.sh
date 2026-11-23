@@ -55,7 +55,8 @@ mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,run,run/udev,run/aura-media,mnt,newroot}
 chmod 1777 "$ROOTFS_DIR/tmp"
 
 for command_name in lsblk sfdisk blockdev wipefs mkfs.fat mkfs.ext4 blkid \
-                    udevadm tar grub-install; do
+                    udevadm tar grub-install mount umount swapon install basename \
+                    sed awk grep poweroff; do
   if ! chroot "$ROOTFS_DIR" /bin/sh -c "command -v '$command_name' >/dev/null 2>&1"; then
     echo "error: installer runtime is missing required command: $command_name" >&2
     exit 1
