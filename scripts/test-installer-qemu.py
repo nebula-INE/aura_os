@@ -302,15 +302,13 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
         )
         child.sendline(command)
         child.expect(r"password for auraci:")
+        pre_password_output = child.before
         child.sendline(password)
         child.expect("AURA_USER_LOGIN_OK")
-        tail = child.before + child.after
-        if "sudo" not in tail.splitlines()[0:3] and "auraci sudo" not in tail:
-            # The group-list command can be wrapped or prefixed by the shell;
-            # verify the exact account membership from the command output.
-            if not re.search(r"\bauraci\b.*\bsudo\b|\bsudo\b", tail):
-                raise RuntimeError("first administrator is not in the sudo group")
-        if tail.count("active") < 2:
+        command_output = pre_password_output + child.before + child.after
+        if not re.search(r"(?:^|\s)sudo(?:\s|$)", command_output, flags=re.MULTILINE):
+            raise RuntimeError("first administrator is not in the sudo group")
+        if command_output.count("active") < 2:
             raise RuntimeError("networkd/resolved services did not both become active")
         child.sendline("sudo systemctl poweroff")
         child.expect(pexpect.EOF, timeout=120)
