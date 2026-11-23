@@ -19,6 +19,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("MEDIA_ANCESTRY", installer)
         self.assertIn("mounted filesystem", installer)
         self.assertIn("4294967296", installer)
+        self.assertIn("sha256sum --check --status", installer)
 
     def test_installer_creates_gpt_esp_and_ext4_root(self) -> None:
         installer = self.read("system/base/installer/install.sh")
@@ -45,6 +46,8 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz', iso_builder)
         self.assertIn('boot/vmlinuz-$TARGET_ARCH', iso_builder)
         self.assertIn('boot/initramfs-$TARGET_ARCH.cpio.gz', iso_builder)
+        self.assertIn('initramfs-$TARGET_ARCH.cpio.gz.sha256', iso_builder)
+        self.assertIn('aura-base-$TARGET_ARCH.tar.gz.sha256', iso_builder)
 
     def test_build_uses_architecture_matched_grub_modules(self) -> None:
         builder = self.read("scripts/build-base-rootfs.sh")
