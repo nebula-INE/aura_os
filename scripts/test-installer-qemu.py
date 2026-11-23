@@ -256,7 +256,7 @@ def run_installer(architecture: str, iso: Path, disk: Path) -> None:
             [
                 "AURA_INSTALL_COMPLETE",
                 "Installer stopped with an error",
-                r"\\[Aura OS\\] ERROR:",
+                "ERROR:",
                 r"(?m)^# ",
                 pexpect.EOF,
             ],
