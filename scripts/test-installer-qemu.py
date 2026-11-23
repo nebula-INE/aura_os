@@ -350,13 +350,17 @@ def write_disk_metadata(architecture: str, disk: Path, iso: Path) -> Path:
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
         raise RuntimeError(f"could not inspect installed GPT image: {detail}")
-    digest = hashlib.sha256(iso.read_bytes()).hexdigest()
+    digest_state = hashlib.sha256()
+    with iso.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest_state.update(chunk)
+    digest = digest_state.hexdigest()
     report = LOG_DIR / f"aura-{architecture}-install-disk.sfdisk"
     report.write_text(
-        f"architecture={architecture}\\n"
-        f"iso={iso.name}\\n"
-        f"iso_sha256={digest}\\n"
-        "sfdisk_partition_table:\\n"
+        f"architecture={architecture}\n"
+        f"iso={iso.name}\n"
+        f"iso_sha256={digest}\n"
+        "sfdisk_partition_table:\n"
         f"{result.stdout}",
         encoding="utf-8",
     )
