@@ -41,7 +41,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "udev"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "fdisk", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "udev"})
         ) + "\n",
         encoding="utf-8",
     )
@@ -186,7 +186,7 @@ class BaseRootfsTests(unittest.TestCase):
             root = Path(tmp) / "rootfs"
             make_rootfs(root)
             status = root / "var/lib/dpkg/status"
-            packages = {"apt", "dbus", "debian-archive-keyring", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "udev"}
+            packages = {"apt", "dbus", "debian-archive-keyring", "fdisk", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "udev"}
             status.write_text(
                 "\n\n".join(
                     f"Package: {name}\nStatus: install ok installed"
