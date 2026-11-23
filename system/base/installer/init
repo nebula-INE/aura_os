@@ -72,4 +72,8 @@ fi
 
 echo "AURA_INSTALLER_READY"
 echo "[Aura OS] Debian 13 installer environment is ready."
-exec /bin/sh /usr/lib/aura/installer/install.sh
+if ! /bin/sh /usr/lib/aura/installer/install.sh; then
+    echo "[Aura OS] Installer stopped with an error. No automatic disk selection was made."
+fi
+echo "[Aura OS] Rescue shell is available; inspect the messages above."
+exec /bin/sh
