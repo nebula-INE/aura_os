@@ -94,7 +94,7 @@ PROVENANCE_FILE="$OUTPUT_DIR/build-provenance.txt"
 mapfile -t PACKAGES < <(sed -E 's/[[:space:]]*#.*$//; /^[[:space:]]*$/d' "$PACKAGES_FILE")
 # These target-native packages provide the offline installer with FAT32
 # formatting and architecture-matched UEFI GRUB modules.
-PACKAGES+=(dosfstools "$GRUB_PACKAGE")
+PACKAGES+=(dosfstools grub2-common "$GRUB_PACKAGE")
 if [[ "${#PACKAGES[@]}" -eq 0 ]]; then
   echo "error: no packages were found in $PACKAGES_FILE" >&2
   exit 1
