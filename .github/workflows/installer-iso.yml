@@ -121,6 +121,9 @@ jobs:
             fi
           done
 
+      - name: Prepare runner-owned build workspace
+        run: mkdir -p "$GITHUB_WORKSPACE/build/base-userspace"
+
       - name: Prepare verified Debian Trixie signing keyring
         run: |
           sudo bash scripts/prepare-debian-trixie-keyring.sh \
