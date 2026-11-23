@@ -6,7 +6,7 @@ TARGET_ARCH="${TARGET_ARCH:-}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/build/iso}"
 STAGING_DIR="${STAGING_DIR:-$ROOT_DIR/build/iso/staging/$TARGET_ARCH}"
 if [[ "${AURA_INSTALLER_MODE:-0}" == "1" ]]; then
-  ESP_SIZE="${ESP_SIZE:-384M}"
+  ESP_SIZE="${ESP_SIZE:-512M}"
 else
   ESP_SIZE="${ESP_SIZE:-128M}"
 fi
