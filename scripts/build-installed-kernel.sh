@@ -5,7 +5,8 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TARGET_ARCH="${TARGET_ARCH:-}"
 source "$ROOT_DIR/kernel/linux-version.env"
 SOURCE_DIR="$ROOT_DIR/build/kernel-src/linux-$LINUX_KERNEL_VERSION-git"
-OUT_DIR="$ROOT_DIR/build/kernel"
+BASE_OUT_DIR="$ROOT_DIR/build/kernel"
+OUT_DIR="$ROOT_DIR/build/kernel-installed-build/$TARGET_ARCH"
 OUTPUT_DIR="$ROOT_DIR/build/kernel-installed/$TARGET_ARCH"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
 
@@ -42,14 +43,15 @@ for cmd in "$COMPILER" make cp grep sha256sum; do
     exit 1
   }
 done
-for path in "$SOURCE_DIR/Makefile" "$OUT_DIR/.config" "$SOURCE_DIR/scripts/config"; do
+for path in "$SOURCE_DIR/Makefile" "$BASE_OUT_DIR/.config" "$SOURCE_DIR/scripts/config"; do
   [[ -s "$path" ]] || {
     echo "error: installed-kernel build input is missing: $path" >&2
     exit 1
   }
 done
 
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUT_DIR" "$OUTPUT_DIR"
+cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"
 
 # The installed system uses GRUB to pass the filesystem UUID and load the
 # target-native static initramfs from the ESP. Do not embed installer initramfs
@@ -108,6 +110,7 @@ sha256sum "$OUTPUT_KERNEL" | tee "$OUTPUT_KERNEL.sha256"
   printf 'EFI-stub: enabled\n'
   printf 'Initramfs: external, loaded by GRUB\n'
   printf 'Kernel command line: provided by GRUB at boot\n'
+  printf 'Kernel build directory: %s\n' "$OUT_DIR"
   printf 'Kernel image: %s\n' "$OUTPUT_KERNEL"
   printf 'Kernel SHA-256:\n'
   sha256sum "$OUTPUT_KERNEL"
