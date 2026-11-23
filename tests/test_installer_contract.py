@@ -20,6 +20,9 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("mounted filesystem", installer)
         self.assertIn("4294967296", installer)
         self.assertIn("sha256sum --check --status", installer)
+        self.assertIn("/holders/", installer)
+        self.assertIn("TARGET_DEVICE_ID", installer)
+        self.assertIn("immediately before the first disk write", installer)
 
     def test_installer_creates_gpt_esp_and_ext4_root(self) -> None:
         installer = self.read("system/base/installer/install.sh")
@@ -72,6 +75,9 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("--disable CMDLINE_OVERRIDE", builder)
         self.assertIn("--disable CMDLINE_FORCE", builder)
         self.assertIn('--set-str INITRAMFS_SOURCE ""', builder)
+        self.assertIn('BASE_OUT_DIR="$ROOT_DIR/build/kernel"', builder)
+        self.assertIn('OUT_DIR="$ROOT_DIR/build/kernel-installed-build/$TARGET_ARCH"', builder)
+        self.assertIn('cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"', builder)
         installer = self.read("system/base/installer/install.sh")
         self.assertIn("initrd /boot/aura-initramfs.cpio.gz", installer)
 
