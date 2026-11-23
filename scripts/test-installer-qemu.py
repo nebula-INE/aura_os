@@ -24,6 +24,22 @@ def require_file(path: Path, description: str) -> None:
         raise RuntimeError(f"required {description} is missing or empty: {path}")
 
 
+def report_serial_log_tail(log_path: Path, *, max_lines: int = 160) -> None:
+    """Print the guest serial failure context into the GitHub Actions job log."""
+    try:
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        print(f"Could not read serial log {log_path}: {exc}", file=sys.stderr)
+        return
+    print(
+        f"\\n===== Last {min(max_lines, len(lines))} lines of {log_path} =====",
+        file=sys.stderr,
+    )
+    for line in lines[-max_lines:]:
+        print(line, file=sys.stderr)
+    print(f"===== End of {log_path} =====\\n", file=sys.stderr)
+
+
 def qemu_profile(
     architecture: str,
     disk: Path,
@@ -245,7 +261,10 @@ def run_installer(architecture: str, iso: Path, disk: Path) -> None:
                 f"installer QEMU exited with status {child.exitstatus}; see {log_path}"
             )
     except Exception:
+        if child.logfile:
+            child.logfile.flush()
         child.close(force=True)
+        report_serial_log_tail(log_path)
         raise
     finally:
         if child.logfile:
@@ -341,7 +360,10 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
                 f"installed-system QEMU exited with status {child.exitstatus}; see {log_path}"
             )
     except Exception:
+        if child.logfile:
+            child.logfile.flush()
         child.close(force=True)
+        report_serial_log_tail(log_path)
         raise
     finally:
         if child.logfile:
