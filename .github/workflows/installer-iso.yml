@@ -1,0 +1,196 @@
+name: Aura installable UEFI media
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "kernel/configs/**"
+      - "initramfs/**"
+      - "system/base/**"
+      - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs-target.sh"
+      - "scripts/build-installer-initramfs.sh"
+      - "scripts/build-installed-kernel.sh"
+      - "scripts/build-kernel-efi-iso.sh"
+      - "scripts/build-uefi-iso.sh"
+      - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
+      - "scripts/test-installer-qemu.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "scripts/verify_base_rootfs.py"
+      - "scripts/verify_aarch64_efi_image.py"
+      - "tests/test_installer_contract.py"
+      - "docs/installation-media.md"
+      - ".github/workflows/installer-iso.yml"
+  pull_request:
+    paths:
+      - "kernel/configs/**"
+      - "initramfs/**"
+      - "system/base/**"
+      - "scripts/build-kernel.sh"
+      - "scripts/build-initramfs-target.sh"
+      - "scripts/build-installer-initramfs.sh"
+      - "scripts/build-installed-kernel.sh"
+      - "scripts/build-kernel-efi-iso.sh"
+      - "scripts/build-uefi-iso.sh"
+      - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-debian-trixie-keyring.sh"
+      - "scripts/test-installer-qemu.py"
+      - "scripts/ensure-ubuntu-apt-sources.sh"
+      - "scripts/verify_base_rootfs.py"
+      - "scripts/verify_aarch64_efi_image.py"
+      - "tests/test_installer_contract.py"
+      - "docs/installation-media.md"
+      - ".github/workflows/installer-iso.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-iso-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-and-boot:
+    name: Install and boot Aura OS (${{ matrix.target_arch }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_arch: x86_64
+            cross_packages: ""
+            qemu_package: qemu-system-x86
+            firmware_packages: ovmf
+          - target_arch: aarch64
+            cross_packages: gcc-aarch64-linux-gnu
+            qemu_package: qemu-system-arm
+            firmware_packages: qemu-efi-aarch64
+          - target_arch: riscv64
+            cross_packages: gcc-riscv64-linux-gnu
+            qemu_package: qemu-system-misc
+            firmware_packages: opensbi qemu-efi-riscv64
+
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Check script syntax and installer contract tests
+        run: |
+          bash -n scripts/build-base-rootfs.sh scripts/build-initramfs-target.sh \
+            scripts/build-installer-initramfs.sh scripts/build-installed-kernel.sh \
+            scripts/build-kernel-efi-iso.sh scripts/build-uefi-iso.sh
+          sh -n system/base/installer/init system/base/installer/install.sh
+          python3 -m py_compile scripts/test-installer-qemu.py
+          python3 -m unittest discover -s tests -p 'test_installer_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
+          python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -I initramfs \
+            tests/test_initramfs_root_uuid.c -o "$RUNNER_TEMP/test-initramfs-root-uuid"
+          "$RUNNER_TEMP/test-initramfs-root-uuid"
+
+      - name: Install cross-build, Debian bootstrap, image, and QEMU dependencies
+        env:
+          CROSS_PACKAGES: ${{ matrix.cross_packages }}
+          QEMU_PACKAGE: ${{ matrix.qemu_package }}
+          FIRMWARE_PACKAGES: ${{ matrix.firmware_packages }}
+        run: |
+          sudo bash scripts/ensure-ubuntu-apt-sources.sh
+          sudo apt-get \
+            -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=60 \
+            -o Acquire::https::Timeout=60 \
+            install -y \
+            build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
+            git gnupg curl perl cpio gzip binutils file mtools xorriso \
+            mmdebstrap qemu-user-static binfmt-support e2fsprogs util-linux \
+            dosfstools python3-pexpect \
+            \${CROSS_PACKAGES} \${QEMU_PACKAGE} \${FIRMWARE_PACKAGES}
+          sudo systemctl restart systemd-binfmt.service
+          for target in aarch64 riscv64; do
+            handler="/proc/sys/fs/binfmt_misc/qemu-$target"
+            if [[ ! -r "$handler" ]] || ! grep -Eq '^flags:.*F' "$handler"; then
+              echo "error: chroot-safe QEMU binfmt handler is missing or lacks the F flag: $handler" >&2
+              [[ -r "$handler" ]] && cat "$handler" >&2
+              exit 1
+            fi
+          done
+
+      - name: Prepare verified Debian Trixie signing keyring
+        run: |
+          sudo bash scripts/prepare-debian-trixie-keyring.sh \
+            "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
+
+      - name: Build the upstream Aura kernel baseline
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-kernel.sh
+
+      - name: Build the installed system initramfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: bash scripts/build-initramfs-target.sh
+
+      - name: Build the target-native Debian 13 root filesystem
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
+          DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
+
+      - name: Build the Debian installer initramfs
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: sudo --preserve-env=TARGET_ARCH bash scripts/build-installer-initramfs.sh
+
+      - name: Build the EFI-stub kernel with installer userspace
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          INITRAMFS_ROOTFS: ${{ github.workspace }}/build/installer-initramfs/${{ matrix.target_arch }}/rootfs
+          JOBS: "2"
+        run: bash scripts/build-kernel-efi-iso.sh
+
+      - name: Build the GRUB-loaded kernel for the installed system
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-installed-kernel.sh
+
+      - name: Assemble the installable UEFI ISO
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          AURA_INSTALLER_MODE: "1"
+        run: bash scripts/build-uefi-iso.sh
+
+      - name: Install to a second QEMU disk and boot without the ISO
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: |
+          python3 scripts/test-installer-qemu.py \
+            --arch "${{ matrix.target_arch }}" \
+            --iso "$GITHUB_WORKSPACE/build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso" \
+            --disk "$GITHUB_WORKSPACE/build/qemu-installer/aura-${{ matrix.target_arch }}-target.raw"
+
+      - name: Upload ISO, disk metadata, logs, and build provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-os-installer-${{ matrix.target_arch }}
+          path: |
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.sha256
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.provenance.json
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.eltorito.txt
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz
+            build/base-userspace/${{ matrix.target_arch }}/packages.tsv
+            build/base-userspace/${{ matrix.target_arch }}/build-provenance.txt
+            build/installer-initramfs/${{ matrix.target_arch }}/aura-installer-initramfs-${{ matrix.target_arch }}.cpio.gz*
+            build/kernel-installed/${{ matrix.target_arch }}/*
+            build/qemu-installer/*
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
