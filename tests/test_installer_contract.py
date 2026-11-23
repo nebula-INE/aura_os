@@ -17,6 +17,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('ERASE $TARGET_DISK', installer)
         self.assertIn('INSTALL AURA', installer)
         self.assertIn("MEDIA_ANCESTRY", installer)
+        self.assertIn("zram*|loop*|ram*|nbd*|fd*", installer)
         self.assertIn("mounted filesystem", installer)
         self.assertIn("4294967296", installer)
         self.assertIn('lsblk --list --noheadings --paths --output MOUNTPOINTS "$disk"', installer)
