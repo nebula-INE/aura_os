@@ -191,9 +191,13 @@ jobs:
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.provenance.json
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.eltorito.txt
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz
+            build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz.sha256
             build/base-userspace/${{ matrix.target_arch }}/packages.tsv
             build/base-userspace/${{ matrix.target_arch }}/build-provenance.txt
             build/installer-initramfs/${{ matrix.target_arch }}/aura-installer-initramfs-${{ matrix.target_arch }}.cpio.gz*
+            build/installer-initramfs/${{ matrix.target_arch }}/build-provenance.txt
+            build/kernel-efi-iso/${{ matrix.target_arch }}/efi-kernel-provenance.txt
+            build/kernel/source-verification.txt
             build/kernel-installed/${{ matrix.target_arch }}/*
             build/qemu-installer/*.log
             build/qemu-installer/*.sfdisk
