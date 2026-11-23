@@ -52,3 +52,15 @@ CONFIG_PRINTK_TIME=y
 # Keep the initial image broadly useful while avoiding debug overhead.
 CONFIG_EFI=y
 CONFIG_EFI_STUB=y
+
+# Installer media and GPT/ESP storage support (built in for early userspace).
+CONFIG_ISO9660_FS=y
+CONFIG_JOLIET=y
+CONFIG_FAT_FS=y
+CONFIG_VFAT_FS=y
+CONFIG_EFI_PARTITION=y
+CONFIG_MSDOS_PARTITION=y
+CONFIG_SCSI=y
+CONFIG_BLK_DEV_SD=y
+CONFIG_BLK_DEV_SR=y
+CONFIG_SATA_AHCI=y
