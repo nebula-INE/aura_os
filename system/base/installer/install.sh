@@ -8,8 +8,8 @@ export LC_ALL=C
 umask 077
 
 MEDIA_ROOT=/run/aura-media
-MEDIA_DEVICE="\${AURA_MEDIA_DEVICE:-}"
-ARCH="\${AURA_TARGET_ARCH:-}"
+MEDIA_DEVICE="${AURA_MEDIA_DEVICE:-}"
+ARCH="${AURA_TARGET_ARCH:-}"
 ROOTFS_ARCHIVE="$MEDIA_ROOT/rootfs/aura-base-$ARCH.tar.gz"
 BOOT_KERNEL="$MEDIA_ROOT/boot/vmlinuz-$ARCH"
 BOOT_INITRAMFS="$MEDIA_ROOT/boot/initramfs-$ARCH.cpio.gz"
@@ -126,7 +126,7 @@ IFS= read -r selection
 case "$selection" in
     ''|*[!0-9]*) fail "invalid disk selection." ;;
 esac
-TARGET_DISK="$(sed -n "\${selection}p" "$CANDIDATES_FILE")"
+TARGET_DISK="$(sed -n "${selection}p" "$CANDIDATES_FILE")"
 [ -n "$TARGET_DISK" ] || fail "the selected disk number is not available."
 
 # Revalidate the selected device immediately before asking for destructive consent.
