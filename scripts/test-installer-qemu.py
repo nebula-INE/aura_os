@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import shutil
@@ -307,6 +308,8 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "test \"$network_ok\" -eq 1 && echo AURA_NETWORK_OK; "
             "sudo -S sh -c 'test -s /var/lib/aura/firstboot/complete "
             "&& passwd -S root | grep -q \"^root L \" "
+            "&& cat /var/lib/aura/install-manifest "
+            "&& cat /etc/fstab "
             "&& echo AURA_USER_LOGIN_OK'"
         )
         child.sendline(command)
@@ -337,6 +340,29 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             child.logfile.close()
 
 
+def write_disk_metadata(architecture: str, disk: Path, iso: Path) -> Path:
+    result = subprocess.run(
+        ["sfdisk", "--dump", str(disk)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"could not inspect installed GPT image: {detail}")
+    digest = hashlib.sha256(iso.read_bytes()).hexdigest()
+    report = LOG_DIR / f"aura-{architecture}-install-disk.sfdisk"
+    report.write_text(
+        f"architecture={architecture}\\n"
+        f"iso={iso.name}\\n"
+        f"iso_sha256={digest}\\n"
+        "sfdisk_partition_table:\\n"
+        f"{result.stdout}",
+        encoding="utf-8",
+    )
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--arch", required=True, choices=("x86_64", "aarch64", "riscv64"))
@@ -364,7 +390,9 @@ def main() -> int:
     run_installer(args.arch, iso, disk)
     print("Installer completed; booting the installed target disk without the ISO.")
     run_installed_boot(args.arch, disk)
-    print(f"Aura OS {args.arch}: install, UUID root boot, first user, login and shutdown passed.")
+    metadata = write_disk_metadata(args.arch, disk, iso)
+    print(f"Installed-disk partition metadata: {metadata}")
+    print(f"Aura OS {args.arch}: install, UUID root boot, first user, login, network and shutdown passed.")
     return 0
 
 
