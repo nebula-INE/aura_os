@@ -45,8 +45,6 @@ def qemu_profile(
         "-no-reboot",
         "-drive",
         f"if=pflash,format=raw,unit=1,file={firmware_vars}",
-        "-drive",
-        f"if=none,id=target,format=raw,file={disk},cache=none",
     ]
 
     if architecture == "x86_64":
@@ -59,6 +57,8 @@ def qemu_profile(
             "qemu64",
             "-drive",
             f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
+            "-drive",
+            f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
             "virtio-blk-pci,drive=target",
             "-netdev",
@@ -91,6 +91,8 @@ def qemu_profile(
             "cortex-a57",
             "-drive",
             f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
+            "-drive",
+            f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
             "virtio-blk-device,drive=target",
             "-netdev",
