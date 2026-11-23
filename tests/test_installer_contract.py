@@ -19,6 +19,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("MEDIA_ANCESTRY", installer)
         self.assertIn("mounted filesystem", installer)
         self.assertIn("4294967296", installer)
+        self.assertIn('lsblk --list --noheadings --paths --output MOUNTPOINTS "$disk"', installer)
         self.assertIn("sha256sum --check --status", installer)
         self.assertIn("/holders/", installer)
         self.assertIn("TARGET_DEVICE_ID", installer)
@@ -58,6 +59,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("grub-efi-arm64-bin", builder)
         self.assertIn("grub-efi-riscv64-bin", builder)
         self.assertIn("dosfstools", builder)
+        self.assertIn("grub2-common", builder)
 
     def test_kernel_has_installer_media_and_gpt_support(self) -> None:
         for relative in (
