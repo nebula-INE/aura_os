@@ -192,7 +192,8 @@ jobs:
             build/base-userspace/${{ matrix.target_arch }}/build-provenance.txt
             build/installer-initramfs/${{ matrix.target_arch }}/aura-installer-initramfs-${{ matrix.target_arch }}.cpio.gz*
             build/kernel-installed/${{ matrix.target_arch }}/*
-            build/qemu-installer/*
+            build/qemu-installer/*.log
+            build/qemu-installer/*.sfdisk
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
