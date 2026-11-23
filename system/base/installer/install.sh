@@ -111,6 +111,11 @@ for disk in $(lsblk --nodeps --noheadings --paths --output NAME,TYPE |
     fi
 
     disk_name="$(basename "$disk")"
+    # lsblk reports zram as TYPE=disk on some systems. Never offer temporary
+    # memory-backed, loop, RAM-disk, NBD, or floppy devices as install targets.
+    case "$disk_name" in
+        zram*|loop*|ram*|nbd*|fd*) continue ;;
+    esac
     [ -r "/sys/class/block/$disk_name/ro" ] || continue
     [ "$(cat "/sys/class/block/$disk_name/ro")" = 0 ] || continue
 
