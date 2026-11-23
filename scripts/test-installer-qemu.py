@@ -298,11 +298,19 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "id -nG; "
             "systemctl is-active systemd-networkd.service; "
             "systemctl is-active systemd-resolved.service; "
+            "network_ok=0; "
+            "for attempt in $(seq 1 60); do "
+            "if ip -4 -o addr show scope global | grep -q 'inet 10\\.0\\.2\\.' "
+            "&& ip -4 route show default | grep -q '^default ' "
+            "&& getent ahostsv4 deb.debian.org >/dev/null 2>&1; then "
+            "network_ok=1; break; fi; sleep 2; done; "
+            "test \"$network_ok\" -eq 1 && echo AURA_NETWORK_OK; "
             "sudo -S sh -c 'test -s /var/lib/aura/firstboot/complete "
             "&& passwd -S root | grep -q \"^root L \" "
             "&& echo AURA_USER_LOGIN_OK'"
         )
         child.sendline(command)
+        child.expect("AURA_NETWORK_OK")
         child.expect(r"password for auraci:")
         pre_password_output = child.before
         child.sendline(password)
