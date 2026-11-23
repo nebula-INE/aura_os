@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class InstallerContractTests(unittest.TestCase):
+    def read(self, relative: str) -> str:
+        return (ROOT / relative).read_text(encoding="utf-8")
+
+    def test_installer_never_selects_a_target_automatically(self) -> None:
+        installer = self.read("system/base/installer/install.sh")
+        self.assertIn("Select the target disk number:", installer)
+        self.assertIn('ERASE $TARGET_DISK', installer)
+        self.assertIn('INSTALL AURA', installer)
+        self.assertIn("MEDIA_ANCESTRY", installer)
+        self.assertIn("mounted filesystem", installer)
+        self.assertIn("4294967296", installer)
+
+    def test_installer_creates_gpt_esp_and_ext4_root(self) -> None:
+        installer = self.read("system/base/installer/install.sh")
+        self.assertIn("label: gpt", installer)
+        self.assertIn(",512M,U", installer)
+        self.assertIn("mkfs.fat -F 32 -n AURA_EFI", installer)
+        self.assertIn("mkfs.ext4 -F -m 0 -L AURA_ROOTFS", installer)
+
+    def test_installer_writes_uuid_fstab_and_grub_fallback(self) -> None:
+        installer = self.read("system/base/installer/install.sh")
+        self.assertIn("UUID=$ROOT_UUID / ext4", installer)
+        self.assertIn("UUID=$ESP_UUID /boot/efi vfat", installer)
+        self.assertIn("--no-nvram", installer)
+        self.assertIn("--removable", installer)
+        self.assertIn("root=UUID=$ROOT_UUID aura.rootfs=1", installer)
+        for loader in ("BOOTX64.EFI", "BOOTAA64.EFI", "BOOTRISCV64.EFI"):
+            self.assertIn(loader, installer)
+
+    def test_installer_rootfs_archive_is_separate_from_live_initramfs(self) -> None:
+        builder = self.read("scripts/build-installer-initramfs.sh")
+        self.assertIn("BASE_ARCHIVE=", builder)
+        self.assertIn('"$ROOTFS_DIR/init"', builder)
+        iso_builder = self.read("scripts/build-uefi-iso.sh")
+        self.assertIn('rootfs/aura-base-$TARGET_ARCH.tar.gz', iso_builder)
+        self.assertIn('boot/vmlinuz-$TARGET_ARCH', iso_builder)
+        self.assertIn('boot/initramfs-$TARGET_ARCH.cpio.gz', iso_builder)
+
+    def test_build_uses_architecture_matched_grub_modules(self) -> None:
+        builder = self.read("scripts/build-base-rootfs.sh")
+        self.assertIn("grub-efi-amd64-bin", builder)
+        self.assertIn("grub-efi-arm64-bin", builder)
+        self.assertIn("grub-efi-riscv64-bin", builder)
+        self.assertIn("dosfstools", builder)
+
+    def test_kernel_has_installer_media_and_gpt_support(self) -> None:
+        for relative in (
+            "kernel/configs/x86_64_qemu.fragment",
+            "kernel/configs/aarch64_qemu.fragment",
+            "kernel/configs/riscv64_qemu.fragment",
+        ):
+            config = self.read(relative)
+            self.assertIn("CONFIG_ISO9660_FS=y", config)
+            self.assertIn("CONFIG_VFAT_FS=y", config)
+            self.assertIn("CONFIG_EFI_PARTITION=y", config)
+
+    def test_installed_kernel_accepts_grub_command_line_and_external_initramfs(self) -> None:
+        builder = self.read("scripts/build-installed-kernel.sh")
+        self.assertIn("--disable CMDLINE_OVERRIDE", builder)
+        self.assertIn("--disable CMDLINE_FORCE", builder)
+        self.assertIn('--set-str INITRAMFS_SOURCE ""', builder)
+        installer = self.read("system/base/installer/install.sh")
+        self.assertIn("initrd /boot/aura-initramfs.cpio.gz", installer)
+
+
+if __name__ == "__main__":
+    unittest.main()
