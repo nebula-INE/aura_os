@@ -11,8 +11,11 @@ MEDIA_ROOT=/run/aura-media
 MEDIA_DEVICE="${AURA_MEDIA_DEVICE:-}"
 ARCH="${AURA_TARGET_ARCH:-}"
 ROOTFS_ARCHIVE="$MEDIA_ROOT/rootfs/aura-base-$ARCH.tar.gz"
+ROOTFS_CHECKSUM="$ROOTFS_ARCHIVE.sha256"
 BOOT_KERNEL="$MEDIA_ROOT/boot/vmlinuz-$ARCH"
+BOOT_KERNEL_CHECKSUM="$BOOT_KERNEL.sha256"
 BOOT_INITRAMFS="$MEDIA_ROOT/boot/initramfs-$ARCH.cpio.gz"
+BOOT_INITRAMFS_CHECKSUM="$BOOT_INITRAMFS.sha256"
 
 ROOT_MNT=/mnt/aura-root
 ESP_MNT="$ROOT_MNT/boot/efi"
@@ -44,6 +47,24 @@ esac
 [ -s "$ROOTFS_ARCHIVE" ] || fail "Debian root filesystem archive is missing."
 [ -s "$BOOT_KERNEL" ] || fail "installed kernel payload is missing."
 [ -s "$BOOT_INITRAMFS" ] || fail "persistent-root initramfs payload is missing."
+[ -s "$ROOTFS_CHECKSUM" ] || fail "Debian root filesystem checksum is missing."
+[ -s "$BOOT_KERNEL_CHECKSUM" ] || fail "installed kernel checksum is missing."
+[ -s "$BOOT_INITRAMFS_CHECKSUM" ] || fail "persistent-root initramfs checksum is missing."
+
+# Verify every installed payload before presenting or writing any target disk.
+(
+    cd "$MEDIA_ROOT/rootfs"
+    sha256sum --check --status "$(basename "$ROOTFS_CHECKSUM")"
+) || fail "Debian root filesystem checksum verification failed."
+(
+    cd "$MEDIA_ROOT/boot"
+    sha256sum --check --status "$(basename "$BOOT_KERNEL_CHECKSUM")"
+) || fail "installed kernel checksum verification failed."
+(
+    cd "$MEDIA_ROOT/boot"
+    sha256sum --check --status "$(basename "$BOOT_INITRAMFS_CHECKSUM")"
+) || fail "persistent-root initramfs checksum verification failed."
+echo "[Aura OS] Installer payload checksums verified."
 
 case "$ARCH" in
     x86_64)
@@ -65,7 +86,7 @@ case "$ARCH" in
 esac
 
 for command_name in lsblk sfdisk blockdev wipefs mkfs.fat mkfs.ext4 blkid \
-                    udevadm tar grub-install; do
+                    udevadm tar grub-install sha256sum; do
     command -v "$command_name" >/dev/null 2>&1 ||
         fail "required installer command is unavailable: $command_name"
 done
