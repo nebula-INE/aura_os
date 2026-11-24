@@ -264,7 +264,7 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
             "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_READ_ONLY_OK"
         )
         child.expect("AURA_RESCUE_READ_ONLY_OK", timeout=30)
-        child.sendline("poweroff --force")
+        child.sendline("poweroff --force --force")
         child.expect(pexpect.EOF, timeout=120)
         child.close()
         if child.exitstatus not in (0, None):
