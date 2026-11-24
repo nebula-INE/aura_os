@@ -98,6 +98,12 @@ repair against a mounted filesystem. This environment does not perform
 repairs or modify disks; make a separate backup before any later repair
 workflow. The installer ISO itself is mounted read-only.
 
+Create a backup to a separate existing ext4 filesystem:
+  sh /usr/lib/aura/installer/backup.sh
+
+The backup wizard never formats its destination. It requires two confirmations,
+keeps the source filesystems read-only, and records SHA-256 checksums.
+
 Type 'poweroff --force --force' to shut down, or 'exit' to return to the rescue shell.
 HELP
 
