@@ -75,6 +75,10 @@ class InstallerContractTests(unittest.TestCase):
             self.assertIn("CONFIG_NLS=y", config)
             self.assertIn("CONFIG_NLS_CODEPAGE_437=y", config)
             self.assertIn("CONFIG_NLS_ISO8859_1=y", config)
+        builder = self.read("scripts/build-kernel.sh")
+        for option in ("CONFIG_NLS", "CONFIG_NLS_CODEPAGE_437", "CONFIG_NLS_ISO8859_1"):
+            self.assertIn(option, builder)
+
             self.assertIn("CONFIG_EFI_PARTITION=y", config)
 
     def test_qemu_install_test_checks_the_installed_uuid_and_efi_loader(self) -> None:
