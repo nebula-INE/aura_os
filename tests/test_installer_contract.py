@@ -59,7 +59,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("findmnt e2fsck", builder)
         self.assertIn("run_offline_rescue", qemu_test)
         self.assertIn("AURA_RESCUE_READ_ONLY_OK", qemu_test)
-        self.assertIn("offline rescue mode modified the target disk image", qemu_test)
+        self.assertIn("offline rescue mode modified the source disk image", qemu_test)
 
 
     def test_installer_never_selects_a_target_automatically(self) -> None:
