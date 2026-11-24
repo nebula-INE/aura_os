@@ -71,16 +71,21 @@ case "$ARCH" in
         GRUB_TARGET=x86_64-efi
         EFI_LOADER=BOOTX64.EFI
         CONSOLE_ARGS="console=ttyS0,115200n8"
+        GRUB_INITRD_LINE="initrd /boot/aura-initramfs.cpio.gz"
         ;;
     aarch64)
         GRUB_TARGET=arm64-efi
         EFI_LOADER=BOOTAA64.EFI
         CONSOLE_ARGS="console=ttyAMA0,115200"
+        GRUB_INITRD_LINE="initrd /boot/aura-initramfs.cpio.gz"
         ;;
     riscv64)
         GRUB_TARGET=riscv64-efi
         EFI_LOADER=BOOTRISCV64.EFI
         CONSOLE_ARGS="console=ttyS0,115200"
+        # RV64GC embeds the persistent-root /init in its installed kernel.
+        # Avoid depending on the RISC-V UEFI external-initrd handoff.
+        GRUB_INITRD_LINE=""
         ;;
     *) fail "unsupported target architecture: $ARCH" ;;
 esac
@@ -345,7 +350,7 @@ search --no-floppy --fs-uuid --set=root $ROOT_UUID
 menuentry 'Aura OS' {
     search --no-floppy --fs-uuid --set=root $ROOT_UUID
     linux /boot/vmlinuz-aura root=UUID=$ROOT_UUID aura.rootfs=1 $CONSOLE_ARGS
-    initrd /boot/aura-initramfs.cpio.gz
+    ${GRUB_INITRD_LINE}
 }
 EOF
 
@@ -367,6 +372,11 @@ mkdir -p "$ROOT_MNT/var/lib/aura"
     printf 'efi_partition=%s\n' "$ESP_PART"
     printf 'efi_uuid=%s\n' "$ESP_UUID"
     printf 'efi_loader=EFI/BOOT/%s\n' "$EFI_LOADER"
+    if [ -n "$GRUB_INITRD_LINE" ]; then
+        printf 'initramfs_mode=external\n'
+    else
+        printf 'initramfs_mode=embedded-in-kernel\n'
+    fi
 } > "$ROOT_MNT/var/lib/aura/install-manifest"
 chmod 0600 "$ROOT_MNT/var/lib/aura/install-manifest"
 
