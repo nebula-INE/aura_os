@@ -33,6 +33,7 @@ case "$TARGET_ARCH" in
     IMAGE_TARGET=Image
     EMBED_INITRAMFS=1
     ;;
+  *)
     echo "error: TARGET_ARCH must be x86_64, aarch64, or riscv64." >&2
     exit 2
     ;;
