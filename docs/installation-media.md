@@ -40,7 +40,7 @@ The `Aura installable UEFI media` workflow builds each target independently. Its
 1. Build and validate the upstream Linux kernel and persistent-root initramfs.
 2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including architecture-matched GRUB EFI modules, the `grub2-common` package providing `grub-install`, and FAT formatting tools.
 3. Create the separate in-memory installer rootfs/initramfs and installer EFI-stub kernel.
-4. Build a separate GRUB-loaded kernel for the installed system; its boot command line and initramfs are supplied from GRUB rather than forced into the kernel.
+4. Build a separate installed-system EFI-stub kernel. GRUB supplies the root UUID and boot arguments; x86-64/AArch64 load the persistent initramfs with GRUB, while RV64GC carries the small persistent-root /init embedded in the kernel to avoid the external-initrd handoff failure observed in the RISC-V QEMU profile.
 5. Build the installable ISO and record its SHA-256, El Torito report, and provenance.
 6. Attach the ISO and a disposable second disk to QEMU, perform the interactive install, shut down, remove the ISO, and boot from the installed disk.
 7. Verify root UUID discovery against `/etc/fstab` and the installation manifest, ESP UUID and mounted fallback loader, systemd, first administrator creation, serial login, sudo, DHCP/default route/DNS, and clean shutdown. Rootfs, installed-kernel, and persistent-initramfs payload checksums are verified before target-disk selection.
