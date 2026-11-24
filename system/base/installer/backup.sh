@@ -13,6 +13,7 @@ BACKUP_MOUNT=/mnt/aura-backup
 ROOT_LIST=/run/aura-backup-roots
 DEST_LIST=/run/aura-backup-destinations
 SOURCE_ANCESTRY=/run/aura-backup-source-ancestry
+EFI_ANCESTRY=/run/aura-backup-efi-ancestry
 DEST_ANCESTRY_FILE=/run/aura-backup-destination-ancestry
 MOUNTED=0
 TEMP_DIR=
@@ -116,6 +117,11 @@ if [ -n "$EXPECTED_ESP_UUID" ]; then
     done
     [ -n "$ESP_SOURCE" ] ||
         fail "the installed system EFI partition from /etc/fstab was not found in rescue mounts."
+    lsblk --inverse --list --noheadings --paths --output NAME "$ESP_DEVICE" \
+        > "$EFI_ANCESTRY" ||
+        fail "could not identify the EFI source disk ancestry."
+else
+    : > "$EFI_ANCESTRY"
 fi
 
 echo
@@ -138,7 +144,8 @@ for destination in $(blkid -t TYPE=ext4 -o device 2>/dev/null || true); do
     shared_ancestry=0
     while IFS= read -r ancestor; do
         [ -n "$ancestor" ] || continue
-        if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY"; then
+        if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY" ||
+           { [ -s "$EFI_ANCESTRY" ] && grep -Fqx -- "$ancestor" "$EFI_ANCESTRY"; }; then
             shared_ancestry=1
             break
         fi
@@ -179,8 +186,9 @@ lsblk --inverse --list --noheadings --paths --output NAME "$DEST_DEVICE" \
     fail "could not identify the destination disk ancestry."
 while IFS= read -r ancestor; do
     [ -n "$ancestor" ] || continue
-    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY"; then
-        fail "backup destination shares a physical disk with the source."
+    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY" ||
+       { [ -s "$EFI_ANCESTRY" ] && grep -Fqx -- "$ancestor" "$EFI_ANCESTRY"; }; then
+        fail "backup destination shares a physical disk with the source root or EFI partition."
     fi
 done < "$DEST_ANCESTRY_FILE"
 DEST_RO="$(lsblk --nodeps --noheadings --output RO "$DEST_DEVICE" | tr -d '[:space:]')"
@@ -193,8 +201,9 @@ case "$dest_label" in
 esac
 while IFS= read -r ancestor; do
     [ -n "$ancestor" ] || continue
-    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY"; then
-        fail "backup destination shares a physical disk with the source."
+    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY" ||
+       { [ -s "$EFI_ANCESTRY" ] && grep -Fqx -- "$ancestor" "$EFI_ANCESTRY"; }; then
+        fail "backup destination shares a physical disk with the source root or EFI partition."
     fi
 done <<DEST_ANCESTRY
 $(lsblk --inverse --list --noheadings --paths --output NAME "$DEST_DEVICE")
@@ -239,8 +248,9 @@ lsblk --inverse --list --noheadings --paths --output NAME "$DEST_DEVICE" \
     fail "could not recheck destination disk ancestry."
 while IFS= read -r ancestor; do
     [ -n "$ancestor" ] || continue
-    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY"; then
-        fail "destination now shares a physical disk with the source."
+    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY" ||
+       { [ -s "$EFI_ANCESTRY" ] && grep -Fqx -- "$ancestor" "$EFI_ANCESTRY"; }; then
+        fail "destination now shares a physical disk with the source root or EFI partition."
     fi
 done < "$DEST_ANCESTRY_FILE"
 
