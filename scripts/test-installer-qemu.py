@@ -282,7 +282,7 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, backup_disk: Pa
         child.expect("Final confirmation: type CREATE BACKUP to write the backup:", timeout=30)
         child.sendline("CREATE BACKUP")
         child.expect("AURA_BACKUP_COMPLETE", timeout=300)
-        child.expect(r"\\[Aura offline rescue\\]# ", timeout=60)
+        child.expect(r"\[Aura offline rescue\]# ", timeout=60)
         child.sendline("poweroff --force --force")
         child.expect(pexpect.EOF, timeout=120)
         child.close()
