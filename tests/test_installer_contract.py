@@ -72,6 +72,9 @@ class InstallerContractTests(unittest.TestCase):
             config = self.read(relative)
             self.assertIn("CONFIG_ISO9660_FS=y", config)
             self.assertIn("CONFIG_VFAT_FS=y", config)
+            self.assertIn("CONFIG_NLS=y", config)
+            self.assertIn("CONFIG_NLS_CODEPAGE_437=y", config)
+            self.assertIn("CONFIG_NLS_ISO8859_1=y", config)
             self.assertIn("CONFIG_EFI_PARTITION=y", config)
 
     def test_qemu_install_test_checks_the_installed_uuid_and_efi_loader(self) -> None:
