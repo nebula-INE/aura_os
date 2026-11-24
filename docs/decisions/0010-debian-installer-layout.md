@@ -40,8 +40,10 @@ Swap, a separate home/data partition, encryption, LVM, snapshots, rollback, and 
 ### Installed boot
 
 - Install target-matched GRUB EFI modules and generate a removable-media fallback loader for each architecture.
-- Keep the installed kernel's command line configurable by GRUB; do not embed the installer's aura.iso=1 command line or installer initramfs in the installed kernel.
-- GRUB passes root=UUID=<root-filesystem-uuid> aura.rootfs=1 and loads the separate persistent-root initramfs.
+- Keep the installed kernel's command line configurable by GRUB; never embed the installer's aura.iso=1 command line or installer initramfs in the installed kernel.
+- GRUB passes root=UUID=<root-filesystem-uuid> aura.rootfs=1 on all architectures.
+- x86-64 and AArch64 load the separate persistent-root initramfs through GRUB's initrd command.
+- RV64GC embeds only the small gzip-compressed persistent-root initramfs (/init) into its installed kernel and omits GRUB's external initrd command. The QEMU RISC-V install test demonstrated that the installed kernel started without the separately stored initramfs being available to Linux (rdinit=/init failed with -ENOENT); embedding removes that architecture-specific EFI handoff dependency. The installer initramfs is never embedded in the installed kernel.
 - The installed root filesystem's /etc/fstab mounts root and the ESP by UUID.
 
 ### Architecture profiles
