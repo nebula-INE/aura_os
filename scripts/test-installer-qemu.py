@@ -181,6 +181,7 @@ def qemu_profile(
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
             "virtio-net-device,netdev=auranet",
+            *(["-drive", f"if=none,id=efi,format=raw,file={efi_disk},cache=none", "-device", "virtio-blk-device,drive=efi"] if efi_disk is not None else []),
             *(["-drive", f"if=none,id=backup,format=raw,file={backup_disk},cache=none", "-device", "virtio-blk-device,drive=backup"] if backup_disk is not None else []),
             "-machine",
             "virt,pflash0=pflash0,pflash1=pflash1,acpi=off,accel=tcg",
@@ -734,7 +735,7 @@ def main() -> int:
         check=True, capture_output=True, text=True,
     ).stdout.strip()
     fstab_seed = LOG_DIR / f"aura-{args.arch}-rescue-fstab"
-    fstab_seed.write_text(f"UUID={efi_uuid} /boot/efi vfat umask=0077 0 2\\n", encoding="utf-8")
+    fstab_seed.write_text(f"UUID={efi_uuid} /boot/efi vfat umask=0077 0 2" + chr(10), encoding="utf-8")
 
     backup_disk = LOG_DIR / f"aura-{args.arch}-backup.raw"
     if backup_disk.exists():
