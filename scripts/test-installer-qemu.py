@@ -323,7 +323,30 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
     grub_initrd_check = (
         "! grep -Eq '^[[:space:]]*initrd[[:space:]]' /boot/grub/grub.cfg"
         if architecture == "riscv64"
-        else "grep -Eq '^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs.cpio.gz        child.expect("New username")
+        else "grep -Eq '^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs.cpio.gz$' /boot/grub/grub.cfg"
+    )
+
+    try:
+        root_boot_result = child.expect(
+            [
+                "AURA_ROOT_DEVICE_MATCHED",
+                "Kernel panic",
+                "ERROR:",
+                pexpect.EOF,
+            ],
+            timeout=360,
+        )
+        if root_boot_result != 0:
+            reasons = (
+                "installed kernel panicked before the persistent-root init completed",
+                "persistent-root initramfs reported an explicit error",
+                "installed kernel exited before root UUID discovery",
+            )
+            raise RuntimeError(
+                f"{architecture} installed disk did not reach persistent-root init: "
+                f"{reasons[root_boot_result - 1]}; see {log_path}"
+            )
+        child.expect("New username")
         child.sendline(username)
         child.expect("New password:")
         child.sendline(password)
