@@ -335,12 +335,16 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
         expected_archives = dict(archive_names)
         if expected_archives.get("root_archive") is None or expected_archives.get("efi_archive") is None:
             raise RuntimeError("backup manifest does not name both root and EFI archives")
+        verification_dir = LOG_DIR / f"{architecture}-backup-verification"
+        verification_dir.mkdir(parents=True, exist_ok=True)
         for archive_kind in ("root_archive", "efi_archive"):
             archive_name = expected_archives[archive_kind]
             if archive_name == "none":
                 raise RuntimeError(f"backup manifest omitted the expected {archive_kind}")
-            archive_path = LOG_DIR / f"{architecture}-{archive_name}"
-            checksum_path = LOG_DIR / f"{architecture}-{archive_name}.sha256"
+            # Keep the archive basename unchanged because the embedded .sha256
+            # file refers to that relative name.
+            archive_path = verification_dir / archive_name
+            checksum_path = verification_dir / f"{archive_name}.sha256"
             archive_in_image = f"/AuraOS-backups/{backup_dir}/{archive_name}"
             checksum_in_image = f"/AuraOS-backups/{backup_dir}/{archive_name}.sha256"
             for image_path, host_path in (
@@ -355,7 +359,11 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
                     raise RuntimeError(f"could not extract backup artifact for verification: {image_path}")
             subprocess.run(["gzip", "-t", str(archive_path)], check=True)
             subprocess.run(["tar", "-tzf", str(archive_path)], check=True, stdout=subprocess.DEVNULL)
-            subprocess.run(["sha256sum", "--check", "--status", str(checksum_path)], check=True, cwd=LOG_DIR)
+            subprocess.run(
+                ["sha256sum", "--check", "--status", checksum_path.name],
+                check=True,
+                cwd=verification_dir,
+            )
 
     except Exception:
         if child.logfile:
