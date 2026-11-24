@@ -91,20 +91,30 @@ lsblk --inverse --list --noheadings --paths --output NAME "$SOURCE_DEVICE" \
     > "$SOURCE_ANCESTRY" ||
     fail "could not identify the source disk ancestry."
 
-ESP_SOURCE="$ROOT_MOUNT_BASE/esp-$source_selection"
+ESP_SOURCE=
 ESP_DEVICE=
-if [ -d "$ESP_SOURCE" ] && findmnt --mountpoint "$ESP_SOURCE" >/dev/null 2>&1; then
-    ESP_OPTS="$(findmnt -n -o OPTIONS --target "$ESP_SOURCE")"
-    case ",$ESP_OPTS," in
-        *,ro,*)
-            ESP_DEVICE="$(findmnt -n -o SOURCE --target "$ESP_SOURCE")"
-            ;;
-        *)
-            fail "EFI source is not mounted read-only."
-            ;;
-    esac
-else
-    ESP_SOURCE=
+EXPECTED_ESP_UUID="$(awk '$2 == "/boot/efi" && $1 ~ /^UUID=/ {sub(/^UUID=/, "", $1); print $1; exit}' "$SOURCE_ROOT/etc/fstab" 2>/dev/null || true)"
+if [ -n "$EXPECTED_ESP_UUID" ]; then
+    for candidate_esp in "$ROOT_MOUNT_BASE"/esp-*; do
+        [ -d "$candidate_esp" ] || continue
+        findmnt --mountpoint "$candidate_esp" >/dev/null 2>&1 || continue
+        candidate_device="$(findmnt -n -o SOURCE --target "$candidate_esp")"
+        candidate_uuid="$(blkid -s UUID -o value "$candidate_device" 2>/dev/null || true)"
+        [ "$candidate_uuid" = "$EXPECTED_ESP_UUID" ] || continue
+        ESP_OPTS="$(findmnt -n -o OPTIONS --target "$candidate_esp")"
+        case ",$ESP_OPTS," in
+            *,ro,*)
+                ESP_SOURCE="$candidate_esp"
+                ESP_DEVICE="$candidate_device"
+                ;;
+            *)
+                fail "the installed system EFI partition is not mounted read-only."
+                ;;
+        esac
+        break
+    done
+    [ -n "$ESP_SOURCE" ] ||
+        fail "the installed system EFI partition from /etc/fstab was not found in rescue mounts."
 fi
 
 echo
