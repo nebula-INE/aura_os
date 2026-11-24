@@ -15,4 +15,4 @@ locales
 sudo
 passwd
 e2fsprogs
-util-linux
+util-linux\ntar\ngzip

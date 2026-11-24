@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-21
+> Last updated: 2026-11-24
 
 ## 1. Vision
 
@@ -129,7 +129,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Establish the initial whole-device ext4 root-volume contract: AURA_ROOTFS label, filesystem UUID, read-only e2fsck integrity validation, and JSON provenance (ADR 0008).
 - [ ] Validate standard `root=UUID=` root-volume discovery in the static initramfs by matching ext4 superblock UUIDs across `/sys/class/block`; C unit and three-architecture QEMU coverage is running in PR #11.
 - [ ] Design and validate a partitioned GPT/EFI layout, optional swap/data volumes, encryption, and installer-facing disk layout; these are not part of the current raw-ext4 image.
-- [ ] Add logging, diagnostics, crash reporting, and recovery.
+- [x] Add a read-only `aura-diagnose` support archive with private output permissions, journal opt-in, and no-overwrite protection (ADR 0011).
+- [ ] Add a bootable recovery environment, boot-failure diagnostics, and explicitly confirmed repair workflows.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
 - [x] Validate DHCPv4 addressing, default route, IPv6 link-local addressing, DNS resolution, and timesyncd service activation on x86-64, AArch64, and RV64GC (CI run 44646382671). Actual NTP synchronization accuracy/time offset is not yet asserted.
 - [ ] Define package installation, updates, and rollback.
@@ -374,7 +375,9 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
 5. [x] Pass the persistent-root QEMU integration workflow on all three architectures and validate first-user creation, console login, sudo, repeat boot, and shutdown (CI run 44646382671).
-6. Establish per-architecture kernel security-update and regression-test workflows.
+6. Add the read-only `aura-diagnose` utility to the Debian base and validate it on all three architectures (implemented in this branch).
+7. Design a separately bootable recovery environment and recovery-mode bootloader entries; do not unlock the root account or perform automatic repairs.
+8. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
 

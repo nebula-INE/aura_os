@@ -151,6 +151,14 @@ install -D -m 0644 "$NETWORK_SOURCE/20-wired.network" \
 install -D -m 0644 "$NETWORK_SOURCE/20-aura-timesyncd.conf" \
   "$ROOTFS_DIR/etc/systemd/timesyncd.conf.d/20-aura.conf"
 
+echo "Installing the read-only Aura diagnostics tool..."
+DIAGNOSTICS_SOURCE="$ROOT_DIR/system/base/diagnostics/aura-diagnose"
+if [[ ! -s "$DIAGNOSTICS_SOURCE" ]]; then
+  echo "error: Aura diagnostics tool source is missing: $DIAGNOSTICS_SOURCE" >&2
+  exit 1
+fi
+install -D -m 0755 "$DIAGNOSTICS_SOURCE" "$ROOTFS_DIR/usr/bin/aura-diagnose"
+
 for unit in systemd-networkd.service systemd-resolved.service systemd-timesyncd.service; do
   unit_path="$ROOTFS_DIR/usr/lib/systemd/system/$unit"
   if [[ ! -s "$unit_path" ]]; then

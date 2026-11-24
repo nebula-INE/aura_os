@@ -28,6 +28,8 @@ REQUIRED_PACKAGES = {
     "systemd-resolved",
     "systemd-sysv",
     "systemd-timesyncd",
+    "tar",
+    "gzip",
     "udev",
 }
 
@@ -156,6 +158,17 @@ def validate_rootfs(
     if not apt_get.is_file() or not os.access(apt_get, os.X_OK):
         raise ValueError("root filesystem is missing executable /usr/bin/apt-get")
 
+    diagnostics_tool = root / "usr/bin/aura-diagnose"
+    if not diagnostics_tool.is_file() or not os.access(diagnostics_tool, os.X_OK):
+        raise ValueError("root filesystem is missing executable /usr/bin/aura-diagnose")
+    try:
+        with diagnostics_tool.open("r", encoding="utf-8") as stream:
+            diagnostics_header = stream.readline().rstrip("\n")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"cannot read /usr/bin/aura-diagnose: {exc}") from exc
+    if diagnostics_header != "#!/bin/sh":
+        raise ValueError("/usr/bin/aura-diagnose must use the portable /bin/sh interpreter")
+
     installed = _installed_packages(root / "var/lib/dpkg/status")
     missing = sorted(REQUIRED_PACKAGES - installed)
     if missing:
@@ -239,6 +252,7 @@ def validate_rootfs(
         "systemd_elf_machine": machine,
         "init": "systemd",
         "package_manager": "apt/dpkg",
+        "diagnostics": "aura-diagnose (read-only archive)",
         "required_packages": sorted(REQUIRED_PACKAGES),
         "device_management": "udev",
         "kernel_module_loader": "kmod",
