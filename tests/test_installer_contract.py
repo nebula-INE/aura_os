@@ -43,6 +43,10 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("source disk image", qemu_test)
         self.assertIn("EFI source disk image", qemu_test)
         self.assertIn("EXPECTED_ESP_UUID", backup)
+        self.assertIn("EFI_ANCESTRY", backup)
+        self.assertIn("source root or EFI partition", backup)
+        self.assertIn("gzip", qemu_test)
+        self.assertIn("sha256sum", qemu_test)
 
 
     def test_offline_rescue_is_explicit_and_read_only(self) -> None:
