@@ -1,6 +1,6 @@
 # ADR 0012: Authenticated installed-system Recovery Mode
 
-- **Status:** Accepted for the first installed-system recovery increment; offline rescue remains deferred
+- **Status:** Proposed; installer integration and three-architecture QEMU validation pending
 - **Date:** 2026-11-24
 - **Scope:** Minimal systemd target and GRUB recovery entry for installed Aura OS systems
 

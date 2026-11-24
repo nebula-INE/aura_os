@@ -378,6 +378,7 @@ mkdir -p "$ROOT_MNT/var/lib/aura"
     printf 'efi_partition=%s\n' "$ESP_PART"
     printf 'efi_uuid=%s\n' "$ESP_UUID"
     printf 'efi_loader=EFI/BOOT/%s\n' "$EFI_LOADER"
+    printf 'recovery_target=aura-recovery.target\n'
     if [ -n "$GRUB_INITRD_LINE" ]; then
         printf 'initramfs_mode=external\n'
     else

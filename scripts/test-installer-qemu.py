@@ -378,7 +378,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
             "&& loader=$(sed -n 's/^efi_loader=//p' /var/lib/aura/install-manifest) "
             "&& test -s \"/boot/efi/$loader\" "
-            "&& grep -Fq 'Aura OS (Recovery Mode)' /boot/grub/grub.cfg "
+            "&& grep -Fq \"Aura OS (Recovery Mode)\" /boot/grub/grub.cfg "
             f'&& grep -Fxq "initramfs_mode={initramfs_mode}" /var/lib/aura/install-manifest '
             f"&& {grub_initrd_check} "
             "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
@@ -508,9 +508,9 @@ def run_recovery_boot(architecture: str, disk: Path) -> None:
     child.logfile = log_path.open("w", encoding="utf-8")
     try:
         child.expect("AURA_RECOVERY_MODE_READY", timeout=300)
-        child.expect(re.compile(r"login:\\s*", re.IGNORECASE), timeout=120)
+        child.expect(re.compile(r"login:\s*", re.IGNORECASE), timeout=120)
         child.sendline(username)
-        child.expect(re.compile(r"Password:\\s*", re.IGNORECASE), timeout=60)
+        child.expect(re.compile(r"Password:\s*", re.IGNORECASE), timeout=60)
         child.sendline(password)
         child.expect(re.compile(r"[$#] "), timeout=90)
         child.sendline(

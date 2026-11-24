@@ -133,7 +133,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Establish the initial whole-device ext4 root-volume contract: AURA_ROOTFS label, filesystem UUID, read-only e2fsck integrity validation, and JSON provenance (ADR 0008).
 - [ ] Validate standard `root=UUID=` root-volume discovery in the static initramfs by matching ext4 superblock UUIDs across `/sys/class/block`; C unit and three-architecture QEMU coverage is running in PR #11.
 - [ ] Design and validate a partitioned GPT/EFI layout, optional swap/data volumes, encryption, and installer-facing disk layout; these are not part of the current raw-ext4 image.
-- [x] Add an authenticated installed-system Recovery Mode target and GRUB menu entry that starts a minimal local console without the normal multi-user services (ADR 0012).
+- [ ] Add and validate an authenticated installed-system Recovery Mode target and GRUB menu entry that starts a minimal local console without the normal multi-user services (ADR 0012; implementation in PR pending three-architecture QEMU validation).
 - [ ] Add a separate offline rescue environment for damaged/unbootable root filesystems, with explicit repair confirmation and backup rules.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
 - [x] Validate DHCPv4 addressing, default route, IPv6 link-local addressing, DNS resolution, and timesyncd service activation on x86-64, AArch64, and RV64GC (CI run 44646382671). Actual NTP synchronization accuracy/time offset is not yet asserted.

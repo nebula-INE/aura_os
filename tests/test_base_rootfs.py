@@ -46,10 +46,10 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
         encoding="utf-8",
     )
     (root / "usr/lib/aura/aura-firstboot").write_text(
-        "#!/bin/bash\\nexit 0\\n", encoding="utf-8"
+        "#!/bin/bash\nexit 0\n", encoding="utf-8"
     )
     (root / "etc/systemd/system/aura-firstboot.service").write_text(
-        "[Service]\\nExecStart=/bin/bash /usr/lib/aura/aura-firstboot\\n",
+        "[Service]\nExecStart=/bin/bash /usr/lib/aura/aura-firstboot\n",
         encoding="utf-8",
     )
     (
@@ -57,18 +57,18 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     ).symlink_to("/etc/systemd/system/aura-firstboot.service")
     recovery_target = root / "etc/systemd/system/aura-recovery.target"
     recovery_target.write_text(
-        "[Unit]\\nRequires=basic.target\\nWants=systemd-user-sessions.service getty.target\\n"
-        "Wants=aura-firstboot.service aura-recovery-banner.service\\n"
-        "Conflicts=multi-user.target graphical.target\\nAllowIsolate=yes\\n",
+        "[Unit]\nRequires=basic.target\nWants=systemd-user-sessions.service getty.target\n"
+        "Wants=aura-firstboot.service aura-recovery-banner.service\n"
+        "Conflicts=multi-user.target graphical.target\nAllowIsolate=yes\n",
         encoding="utf-8",
     )
     recovery_banner_unit = root / "etc/systemd/system/aura-recovery-banner.service"
     recovery_banner_unit.write_text(
-        "[Unit]\\nAfter=aura-firstboot.service systemd-user-sessions.service\\nBefore=getty.target\\n",
+        "[Unit]\nAfter=aura-firstboot.service systemd-user-sessions.service\nBefore=getty.target\n",
         encoding="utf-8",
     )
     recovery_banner = root / "usr/lib/aura/recovery/aura-recovery-banner"
-    recovery_banner.write_text("#!/bin/sh\\necho AURA_RECOVERY_MODE_READY\\n", encoding="utf-8")
+    recovery_banner.write_text("#!/bin/sh\necho AURA_RECOVERY_MODE_READY\n", encoding="utf-8")
     recovery_banner.chmod(0o755)
     (
         root / "etc/systemd/system/aura-recovery.target.wants/aura-firstboot.service"

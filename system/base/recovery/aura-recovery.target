@@ -1,6 +1,5 @@
 [Unit]
 Description=Aura OS Recovery Mode (authenticated local console)
-Documentation=file:/usr/share/doc/aura-os/recovery-mode.md
 Requires=basic.target
 After=basic.target
 Wants=systemd-user-sessions.service getty.target
