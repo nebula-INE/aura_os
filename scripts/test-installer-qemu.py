@@ -744,14 +744,6 @@ def main() -> int:
 
     subprocess.run(["truncate", "-s", "6G", str(disk)], check=True)
     subprocess.run(
-        ["debugfs", "-w", "-R", "mkdir /etc", str(disk)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ["debugfs", "-w", "-R", f"write {fstab_seed} /etc/fstab", str(disk)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    subprocess.run(
         [
             "mkfs.ext4",
             "-F",
@@ -763,6 +755,14 @@ def main() -> int:
         ],
         check=True,
         stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["debugfs", "-w", "-R", "mkdir /etc", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["debugfs", "-w", "-R", f"write {fstab_seed} /etc/fstab", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
 
     print(f"Validating offline read-only rescue mode for {args.arch} from {iso}")
