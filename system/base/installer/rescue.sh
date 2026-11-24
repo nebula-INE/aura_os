@@ -98,7 +98,7 @@ repair against a mounted filesystem. This environment does not perform
 repairs or modify disks; make a separate backup before any later repair
 workflow. The installer ISO itself is mounted read-only.
 
-Type 'poweroff --force' to shut down, or 'exit' to return to the rescue shell.
+Type 'poweroff --force --force' to shut down, or 'exit' to return to the rescue shell.
 HELP
 
 echo "AURA_RESCUE_READY"
