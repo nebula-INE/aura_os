@@ -321,9 +321,9 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
     username = "auraci"
     initramfs_mode = "embedded-in-kernel" if architecture == "riscv64" else "external"
     grub_initrd_check = (
-        "! grep -Eq '^[[:space:]]*initrd[[:space:]]' /boot/grub/grub.cfg"
+        "! grep -Eq \"^[[:space:]]*initrd[[:space:]]\" /boot/grub/grub.cfg"
         if architecture == "riscv64"
-        else "grep -Eq '^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs.cpio.gz$' /boot/grub/grub.cfg"
+        else "grep -Eq \"^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs.cpio.gz$\" /boot/grub/grub.cfg"
     )
 
     try:
@@ -378,7 +378,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
             "&& loader=$(sed -n 's/^efi_loader=//p' /var/lib/aura/install-manifest) "
             "&& test -s \"/boot/efi/$loader\" "
-            f"&& grep -Fxq 'initramfs_mode={initramfs_mode}' /var/lib/aura/install-manifest "
+            f'&& grep -Fxq "initramfs_mode={initramfs_mode}" /var/lib/aura/install-manifest '
             f"&& {grub_initrd_check} "
             "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
             "&& cat /var/lib/aura/install-manifest "
