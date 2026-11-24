@@ -35,7 +35,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "usr/bin/apt-get").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/bin/apt-get").chmod(0o755)
     (root / "usr/bin/aura-diagnose").write_text(
-        "#!/bin/sh\\nexit 0\\n", encoding="utf-8"
+        "#!/bin/sh\nexit 0\n", encoding="utf-8"
     )
     (root / "usr/bin/aura-diagnose").chmod(0o755)
     (root / "usr/lib/systemd/systemd-udevd").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
