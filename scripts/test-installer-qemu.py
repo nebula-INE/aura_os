@@ -330,6 +330,33 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
         if (manifest.returncode != 0 or "source_mount=read-only" not in manifest.stdout
                 or "efi_archive=aura-efi-" not in manifest.stdout or "repair_performed=no" not in manifest.stdout):
             raise RuntimeError("backup manifest is missing its read-only safety metadata")
+
+        archive_names = re.findall(r"(?m)^(root_archive|efi_archive)=([^\\n]+)$", manifest.stdout)
+        expected_archives = dict(archive_names)
+        if expected_archives.get("root_archive") is None or expected_archives.get("efi_archive") is None:
+            raise RuntimeError("backup manifest does not name both root and EFI archives")
+        for archive_kind in ("root_archive", "efi_archive"):
+            archive_name = expected_archives[archive_kind]
+            if archive_name == "none":
+                raise RuntimeError(f"backup manifest omitted the expected {archive_kind}")
+            archive_path = LOG_DIR / f"{architecture}-{archive_name}"
+            checksum_path = LOG_DIR / f"{architecture}-{archive_name}.sha256"
+            archive_in_image = f"/AuraOS-backups/{backup_dir}/{archive_name}"
+            checksum_in_image = f"/AuraOS-backups/{backup_dir}/{archive_name}.sha256"
+            for image_path, host_path in (
+                (archive_in_image, archive_path),
+                (checksum_in_image, checksum_path),
+            ):
+                extracted = subprocess.run(
+                    ["debugfs", "-R", f"dump {image_path} {host_path}", str(backup_disk)],
+                    check=False, capture_output=True, text=True,
+                )
+                if extracted.returncode != 0 or not host_path.is_file():
+                    raise RuntimeError(f"could not extract backup artifact for verification: {image_path}")
+            subprocess.run(["gzip", "-t", str(archive_path)], check=True)
+            subprocess.run(["tar", "-tzf", str(archive_path)], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["sha256sum", "--check", "--status", str(checksum_path)], check=True, cwd=LOG_DIR)
+
     except Exception:
         if child.logfile:
             child.logfile.flush()
