@@ -254,8 +254,7 @@ if [ -n "$ESP_SOURCE" ]; then
     efi_tmp="$TEMP_DIR/$efi_name"
     echo "Creating read-only EFI system partition backup..."
     tar --create --gzip --file="$efi_tmp" \
-        --numeric-owner --xattrs --acls \
-        --directory="$ESP_SOURCE" .
+        --numeric-owner --directory="$ESP_SOURCE" .
     gzip --test "$efi_tmp"
     tar --list --gzip --file="$efi_tmp" >/dev/null
     efi_sha="$(sha256sum "$efi_tmp" | awk '{print $1}')"
@@ -280,9 +279,7 @@ fi
     printf 'repair_performed=no\n'
 } > "$TEMP_DIR/manifest.txt"
 
-mkdir -p "$final_dir"
-mv "$TEMP_DIR"/* "$final_dir/"
-rmdir "$TEMP_DIR"
+mv "$TEMP_DIR" "$final_dir"
 TEMP_DIR=
 sync
 umount "$BACKUP_MOUNT" || fail "backup created but destination could not be cleanly unmounted."
