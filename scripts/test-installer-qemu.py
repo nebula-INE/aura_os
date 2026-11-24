@@ -261,7 +261,7 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
         child.expect(r"\[Aura offline rescue\]# ", timeout=60)
         child.sendline(
             "findmnt -n -o OPTIONS --target /mnt/aura-rescue/root-1 "
-            "| tr ',' '\\n' | grep -qx ro && echo AURA_RESCUE_READ_ONLY_OK"
+            "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_READ_ONLY_OK"
         )
         child.expect("AURA_RESCUE_READ_ONLY_OK", timeout=30)
         child.sendline("poweroff --force")
