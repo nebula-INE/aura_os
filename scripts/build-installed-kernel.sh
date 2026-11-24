@@ -8,6 +8,7 @@ SOURCE_DIR="$ROOT_DIR/build/kernel-src/linux-$LINUX_KERNEL_VERSION-git"
 BASE_OUT_DIR="$ROOT_DIR/build/kernel"
 OUT_DIR="$ROOT_DIR/build/kernel-installed-build/$TARGET_ARCH"
 OUTPUT_DIR="$ROOT_DIR/build/kernel-installed/$TARGET_ARCH"
+INITRAMFS_ROOTFS="$ROOT_DIR/build/initramfs/rootfs"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
 
 case "$TARGET_ARCH" in
@@ -16,20 +17,22 @@ case "$TARGET_ARCH" in
     CROSS_COMPILE="${CROSS_COMPILE:-}"
     IMAGE_RELATIVE_PATH=arch/x86/boot/bzImage
     IMAGE_TARGET=bzImage
+    EMBED_INITRAMFS=0
     ;;
   aarch64)
     ARCH=arm64
     CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
     IMAGE_RELATIVE_PATH=arch/arm64/boot/Image
     IMAGE_TARGET=Image
+    EMBED_INITRAMFS=0
     ;;
   riscv64)
     ARCH=riscv
     CROSS_COMPILE="${CROSS_COMPILE:-riscv64-linux-gnu-}"
     IMAGE_RELATIVE_PATH=arch/riscv/boot/Image
     IMAGE_TARGET=Image
+    EMBED_INITRAMFS=1
     ;;
-  *)
     echo "error: TARGET_ARCH must be x86_64, aarch64, or riscv64." >&2
     exit 2
     ;;
@@ -53,19 +56,33 @@ done
 mkdir -p "$OUT_DIR" "$OUTPUT_DIR"
 cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"
 
-# The installed system uses GRUB to pass the filesystem UUID and load the
-# target-native static initramfs from the ESP. Do not embed installer initramfs
-# content or force a build-time command line into this kernel.
-"$SOURCE_DIR/scripts/config" --file "$OUT_DIR/.config" \
-  --enable BLK_DEV_INITRD \
-  --enable EFI \
-  --enable EFI_STUB \
-  --enable EFI_PARTITION \
-  --set-str INITRAMFS_SOURCE "" \
-  --set-str CMDLINE "" \
-  --disable CMDLINE_BOOL \
-  --disable CMDLINE_OVERRIDE \
+# x86-64 and AArch64 use GRUB's external initrd handoff. The current
+# RISC-V UEFI/GRUB path boots the kernel but does not expose GRUB's initrd to
+# Linux through the EFI stub/FDT path in our QEMU firmware profile. Embed the
+# small static persistent-root /init into RV64GC's installed kernel instead.
+if [[ "$EMBED_INITRAMFS" -eq 1 && ! -s "$INITRAMFS_ROOTFS/init" ]]; then
+  echo "error: RISC-V embedded persistent-root initramfs source is missing: $INITRAMFS_ROOTFS/init" >&2
+  exit 1
+fi
+
+config_args=(
+  --file "$OUT_DIR/.config"
+  --enable BLK_DEV_INITRD
+  --enable EFI
+  --enable EFI_STUB
+  --enable EFI_PARTITION
+  --set-str CMDLINE ""
+  --disable CMDLINE_BOOL
+  --disable CMDLINE_OVERRIDE
   --disable CMDLINE_FORCE
+)
+if [[ "$EMBED_INITRAMFS" -eq 1 ]]; then
+  config_args+=(--set-str INITRAMFS_SOURCE "$INITRAMFS_ROOTFS")
+  config_args+=(--enable INITRAMFS_COMPRESSION_GZIP)
+else
+  config_args+=(--set-str INITRAMFS_SOURCE "")
+fi
+"$SOURCE_DIR/scripts/config" "\${config_args[@]}"
 
 ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   make -C "$SOURCE_DIR" O="$OUT_DIR" olddefconfig
@@ -76,10 +93,21 @@ for option in CONFIG_BLK_DEV_INITRD CONFIG_EFI CONFIG_EFI_STUB CONFIG_EFI_PARTIT
     exit 1
   }
 done
-grep -Fqx 'CONFIG_INITRAMFS_SOURCE=""' "$OUT_DIR/.config" || {
-  echo "error: installed kernel unexpectedly embeds an initramfs." >&2
-  exit 1
-}
+if [[ "$EMBED_INITRAMFS" -eq 1 ]]; then
+  grep -Fqx "CONFIG_INITRAMFS_SOURCE=\"$INITRAMFS_ROOTFS\"" "$OUT_DIR/.config" || {
+    echo "error: RISC-V installed kernel did not retain its embedded initramfs source." >&2
+    exit 1
+  }
+  grep -qx "CONFIG_INITRAMFS_COMPRESSION_GZIP=y" "$OUT_DIR/.config" || {
+    echo "error: RISC-V installed kernel must gzip-compress its embedded initramfs." >&2
+    exit 1
+  }
+else
+  grep -Fqx 'CONFIG_INITRAMFS_SOURCE=""' "$OUT_DIR/.config" || {
+    echo "error: installed kernel unexpectedly embeds an initramfs." >&2
+    exit 1
+  }
+fi
 for option in CONFIG_CMDLINE_BOOL CONFIG_CMDLINE_OVERRIDE CONFIG_CMDLINE_FORCE; do
   if grep -qx "${option}=y" "$OUT_DIR/.config"; then
     echo "error: installed kernel must accept the GRUB-provided command line ($option)." >&2
@@ -108,7 +136,11 @@ sha256sum "$OUTPUT_KERNEL" | tee "$OUTPUT_KERNEL.sha256"
   printf 'Kernel version: %s\n' "$LINUX_KERNEL_VERSION"
   printf 'Kernel source commit: %s\n' "$(git -C "$SOURCE_DIR" rev-parse HEAD)"
   printf 'EFI-stub: enabled\n'
-  printf 'Initramfs: external, loaded by GRUB\n'
+  if [[ "$EMBED_INITRAMFS" -eq 1 ]]; then
+    printf 'Initramfs: embedded gzip-compressed persistent-root /init\n'
+  else
+    printf 'Initramfs: external, loaded by GRUB\n'
+  fi
   printf 'Kernel command line: provided by GRUB at boot\n'
   printf 'Kernel build directory: %s\n' "$OUT_DIR"
   printf 'Kernel image: %s\n' "$OUTPUT_KERNEL"
@@ -116,4 +148,4 @@ sha256sum "$OUTPUT_KERNEL" | tee "$OUTPUT_KERNEL.sha256"
   sha256sum "$OUTPUT_KERNEL"
 } > "$OUTPUT_DIR/provenance.txt"
 
-printf 'Created GRUB-loaded installed kernel: %s\n' "$OUTPUT_KERNEL"
+printf 'Created GRUB-booted installed kernel (%s initramfs): %s\n' "$([[ "$EMBED_INITRAMFS" -eq 1 ]] && echo embedded || echo external)" "$OUTPUT_KERNEL"
