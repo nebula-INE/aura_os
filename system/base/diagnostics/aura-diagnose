@@ -179,14 +179,15 @@ CREATED_UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf 'unknown')
     printf 'Diagnostics mode: read-only\n'
     printf 'Journal included: %s\n' "$INCLUDE_JOURNAL"
     printf '\n'
-    printf 'No repair, package update, service restart, partition write, or filesystem modification was performed.\n'
-    printf '\n'
-    printf 'Privacy notice:\n'
-    printf '- The report may contain hostname, IP addresses, interface names, disk models and filesystem UUIDs, mount points, and system service state.\n'
-    printf '- Journal output is excluded unless --include-journal is supplied. Journal entries may contain usernames, addresses, application details, or other private information.\n'
-    printf '- Review all files in this archive before publishing or sending it to another person.\n'
-    printf '- Password databases, shell history, environment variables, and user document contents are not collected.\n'
-    printf '\n'
+    printf '%s\n' \
+        'No repair, package update, service restart, partition write, or filesystem modification was performed.' \
+        '' \
+        'Privacy notice:' \
+        '- The report may contain hostname, IP addresses, interface names, disk models and filesystem UUIDs, mount points, and system service state.' \
+        '- Journal output is excluded unless --include-journal is supplied. Journal entries may contain usernames, addresses, application details, or other private information.' \
+        '- Review all files in this archive before publishing or sending it to another person.' \
+        '- Password databases, shell history, environment variables, and user document contents are not collected.' \
+        ''
     printf 'Captured sections (section<TAB>status):\n'
     cat "$CAPTURE_INDEX"
 } > "$WORK_DIR/README.txt"
