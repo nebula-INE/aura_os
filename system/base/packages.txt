@@ -15,4 +15,6 @@ locales
 sudo
 passwd
 e2fsprogs
-util-linux\ntar\ngzip
+util-linux
+tar
+gzip
