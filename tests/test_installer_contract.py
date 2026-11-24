@@ -11,6 +11,32 @@ class InstallerContractTests(unittest.TestCase):
     def read(self, relative: str) -> str:
         return (ROOT / relative).read_text(encoding="utf-8")
 
+    def test_offline_backup_requires_separate_disk_and_preserves_source(self) -> None:
+        backup = self.read("system/base/installer/backup.sh")
+        builder = self.read("scripts/build-installer-initramfs.sh")
+        qemu_test = self.read("scripts/test-installer-qemu.py")
+        rescue = self.read("system/base/installer/rescue.sh")
+
+        self.assertIn("findmnt", backup)
+        self.assertIn('*,ro,*)', backup)
+        self.assertIn("lsblk --inverse --list", backup)
+        self.assertIn('case "$dest_label" in', backup)
+        self.assertIn("TYPE=ext4", backup)
+        self.assertIn("Type BACKUP TO %s to confirm", backup)
+        self.assertIn("CREATE BACKUP", backup)
+        self.assertIn("--create --gzip", backup)
+        self.assertIn("sha256sum", backup)
+        self.assertIn("repair_performed=no", backup)
+        self.assertIn('mv "$TEMP_DIR" "$final_dir"', backup)
+        self.assertIn("backup.sh", builder)
+        self.assertIn("du df date sync mktemp", builder)
+        self.assertIn("/usr/lib/aura/installer/backup.sh", rescue)
+        self.assertIn("run_offline_rescue", qemu_test)
+        self.assertIn("AURA_BACKUP_COMPLETE", qemu_test)
+        self.assertIn("source disk image", qemu_test)
+        self.assertIn("debugfs", qemu_test)
+
+
     def test_offline_rescue_is_explicit_and_read_only(self) -> None:
         installer_init = self.read("system/base/installer/init")
         rescue = self.read("system/base/installer/rescue.sh")
