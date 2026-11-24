@@ -17,7 +17,8 @@ The installable ISO keeps the installation environment separate from the install
 
 - The EFI El Torito FAT32 image contains the architecture's Linux EFI-stub installer kernel.
 - The kernel embeds a target-native Debian 13 initramfs which runs the installer from RAM.
-- The ISO9660 data area contains a target-native Debian 13 rootfs archive, the kernel intended for the installed system, and the persistent-root initramfs.
+- The ISO9660 data area contains a target-native Debian 13 rootfs archive, the kernel intended for the installed system, and the persistent-root initramfs payload.
+- x86-64 and AArch64 load the persistent-root initramfs separately through GRUB. RV64GC embeds the small persistent-root /init into its installed kernel because the tested RISC-V UEFI path did not deliver the external initrd to Linux; the ISO payload is still checksum-verified and preserved during installation.
 - The installed system boots through its own ESP and GRUB fallback loader; it does not need the installation ISO after installation.
 
 ## Disk layout and safety
