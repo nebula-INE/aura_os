@@ -87,6 +87,11 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("findmnt -n -o UUID /", qemu_test)
         self.assertIn("findmnt -n -o UUID /boot/efi", qemu_test)
         self.assertIn("/boot/efi/$loader", qemu_test)
+        self.assertIn("Kernel panic", qemu_test)
+        self.assertIn('initramfs_mode = "embedded-in-kernel"', qemu_test)
+        self.assertIn('initramfs_mode={initramfs_mode}', qemu_test)
+        self.assertIn("grub_initrd_check", qemu_test)
+        self.assertIn("pexpect.EOF", qemu_test)
 
     def test_installed_kernel_uses_architecture_appropriate_initramfs(self) -> None:
         builder = self.read("scripts/build-installed-kernel.sh")
