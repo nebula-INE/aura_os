@@ -35,9 +35,14 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("du df date sync mktemp", builder)
         self.assertIn("/usr/lib/aura/installer/backup.sh", rescue)
         self.assertIn("run_offline_rescue", qemu_test)
+        self.assertIn("AURA_RESCUE_ESP_RO_OK", qemu_test)
         self.assertIn("AURA_BACKUP_COMPLETE", qemu_test)
-        self.assertIn("source disk image", qemu_test)
+        self.assertIn("aura-efi-", qemu_test)
+        self.assertIn("mkfs.vfat", qemu_test)
         self.assertIn("debugfs", qemu_test)
+        self.assertIn("source disk image", qemu_test)
+        self.assertIn("EFI source disk image", qemu_test)
+        self.assertIn("EXPECTED_ESP_UUID", backup)
 
 
     def test_offline_rescue_is_explicit_and_read_only(self) -> None:
