@@ -378,6 +378,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
             "&& loader=$(sed -n 's/^efi_loader=//p' /var/lib/aura/install-manifest) "
             "&& test -s \"/boot/efi/$loader\" "
+            "&& grep -Fq 'Aura OS (Recovery Mode)' /boot/grub/grub.cfg "
             f'&& grep -Fxq "initramfs_mode={initramfs_mode}" /var/lib/aura/install-manifest '
             f"&& {grub_initrd_check} "
             "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
@@ -405,6 +406,140 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             raise RuntimeError(
                 f"installed-system QEMU exited with status {child.exitstatus}; see {log_path}"
             )
+    except Exception:
+        if child.logfile:
+            child.logfile.flush()
+        child.close(force=True)
+        report_serial_log_tail(log_path)
+        raise
+    finally:
+        if child.logfile:
+            child.logfile.close()
+
+
+
+def installed_root_uuid(architecture: str) -> str:
+    log_path = LOG_DIR / f"aura-{architecture}-installed-boot.log"
+    try:
+        log_text = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise RuntimeError(f"could not read the installed boot log: {exc}") from exc
+    match = re.search(
+        r"(?m)^root_uuid=([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+        log_text,
+    )
+    if match is None:
+        raise RuntimeError("installed boot log did not expose a valid root_uuid manifest field")
+    return match.group(1).lower()
+
+
+def recovery_qemu_profile(
+    architecture: str, disk: Path, root_uuid: str
+) -> tuple[str, list[str]]:
+    if architecture == "x86_64":
+        binary = "qemu-system-x86_64"
+        kernel = ROOT / "build/kernel-installed/x86_64/vmlinuz-x86_64"
+        initramfs = ROOT / "build/initramfs/aura-initramfs-x86_64.cpio.gz"
+        command_line = (
+            f"console=ttyS0,115200n8 rdinit=/init panic=-1 "
+            f"aura.rootfs=1 root=UUID={root_uuid} systemd.unit=aura-recovery.target"
+        )
+        args = [
+            "-machine", "q35,accel=tcg", "-cpu", "qemu64", "-m", "2048", "-smp", "2",
+            "-kernel", str(kernel), "-initrd", str(initramfs), "-append", command_line,
+            "-drive", f"if=none,id=target,format=raw,file={disk},cache=none",
+            "-device", "virtio-blk-pci,drive=target",
+        ]
+    elif architecture == "aarch64":
+        binary = "qemu-system-aarch64"
+        kernel = ROOT / "build/kernel-installed/aarch64/vmlinuz-aarch64"
+        initramfs = ROOT / "build/initramfs/aura-initramfs-aarch64.cpio.gz"
+        command_line = (
+            f"console=ttyAMA0,115200 rdinit=/init panic=-1 "
+            f"aura.rootfs=1 root=UUID={root_uuid} systemd.unit=aura-recovery.target"
+        )
+        args = [
+            "-machine", "virt,accel=tcg", "-cpu", "cortex-a57", "-m", "2048", "-smp", "2",
+            "-kernel", str(kernel), "-initrd", str(initramfs), "-append", command_line,
+            "-drive", f"if=none,id=target,format=raw,file={disk},cache=none",
+            "-device", "virtio-blk-device,drive=target",
+        ]
+    elif architecture == "riscv64":
+        binary = "qemu-system-riscv64"
+        kernel = ROOT / "build/kernel-installed/riscv64/vmlinuz-riscv64"
+        command_line = (
+            f"console=ttyS0,115200 rdinit=/init panic=-1 "
+            f"aura.rootfs=1 root=UUID={root_uuid} systemd.unit=aura-recovery.target"
+        )
+        args = [
+            "-machine", "virt,accel=tcg", "-cpu", "rv64", "-m", "2048", "-smp", "2",
+            "-bios", "default", "-kernel", str(kernel), "-append", command_line,
+            "-drive", f"if=none,id=target,format=raw,file={disk},cache=none",
+            "-device", "virtio-blk-device,drive=target",
+        ]
+    else:
+        raise ValueError(f"unsupported architecture: {architecture}")
+
+    require_file(kernel, "installed Recovery Mode kernel")
+    if architecture != "riscv64":
+        require_file(initramfs, "Recovery Mode initramfs")
+    args += ["-display", "none", "-serial", "stdio", "-monitor", "none", "-no-reboot"]
+    return binary, args
+
+
+def run_recovery_boot(architecture: str, disk: Path) -> None:
+    root_uuid = installed_root_uuid(architecture)
+    binary, args = recovery_qemu_profile(architecture, disk, root_uuid)
+    if shutil.which(binary) is None:
+        raise RuntimeError(f"QEMU binary is not installed: {binary}")
+
+    username = "auraci"
+    password = "Aura-CI-Only-2026!"
+    log_path = LOG_DIR / f"aura-{architecture}-recovery-boot.log"
+    child = pexpect.spawn(
+        binary,
+        args=args,
+        cwd=str(ROOT),
+        encoding="utf-8",
+        codec_errors="replace",
+        timeout=300,
+        env=os.environ.copy(),
+    )
+    child.logfile = log_path.open("w", encoding="utf-8")
+    try:
+        child.expect("AURA_RECOVERY_MODE_READY", timeout=300)
+        child.expect(re.compile(r"login:\\s*", re.IGNORECASE), timeout=120)
+        child.sendline(username)
+        child.expect(re.compile(r"Password:\\s*", re.IGNORECASE), timeout=60)
+        child.sendline(password)
+        child.expect(re.compile(r"[$#] "), timeout=90)
+        child.sendline(
+            "if systemctl is-active --quiet aura-recovery.target "
+            "&& systemctl is-active --quiet systemd-user-sessions.service "
+            "&& ! systemctl is-active --quiet multi-user.target "
+            "&& ! systemctl is-active --quiet systemd-networkd.service "
+            "&& ! systemctl is-active --quiet systemd-resolved.service "
+            "&& ! systemctl is-active --quiet systemd-timesyncd.service; "
+            "then echo AURA_RECOVERY_TARGET_OK; else echo AURA_RECOVERY_TARGET_FAIL; fi"
+        )
+        result = child.expect(
+            ["AURA_RECOVERY_TARGET_OK", "AURA_RECOVERY_TARGET_FAIL"],
+            timeout=60,
+        )
+        if result != 0:
+            raise RuntimeError("Recovery Mode started the wrong target or normal network services")
+        child.sendline("sudo -S -p 'AURA_RECOVERY_SUDO_PASSWORD:' systemctl poweroff")
+        child.expect("AURA_RECOVERY_SUDO_PASSWORD:", timeout=30)
+        child.sendline(password)
+        child.expect(pexpect.EOF, timeout=120)
+        child.close()
+        if child.exitstatus not in (0, None):
+            raise RuntimeError(
+                f"Recovery Mode QEMU exited with status {child.exitstatus}; see {log_path}"
+            )
+        log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        if "New username" in log_text:
+            raise RuntimeError("first-boot wizard unexpectedly ran after first-user setup was complete")
     except Exception:
         if child.logfile:
             child.logfile.flush()
@@ -470,6 +605,8 @@ def main() -> int:
     run_installer(args.arch, iso, disk)
     print("Installer completed; booting the installed target disk without the ISO.")
     run_installed_boot(args.arch, disk)
+    print("Normal boot passed; validating the authenticated minimal Recovery Mode.")
+    run_recovery_boot(args.arch, disk)
     metadata = write_disk_metadata(args.arch, disk, iso)
     print(f"Installed-disk partition metadata: {metadata}")
     print(f"Aura OS {args.arch}: install, UUID root boot, first user, login, network and shutdown passed.")

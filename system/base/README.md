@@ -74,3 +74,17 @@ The initramfs selects the root ext4 filesystem by UUID from the standard kernel 
 The image is a build artifact, not an installer or a complete bootable disk. A normal boot can create one local console administrator and bring up supported wired Ethernet; Wi-Fi, a desktop session, display manager, firmware bundle, bootloader, and application set are not included. The test-only `aura.firstboot.skip` argument bypasses this prompt. Do not install it over a host filesystem.
 
 The package manifest is intentionally small. Add components only with a reason and validate their availability on all three Debian architectures. The 512 MiB idle desktop RAM target is a stretch goal, not a current measurement or promise; systemd and glibc memory costs must be measured on representative hardware before the service and desktop set is finalized.
+
+
+## Installed-system Recovery Mode
+
+The installer adds a second GRUB entry named **Aura OS (Recovery Mode)**. It
+starts `aura-recovery.target`, which brings up essential systemd services,
+local user sessions, and an authenticated console getty without starting the
+normal multi-user target or wired networking services. If first-boot account
+creation has not completed, the same local setup wizard runs before the login
+prompt.
+
+This is not an offline rescue image: the installed root filesystem is still
+mounted normally. It does not run automatic filesystem repair or change
+configuration. See [Recovery Mode](../../docs/recovery-mode.md).

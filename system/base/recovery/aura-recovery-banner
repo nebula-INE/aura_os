@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+printf '\n'
+printf '%s\n' 'AURA_RECOVERY_MODE_READY'
+printf '%s\n' '============================================================'
+printf '%s\n' 'Aura OS Recovery Mode'
+printf '%s\n' '============================================================'
+printf '%s\n' 'This mode starts a minimal set of local services.'
+printf '%s\n' 'Wired networking and the normal multi-user service set are not started.'
+printf '%s\n' 'Sign in with your local Aura OS administrator account.'
+printf '%s\n' 'Useful checks: systemctl --failed'
+printf '%s\n' '                journalctl -b -p warning'
+printf '%s\n' '                findmnt; lsblk -f'
+printf '%s\n' 'No filesystem repair or automatic configuration changes are performed.'
+printf '%s\n' 'The installed root filesystem is mounted normally; this is not offline recovery.'
+printf '\n'

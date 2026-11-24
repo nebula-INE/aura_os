@@ -60,3 +60,17 @@ A local installable build is resource-intensive and must use the same target-nat
 ## Support boundary
 
 The first installer milestone validates the three QEMU firmware profiles. It does not claim compatibility with every PC, ARM board, or RISC-V board; nor does it establish Secure Boot, legacy BIOS, Wi-Fi, graphics/desktop support, encryption, upgrade/rollback, or physical-device support. These require separate reference hardware and release tests.
+
+
+## Installed-system Recovery Mode
+
+The installed GRUB configuration provides a separate **Aura OS (Recovery
+Mode)** entry using `systemd.unit=aura-recovery.target`. It starts a minimal
+systemd target, local user sessions, and an authenticated console getty; the
+normal multi-user target and wired networking services are not started. The
+existing root UUID and architecture-specific initramfs handoff are preserved.
+
+This is not an offline recovery image. The installed root filesystem is
+mounted normally, and the target does not attempt filesystem or bootloader
+repair. A separate offline rescue environment remains a follow-up milestone.
+See [Recovery Mode](recovery-mode.md) and ADR 0012.

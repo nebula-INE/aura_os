@@ -352,6 +352,12 @@ menuentry 'Aura OS' {
     linux /boot/vmlinuz-aura root=UUID=$ROOT_UUID aura.rootfs=1 $CONSOLE_ARGS
     ${GRUB_INITRD_LINE}
 }
+
+menuentry 'Aura OS (Recovery Mode)' {
+    search --no-floppy --fs-uuid --set=root $ROOT_UUID
+    linux /boot/vmlinuz-aura root=UUID=$ROOT_UUID aura.rootfs=1 systemd.unit=aura-recovery.target $CONSOLE_ARGS
+    ${GRUB_INITRD_LINE}
+}
 EOF
 
 case "$ARCH" in
