@@ -72,14 +72,14 @@ class InstallerContractTests(unittest.TestCase):
             config = self.read(relative)
             self.assertIn("CONFIG_ISO9660_FS=y", config)
             self.assertIn("CONFIG_VFAT_FS=y", config)
+            self.assertIn("CONFIG_EFI_PARTITION=y", config)
             self.assertIn("CONFIG_NLS=y", config)
             self.assertIn("CONFIG_NLS_CODEPAGE_437=y", config)
             self.assertIn("CONFIG_NLS_ISO8859_1=y", config)
+
         builder = self.read("scripts/build-kernel.sh")
         for option in ("CONFIG_NLS", "CONFIG_NLS_CODEPAGE_437", "CONFIG_NLS_ISO8859_1"):
             self.assertIn(option, builder)
-
-            self.assertIn("CONFIG_EFI_PARTITION=y", config)
 
     def test_qemu_install_test_checks_the_installed_uuid_and_efi_loader(self) -> None:
         qemu_test = self.read("scripts/test-installer-qemu.py")
@@ -88,16 +88,28 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("findmnt -n -o UUID /boot/efi", qemu_test)
         self.assertIn("/boot/efi/$loader", qemu_test)
 
-    def test_installed_kernel_accepts_grub_command_line_and_external_initramfs(self) -> None:
+    def test_installed_kernel_uses_architecture_appropriate_initramfs(self) -> None:
         builder = self.read("scripts/build-installed-kernel.sh")
+        self.assertIn("EMBED_INITRAMFS=0", builder)
+        self.assertIn("EMBED_INITRAMFS=1", builder)
+        self.assertIn('INITRAMFS_ROOTFS="$ROOT_DIR/build/initramfs/rootfs"', builder)
+        self.assertIn('--set-str INITRAMFS_SOURCE "$INITRAMFS_ROOTFS"', builder)
+        self.assertIn("--enable INITRAMFS_COMPRESSION_GZIP", builder)
+        self.assertIn('--set-str INITRAMFS_SOURCE ""', builder)
         self.assertIn("--disable CMDLINE_OVERRIDE", builder)
         self.assertIn("--disable CMDLINE_FORCE", builder)
-        self.assertIn('--set-str INITRAMFS_SOURCE ""', builder)
         self.assertIn('BASE_OUT_DIR="$ROOT_DIR/build/kernel"', builder)
         self.assertIn('OUT_DIR="$ROOT_DIR/build/kernel-installed-build/$TARGET_ARCH"', builder)
         self.assertIn('cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"', builder)
+
         installer = self.read("system/base/installer/install.sh")
-        self.assertIn("initrd /boot/aura-initramfs.cpio.gz", installer)
+        riscv_case = installer.split("    riscv64)", 1)[1].split(";;", 1)[0]
+        self.assertIn('GRUB_INITRD_LINE=""', riscv_case)
+        self.assertIn("${GRUB_INITRD_LINE}", installer)
+        self.assertIn('GRUB_INITRD_LINE="initrd /boot/aura-initramfs.cpio.gz"', installer)
+        self.assertIn("initramfs_mode=embedded-in-kernel", installer)
+        self.assertIn("initramfs_mode=external", installer)
+
 
 
 if __name__ == "__main__":
