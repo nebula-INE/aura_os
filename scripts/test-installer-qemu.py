@@ -256,8 +256,8 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
     try:
         child.expect("Choose boot mode", timeout=240)
         child.sendline("r")
-        child.expect("AURA_RESCUE_READY", timeout=180)
         child.expect("AURA_RESCUE_ROOT_RO_OK", timeout=60)
+        child.expect("AURA_RESCUE_READY", timeout=180)
         child.expect(r"\[Aura offline rescue\]# ", timeout=60)
         child.sendline(
             "findmnt -n -o OPTIONS --target /mnt/aura-rescue/root-1 "
