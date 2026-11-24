@@ -83,7 +83,7 @@ if [[ "$EMBED_INITRAMFS" -eq 1 ]]; then
 else
   config_args+=(--set-str INITRAMFS_SOURCE "")
 fi
-"$SOURCE_DIR/scripts/config" "\${config_args[@]}"
+"$SOURCE_DIR/scripts/config" "${config_args[@]}"
 
 ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   make -C "$SOURCE_DIR" O="$OUT_DIR" olddefconfig
