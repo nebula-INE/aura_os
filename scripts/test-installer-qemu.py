@@ -319,9 +319,169 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
     )
     password = "Aura-CI-Only-2026!"
     username = "auraci"
+    initramfs_mode = "embedded-in-kernel" if architecture == "riscv64" else "external"
+    grub_initrd_check = (
+        "! grep -Eq '^[[:space:]]*initrd[[:space:]]' /boot/grub/grub.cfg"
+        if architecture == "riscv64"
+        else "grep -Eq '^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs.cpio.gz        child.expect("New username")
+        child.sendline(username)
+        child.expect("New password:")
+        child.sendline(password)
+        child.expect("Retype new password:")
+        child.sendline(password)
+        child.expect("initial administrator account is ready")
+        child.expect("login:")
+        child.sendline(username)
+        child.expect("Password:")
+        child.sendline(password)
+        child.expect(r"[$#] ")
+        command = (
+            "id -nG | tr ' ' '\\n' | grep -qx sudo && echo AURA_SUDO_GROUP_OK; "
+            "systemctl is-active systemd-networkd.service; "
+            "systemctl is-active systemd-resolved.service; "
+            "network_ok=0; "
+            "for attempt in $(seq 1 60); do "
+            "if ip -4 -o addr show scope global | grep -q 'inet 10\\.0\\.2\\.' "
+            "&& ip -4 route show default | grep -q '^default ' "
+            "&& getent ahostsv4 deb.debian.org >/dev/null 2>&1; then "
+            "network_ok=1; break; fi; sleep 2; done; "
+            "test \"$network_ok\" -eq 1 && echo AURA_NETWORK_OK; "
+            "sudo -S sh -c 'test -s /var/lib/aura/firstboot/complete "
+            "&& passwd -S root | grep -q \"^root L \" "
+            "&& root_uuid=$(findmnt -n -o UUID /) "
+            "&& grep -Fxq \"UUID=$root_uuid / ext4 defaults,noatime 0 1\" /etc/fstab "
+            "&& grep -Fxq \"root_uuid=$root_uuid\" /var/lib/aura/install-manifest "
+            "&& esp_uuid=$(findmnt -n -o UUID /boot/efi) "
+            "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
+            "&& loader=$(sed -n 's/^efi_loader=//p' /var/lib/aura/install-manifest) "
+            "&& test -s \"/boot/efi/$loader\" "
+            f"&& grep -Fxq 'initramfs_mode={initramfs_mode}' /var/lib/aura/install-manifest "
+            f"&& {grub_initrd_check} "
+            "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
+            "&& cat /var/lib/aura/install-manifest "
+            "&& cat /etc/fstab "
+            "&& echo AURA_USER_LOGIN_OK'"
+        )
+        child.sendline(command)
+        child.expect("AURA_SUDO_GROUP_OK")
+        group_output = child.before + child.after
+        child.expect("AURA_NETWORK_OK")
+        network_output = child.before + child.after
+        child.expect(r"password for auraci:")
+        sudo_prompt_output = child.before
+        child.sendline(password)
+        child.expect("AURA_ROOT_UUID_FSTAB_ESP_OK")
+        child.expect("AURA_USER_LOGIN_OK")
+        command_output = group_output + network_output + sudo_prompt_output + child.before + child.after
+        if command_output.count("active") < 2:
+            raise RuntimeError("networkd/resolved services did not both become active")
+        child.sendline("sudo systemctl poweroff")
+        child.expect(pexpect.EOF, timeout=120)
+        child.close()
+        if child.exitstatus not in (0, None):
+            raise RuntimeError(
+                f"installed-system QEMU exited with status {child.exitstatus}; see {log_path}"
+            )
+    except Exception:
+        if child.logfile:
+            child.logfile.flush()
+        child.close(force=True)
+        report_serial_log_tail(log_path)
+        raise
+    finally:
+        if child.logfile:
+            child.logfile.close()
+
+
+def write_disk_metadata(architecture: str, disk: Path, iso: Path) -> Path:
+    result = subprocess.run(
+        ["sfdisk", "--dump", str(disk)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"could not inspect installed GPT image: {detail}")
+    digest_state = hashlib.sha256()
+    with iso.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest_state.update(chunk)
+    digest = digest_state.hexdigest()
+    report = LOG_DIR / f"aura-{architecture}-install-disk.sfdisk"
+    report.write_text(
+        f"architecture={architecture}\n"
+        f"iso={iso.name}\n"
+        f"iso_sha256={digest}\n"
+        "sfdisk_partition_table:\n"
+        f"{result.stdout}",
+        encoding="utf-8",
+    )
+    return report
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--arch", required=True, choices=("x86_64", "aarch64", "riscv64"))
+    parser.add_argument(
+        "--iso",
+        type=Path,
+        default=ROOT / "build" / "iso" / f"aura-os-{os.environ.get('TARGET_ARCH', 'x86_64')}-uefi.iso",
+    )
+    parser.add_argument(
+        "--disk",
+        type=Path,
+        default=LOG_DIR / f"aura-{os.environ.get('TARGET_ARCH', 'x86_64')}-target.raw",
+    )
+    args = parser.parse_args()
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    iso = args.iso.resolve()
+    disk = args.disk.resolve()
+    require_file(iso, "installable ISO")
+    if disk.exists():
+        disk.unlink()
+    subprocess.run(["truncate", "-s", "6G", str(disk)], check=True)
+
+    print(f"Installing {args.arch} from {iso} to disposable QEMU disk {disk}")
+    run_installer(args.arch, iso, disk)
+    print("Installer completed; booting the installed target disk without the ISO.")
+    run_installed_boot(args.arch, disk)
+    metadata = write_disk_metadata(args.arch, disk, iso)
+    print(f"Installed-disk partition metadata: {metadata}")
+    print(f"Aura OS {args.arch}: install, UUID root boot, first user, login, network and shutdown passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError, pexpect.ExceptionPexpect, subprocess.CalledProcessError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+ /boot/grub/grub.cfg"
+    )
 
     try:
-        child.expect("AURA_ROOT_DEVICE_MATCHED", timeout=360)
+        root_boot_result = child.expect(
+            [
+                "AURA_ROOT_DEVICE_MATCHED",
+                "Kernel panic",
+                "ERROR:",
+                pexpect.EOF,
+            ],
+            timeout=360,
+        )
+        if root_boot_result != 0:
+            reasons = (
+                "installed kernel panicked before the persistent-root init completed",
+                "persistent-root initramfs reported an explicit error",
+                "installed kernel exited before root UUID discovery",
+            )
+            raise RuntimeError(
+                f"{architecture} installed disk did not reach persistent-root init: "
+                f"{reasons[root_boot_result - 1]}; see {log_path}"
+            )
         child.expect("New username")
         child.sendline(username)
         child.expect("New password:")
