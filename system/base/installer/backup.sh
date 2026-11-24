@@ -13,6 +13,7 @@ BACKUP_MOUNT=/mnt/aura-backup
 ROOT_LIST=/run/aura-backup-roots
 DEST_LIST=/run/aura-backup-destinations
 SOURCE_ANCESTRY=/run/aura-backup-source-ancestry
+DEST_ANCESTRY_FILE=/run/aura-backup-destination-ancestry
 MOUNTED=0
 TEMP_DIR=
 
@@ -163,10 +164,25 @@ esac
 DEST_DEVICE="$(sed -n "${destination_selection}p" "$DEST_LIST")"
 [ -n "$DEST_DEVICE" ] || fail "the selected backup destination is unavailable."
 
-# Revalidate the source and destination immediately before explicit consent.
+# Snapshot the selected block-device identity and ancestry before consent.
 [ -b "$DEST_DEVICE" ] || fail "the destination device disappeared."
+DEST_DEVICE_NAME="$(basename "$DEST_DEVICE")"
+[ -r "/sys/class/block/$DEST_DEVICE_NAME/dev" ] ||
+    fail "the destination device identity is unavailable in sysfs."
+DEST_DEVICE_ID="$(cat "/sys/class/block/$DEST_DEVICE_NAME/dev")"
+DEST_UUID="$(blkid -s UUID -o value "$DEST_DEVICE" 2>/dev/null || true)"
+[ -n "$DEST_UUID" ] || fail "could not identify the destination filesystem UUID."
 DEST_FS="$(blkid -s TYPE -o value "$DEST_DEVICE" 2>/dev/null || true)"
-[ "$DEST_FS" = "ext4" ] || fail "the backup destination must remain ext4."
+[ "$DEST_FS" = "ext4" ] || fail "the backup destination must be ext4."
+lsblk --inverse --list --noheadings --paths --output NAME "$DEST_DEVICE" \
+    > "$DEST_ANCESTRY_FILE" ||
+    fail "could not identify the destination disk ancestry."
+while IFS= read -r ancestor; do
+    [ -n "$ancestor" ] || continue
+    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY"; then
+        fail "backup destination shares a physical disk with the source."
+    fi
+done < "$DEST_ANCESTRY_FILE"
 DEST_RO="$(lsblk --nodeps --noheadings --output RO "$DEST_DEVICE" | tr -d '[:space:]')"
 [ "$DEST_RO" = "0" ] || fail "the backup destination is read-only."
 dest_mount="$(findmnt --noheadings --raw --source "$DEST_DEVICE" --output TARGET 2>/dev/null || true)"
@@ -200,18 +216,33 @@ IFS= read -r final_confirmation
 [ "$final_confirmation" = "CREATE BACKUP" ] ||
     fail "final backup confirmation did not match."
 
-# Recheck the source and destination after both confirmations.
+# Recheck the source and exact destination identity after both confirmations.
 SOURCE_OPTS="$(findmnt -n -o OPTIONS --target "$SOURCE_ROOT")"
 case ",$SOURCE_OPTS," in
     *,ro,*) ;;
     *) fail "source filesystem changed from read-only state." ;;
 esac
+[ -b "$DEST_DEVICE" ] || fail "destination disappeared during confirmation."
+CURRENT_DEVICE_ID="$(cat "/sys/class/block/$DEST_DEVICE_NAME/dev" 2>/dev/null || true)"
+[ "$CURRENT_DEVICE_ID" = "$DEST_DEVICE_ID" ] ||
+    fail "destination device identity changed during confirmation."
+[ "$(blkid -s UUID -o value "$DEST_DEVICE" 2>/dev/null || true)" = "$DEST_UUID" ] ||
+    fail "destination filesystem UUID changed during confirmation."
 [ "$(blkid -s TYPE -o value "$DEST_DEVICE" 2>/dev/null || true)" = "ext4" ] ||
     fail "destination filesystem changed."
 [ "$(lsblk --nodeps --noheadings --output RO "$DEST_DEVICE" | tr -d '[:space:]')" = "0" ] ||
     fail "destination became read-only."
 [ -z "$(findmnt --noheadings --raw --source "$DEST_DEVICE" --output TARGET 2>/dev/null || true)" ] ||
     fail "destination was mounted during confirmation."
+lsblk --inverse --list --noheadings --paths --output NAME "$DEST_DEVICE" \
+    > "$DEST_ANCESTRY_FILE" ||
+    fail "could not recheck destination disk ancestry."
+while IFS= read -r ancestor; do
+    [ -n "$ancestor" ] || continue
+    if grep -Fqx -- "$ancestor" "$SOURCE_ANCESTRY"; then
+        fail "destination now shares a physical disk with the source."
+    fi
+done < "$DEST_ANCESTRY_FILE"
 
 mount -t ext4 -o rw,nodev,nosuid,noexec "$DEST_DEVICE" "$BACKUP_MOUNT" ||
     fail "could not mount the selected destination filesystem."
