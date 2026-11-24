@@ -74,3 +74,12 @@ The initramfs selects the root ext4 filesystem by UUID from the standard kernel 
 The image is a build artifact, not an installer or a complete bootable disk. A normal boot can create one local console administrator and bring up supported wired Ethernet; Wi-Fi, a desktop session, display manager, firmware bundle, bootloader, and application set are not included. The test-only `aura.firstboot.skip` argument bypasses this prompt. Do not install it over a host filesystem.
 
 The package manifest is intentionally small. Add components only with a reason and validate their availability on all three Debian architectures. The 512 MiB idle desktop RAM target is a stretch goal, not a current measurement or promise; systemd and glibc memory costs must be measured on representative hardware before the service and desktop set is finalized.
+
+
+## Read-only diagnostics
+
+The base rootfs installs `/usr/bin/aura-diagnose`. It creates a private
+`tar.gz` report containing systemd, storage, and network summaries without
+changing the system. Journal collection is excluded unless
+`--include-journal` is explicitly supplied. Review the privacy notice inside
+the archive before sharing it; see [diagnostics.md](../../docs/diagnostics.md).
