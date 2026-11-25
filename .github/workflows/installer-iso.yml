@@ -158,13 +158,15 @@ jobs:
           mkdir -p "$key_dir"
           private_key="$key_dir/private.pem"
           public_key="$key_dir/public.pem"
+          public_key_input="$key_dir/public-input.pem"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             [[ -n "$AURA_RELEASE_PRIVATE_KEY_PEM" && -n "$AURA_RELEASE_PUBLIC_KEY_PEM" ]] || {
               echo "error: tagged release builds require AURA_RELEASE_PRIVATE_KEY_PEM (Secret) and AURA_RELEASE_PUBLIC_KEY_PEM (Variable)." >&2
               exit 1
             }
             printf '%s\n' "$AURA_RELEASE_PRIVATE_KEY_PEM" > "$private_key"
-            printf '%s\n' "$AURA_RELEASE_PUBLIC_KEY_PEM" > "$public_key"
+            printf '%s\n' "$AURA_RELEASE_PUBLIC_KEY_PEM" > "$public_key_input"
+            openssl pkey -pubin -in "$public_key_input" -pubout -out "$public_key"
             mode="release-key"
           else
             # PR and branch CI uses an ephemeral key to exercise verification.
@@ -180,9 +182,11 @@ jobs:
             echo "error: configured release private/public keys do not match." >&2
             exit 1
           }
+          fingerprint="$(openssl pkey -pubin -in "$public_key" -outform DER | sha256sum | awk '{print $1}')"
           {
             echo "AURA_RELEASE_PRIVATE_KEY_FILE=$private_key"
             echo "AURA_RELEASE_PUBLIC_KEY_FILE=$public_key"
+            echo "AURA_RELEASE_PUBLIC_KEY_FINGERPRINT=$fingerprint"
             echo "AURA_RELEASE_SIGNING_MODE=$mode"
           } >> "$GITHUB_ENV"
 
@@ -252,6 +256,7 @@ jobs:
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.sha256
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.sha256.sig
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.pub
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.pub.fingerprint
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.provenance.json
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.eltorito.txt
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz
