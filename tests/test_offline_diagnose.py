@@ -30,7 +30,7 @@ class OfflineDiagnoseTests(unittest.TestCase):
         (self.root / "var/lib/dpkg").mkdir(parents=True)
         (self.root / "etc/systemd/system/multi-user.target.wants").mkdir(parents=True)
         (self.root / "boot/grub").mkdir(parents=True)
-        (self.root / "var/log").mkdir(parents=True)
+        (self.root / "var/log/journal/mock-machine-id").mkdir(parents=True)
 
         (self.root / "etc/os-release").write_text(
             'PRETTY_NAME="Aura OS Test"\nID=aura\n', encoding="utf-8"
