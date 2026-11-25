@@ -237,6 +237,19 @@ jobs:
           AURA_INSTALLER_MODE: "1"
         run: bash scripts/build-uefi-iso.sh
 
+      - name: Verify detached ISO signature and release-key fingerprint
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: |
+          set -euo pipefail
+          iso="$GITHUB_WORKSPACE/build/iso/aura-os-${TARGET_ARCH}-uefi.iso"
+          openssl pkeyutl -verify -pubin -inkey "$AURA_RELEASE_PUBLIC_KEY_FILE" \
+            -rawin -in "$iso.sha256" -sigfile "$iso.sha256.sig"
+          (cd "$(dirname "$iso")" && sha256sum --check "$(basename "$iso").sha256")
+          expected_fingerprint="$(openssl pkey -pubin -in "$AURA_RELEASE_PUBLIC_KEY_FILE" -outform DER | sha256sum | awk '{print $1}')"
+          actual_fingerprint="$(awk '{print $1}' "$iso.pub.fingerprint")"
+          [[ "$actual_fingerprint" == "$expected_fingerprint" ]]
+
       - name: Install to a second QEMU disk and boot without the ISO
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
