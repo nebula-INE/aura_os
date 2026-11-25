@@ -145,7 +145,7 @@ class KernelGrubMenuTests(unittest.TestCase):
 
     def test_external_kernel_versions_keep_normal_and_recovery_entries(self) -> None:
         (self.root / "etc/aura-kernel/architecture").write_text("x86_64\n", encoding="ascii")
-        for version in ("6.18.64", "6.18.63"):
+        for version in ("6.18.64", "6.18.63", "6.18.64-custom1"):
             (self.root / "boot" / f"vmlinuz-aura-{version}").write_bytes(b"kernel")
             (self.root / "boot" / f"aura-initramfs-{version}.cpio.gz").write_bytes(b"initrd")
             (self.root / "usr/share/aura-kernel" / f"{version}.conf").write_text(
@@ -158,10 +158,12 @@ class KernelGrubMenuTests(unittest.TestCase):
         self.assertIn("console=ttyS0,115200n8", config)
         self.assertIn("--id 'aura-6.18.64'", config)
         self.assertIn("--id 'aura-6.18.63'", config)
+        self.assertIn("--id 'aura-6.18.64-custom1'", config)
         self.assertIn("Aura OS (6.18.64, Recovery Mode)", config)
         self.assertIn("systemd.unit=aura-recovery.target", config)
         self.assertIn("initrd /boot/aura-initramfs-6.18.64.cpio.gz", config)
         self.assertIn("initrd /boot/aura-initramfs-6.18.63.cpio.gz", config)
+        self.assertIn("initrd /boot/aura-initramfs-6.18.64-custom1.cpio.gz", config)
 
     def test_riscv_embedded_initramfs_does_not_emit_an_external_initrd(self) -> None:
         (self.root / "etc/aura-kernel/architecture").write_text("riscv64\n", encoding="ascii")
