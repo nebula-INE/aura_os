@@ -85,7 +85,7 @@ else
 fi
 ''',
         )
-        self._write_command("lsblk", 'printf \'{"blockdevices":[]}\\n'\n')
+        self._write_command("lsblk", 'printf \'{"blockdevices":[]}\\n\'\n')
         self._write_command(
             "journalctl",
             'printf "offline warning journal\\n"\n'
@@ -98,7 +98,7 @@ fi
                 "PATH": f"{self.bin_dir}{os.pathsep}/usr/bin:/bin",
                 "AURA_RESCUE_ROOT_MOUNT_BASE": str(self.mount_base),
                 "AURA_RESCUE_RUN_DIR": str(self.run_dir),
-                "MOCK_ROOT_OPTIONS": "ro,relatime",
+                "MOCK_ROOT_OPTIONS": "ro,noload,relatime",
                 "JOURNAL_MARKER": str(self.journal_marker),
                 "LC_ALL": "C",
             }
