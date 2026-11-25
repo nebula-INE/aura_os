@@ -1,0 +1,11 @@
+[Unit]
+Description=Confirm the pending Aura kernel after a successful system boot
+After=local-fs.target
+ConditionPathExists=/var/lib/aura-kernel/pending
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/aura-kernel/confirm-boot
+
+[Install]
+WantedBy=multi-user.target
