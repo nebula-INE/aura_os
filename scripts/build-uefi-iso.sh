@@ -140,8 +140,9 @@ EFI removable-media loader: EFI/BOOT/$EFI_FILENAME
 The installer runs from a Debian 13 initramfs in memory.
 The ISO carries a separate Debian rootfs archive and signed Debian kernel packages.
 
-The Ed25519-signed payload manifest covers the rootfs, installed kernel,
-persistent-root initramfs, and EFI boot image. Verify the detached ISO signature
+The Ed25519-signed payload manifest covers the rootfs archive, the
+versioned kernel image .deb, its lifecycle meta .deb, and the EFI boot image.
+Verify the detached ISO signature
 with the Aura release public key before booting.
 Signing mode: $AURA_RELEASE_SIGNING_MODE
 Ed25519 public-key DER SHA-256 fingerprint: ${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-unavailable}
