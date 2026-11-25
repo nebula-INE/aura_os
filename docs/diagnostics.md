@@ -66,7 +66,26 @@ and the existing Debian base commands (systemd, util-linux, iproute2, tar, and
 gzip). It is architecture-independent and does not require Python.
 
 Aura OS also has separate installed-system Recovery Mode and installer-media
-Offline Rescue workflows. They are not invoked by `aura-diagnose`; backup,
-restore, and any future repair operations retain their own safety checks and
-confirmation requirements. The diagnostic command only collects information
-from a running userspace.
+Offline Rescue workflows. The base `aura-diagnose` command only collects from
+a running userspace; it does not run in the installer environment.
+
+When the installed system cannot boot, enter **Offline Rescue** from the
+installer ISO and run:
+
+```sh
+sh /usr/lib/aura/installer/diagnose.sh
+```
+
+This offline collector inspects one selected, already-mounted `AURA_ROOTFS`
+filesystem. It requires ext4 and a verified read-only mount, does not chroot,
+and never executes programs from the installed system. It records static OS,
+package, fstab, boot, and systemd enablement metadata alongside the rescue
+environment's block-device inventory. Journal contents are excluded unless
+`--include-journal` is explicitly supplied.
+
+The owner-only `.tar.gz` report and `.sha256` file are written to the
+installer's verified `/run` tmpfs, never to the installed root filesystem.
+They are lost when the rescue environment shuts down. Review the report's
+privacy notice before copying it to separate media or sharing it. Backup,
+restore, and any future repair operations retain their own independent safety
+checks and confirmation requirements.
