@@ -20,6 +20,16 @@ class KernelPackageBuildTests(unittest.TestCase):
         self.output = self.root / "packages"
         self.kernel = self.root / "vmlinuz"
         self.initramfs = self.root / "initramfs.cpio.gz"
+        self.modules_root = self.root / "modules-root"
+        self.modules_tree = self.modules_root / "lib/modules" / KERNEL_VERSION
+        self.modules_tree.mkdir(parents=True)
+        (self.modules_tree / "kernel/test-driver.ko").parent.mkdir(parents=True)
+        (self.modules_tree / "kernel/test-driver.ko").write_bytes(b"test module")
+        (self.modules_tree / "modules.dep").write_text(
+            "kernel/test-driver.ko:\\n", encoding="ascii"
+        )
+        self.modules_enabled = self.root / "modules-enabled"
+        self.modules_enabled.write_text("1\\n", encoding="ascii")
         self.kernel.write_bytes(b"test kernel image")
         self.initramfs.write_bytes(b"test persistent root initramfs")
 
@@ -35,6 +45,8 @@ class KernelPackageBuildTests(unittest.TestCase):
                 "INITRAMFS_IMAGE": str(self.initramfs),
                 "OUTPUT_DIR": str(self.output),
                 "KERNEL_RELEASE": KERNEL_VERSION,
+                "MODULES_ROOT": str(self.modules_root),
+                "MODULES_ENABLED_FILE": str(self.modules_enabled),
             }
         )
         subprocess.run(
@@ -102,6 +114,22 @@ class KernelPackageBuildTests(unittest.TestCase):
                 expected_mode = "embedded" if architecture == "riscv64" else "external"
                 self.assertIn(f"AURA_KERNEL_ARCH={architecture}", config)
                 self.assertIn(f"AURA_INITRAMFS_MODE={expected_mode}", config)
+                self.assertIn("AURA_KERNEL_MODULES=1", config)
+                module_path = (
+                    extracted
+                    / "lib/modules"
+                    / KERNEL_VERSION
+                    / "kernel/test-driver.ko"
+                )
+                self.assertEqual(module_path.read_bytes(), b"test module")
+                self.assertTrue(
+                    (
+                        extracted
+                        / "lib/modules"
+                        / KERNEL_VERSION
+                        / "modules.dep"
+                    ).is_file()
+                )
                 initrd_path = (
                     extracted
                     / "boot"
