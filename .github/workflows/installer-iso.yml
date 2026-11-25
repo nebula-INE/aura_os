@@ -17,6 +17,7 @@ on:
       - "scripts/build-initramfs-target.sh"
       - "scripts/build-installer-initramfs.sh"
       - "scripts/build-installed-kernel.sh"
+      - "scripts/build-kernel-package.sh"
       - "scripts/build-kernel-efi-iso.sh"
       - "scripts/build-uefi-iso.sh"
       - "scripts/build-base-rootfs.sh"
@@ -27,6 +28,7 @@ on:
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
       - "tests/test_installer_signing.py"
+      - "tests/test_kernel_package.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
@@ -100,7 +102,7 @@ jobs:
         run: |
           bash -n scripts/build-base-rootfs.sh scripts/build-initramfs-target.sh \
             scripts/build-installer-initramfs.sh scripts/build-installed-kernel.sh \
-            scripts/build-kernel-efi-iso.sh scripts/build-uefi-iso.sh \
+            scripts/build-kernel-efi-iso.sh scripts/build-kernel-package.sh scripts/build-uefi-iso.sh \
             scripts/ensure-ubuntu-apt-sources.sh
           sh -n system/base/installer/init system/base/installer/install.sh \
             system/base/installer/rescue.sh system/base/installer/backup.sh \
@@ -109,6 +111,7 @@ jobs:
           python3 -m py_compile scripts/test-installer-qemu.py
           python3 -m unittest discover -s tests -p 'test_installer_contract.py' -v
           python3 -m unittest discover -s tests -p 'test_installer_signing.py' -v
+          python3 -m unittest discover -s tests -p 'test_kernel_package.py' -v
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_ubuntu_apt_sources.py' -v
@@ -231,6 +234,12 @@ jobs:
           JOBS: "2"
         run: bash scripts/build-installed-kernel.sh
 
+      - name: Build versioned Debian kernel packages
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          JOBS: "2"
+        run: bash scripts/build-kernel-package.sh
+
       - name: Assemble the installable UEFI ISO
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
@@ -281,6 +290,7 @@ jobs:
             build/kernel-efi-iso/${{ matrix.target_arch }}/efi-kernel-provenance.txt
             build/kernel/source-verification.txt
             build/kernel-installed/${{ matrix.target_arch }}/*
+            build/kernel-packages/${{ matrix.target_arch }}/*.deb
             build/qemu-installer/*.log
             build/qemu-installer/*.sfdisk
           include-hidden-files: true
