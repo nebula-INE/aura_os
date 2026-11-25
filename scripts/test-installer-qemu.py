@@ -284,6 +284,25 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
             "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_ESP_READ_ONLY_OK"
         )
         child.expect("AURA_RESCUE_ESP_READ_ONLY_OK", timeout=30)
+        child.sendline(
+            "/bin/sh /usr/lib/aura/installer/diagnose.sh "
+            "--output aura-rescue-report.tar.gz"
+        )
+        child.expect("Select the root filesystem number to inspect:", timeout=30)
+        child.sendline("1")
+        child.expect("AURA_RESCUE_DIAGNOSTICS_COMPLETE", timeout=120)
+        child.expect(r"\[Aura offline rescue\]# ", timeout=60)
+        child.sendline(
+            "test -s /run/aura-rescue-report.tar.gz "
+            "&& test -s /run/aura-rescue-report.tar.gz.sha256 "
+            "&& (cd /run && sha256sum --check --status aura-rescue-report.tar.gz.sha256) "
+            "&& tar -xOf /run/aura-rescue-report.tar.gz ./README.txt "
+            "| grep -q 'Collection mode: offline, read-only' "
+            "&& tar -xOf /run/aura-rescue-report.tar.gz ./os-release.txt "
+            "| grep -q 'Aura OS QEMU rescue test' "
+            "&& echo AURA_RESCUE_DIAGNOSTICS_ARCHIVE_OK"
+        )
+        child.expect("AURA_RESCUE_DIAGNOSTICS_ARCHIVE_OK", timeout=30)
         child.sendline("/bin/sh /usr/lib/aura/installer/backup.sh")
         child.expect("Select the source root number:", timeout=30)
         child.sendline("1")
@@ -959,6 +978,15 @@ def main() -> int:
     root_sentinel.write_text(f"AURA-RESTORE-ROOT-{args.arch}\n", encoding="utf-8")
     subprocess.run(
         ["debugfs", "-w", "-R", f"write {root_sentinel} /etc/aura-restore-sentinel", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    os_release_seed = LOG_DIR / f"aura-{args.arch}-rescue-os-release"
+    os_release_seed.write_text(
+        f'NAME="Aura OS QEMU rescue test"\nID=aura\nVERSION_ID="{args.arch}"\n',
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["debugfs", "-w", "-R", f"write {os_release_seed} /etc/os-release", str(disk)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
 

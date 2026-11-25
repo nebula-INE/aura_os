@@ -89,6 +89,18 @@ read-only. The target disk image is checked before and after the QEMU rescue
 test to ensure the rescue boot did not modify it. No repair command runs
 automatically. See [Offline Rescue Mode](recovery-mode.md#offline-rescue-mode).
 
+### Offline diagnostics
+
+From the rescue shell, run `sh /usr/lib/aura/installer/diagnose.sh` to create
+an owner-only diagnostic archive for one selected, already-mounted root
+filesystem. The collector verifies that the source is ext4 and read-only,
+collects static OS/package/fstab/boot/systemd metadata, and does not chroot or
+execute any target-system binaries. It does not modify mounts or disks.
+Journal contents are excluded unless `--include-journal` is explicitly given.
+The archive and SHA-256 sidecar are stored only in the installer's `/run`
+tmpfs; they disappear at shutdown. Review the privacy notice before copying
+the report to separate media. See [Aura OS diagnostics](diagnostics.md).
+
 
 ## Offline rescue backup
 
