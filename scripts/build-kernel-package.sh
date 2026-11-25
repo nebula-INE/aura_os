@@ -74,7 +74,7 @@ install -m 0755 "$ROOT_DIR/system/base/kernel/postinst" "$META_ROOT/DEBIAN/posti
 
 mkdir -p "$OUTPUT_DIR"
 rm -f "$OUTPUT_DIR"/*.deb
-dpkg-deb --root-owner-group --build "$IMAGE_ROOT" "$OUTPUT_DIR/${IMAGE_PACKAGE}_${PACKAGE_VERSION}_${DEB_ARCH}.deb"
-dpkg-deb --root-owner-group --build "$META_ROOT" "$OUTPUT_DIR/aura-kernel_${PACKAGE_VERSION}_all.deb"
+dpkg-deb --root-owner-group --build "$IMAGE_ROOT" "$OUTPUT_DIR/aura-kernel-image-$TARGET_ARCH.deb"
+dpkg-deb --root-owner-group --build "$META_ROOT" "$OUTPUT_DIR/aura-kernel-$TARGET_ARCH.deb"
 printf 'Built Aura kernel packages for %s (%s):\n' "$TARGET_ARCH" "$PACKAGE_VERSION"
 ls -lh "$OUTPUT_DIR"/*.deb
