@@ -104,6 +104,15 @@ Create a backup to a separate existing ext4 filesystem:
 The backup wizard never formats its destination. It requires two confirmations,
 keeps the source filesystems read-only, and records SHA-256 checksums.
 
+Verify a backup without writing to disk:
+  sh /usr/lib/aura/installer/restore.sh --verify-only
+
+Restore a backup (destructive; exact original root UUID required):
+  sh /usr/lib/aura/installer/restore.sh
+
+Restore verifies the manifest and archives, requires two confirmations, stages
+both archives before replacing files, and keeps the backup source read-only.
+
 Type 'poweroff --force --force' to shut down, or 'exit' to return to the rescue shell.
 HELP
 

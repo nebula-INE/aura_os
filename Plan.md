@@ -411,3 +411,14 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 ---
 
 **Planning rule:** Keep this file as the high-level roadmap. Put detailed designs and trade-off records in docs/. Update the plan when a major platform, kernel, or release decision changes.
+
+
+### Offline Rescue restore
+- [x] Add explicit restore wizard for root and optional EFI archives.
+- [x] Require matching architecture and original root UUID; reject cross-device relocation.
+- [x] Keep backup media read-only and separate from target root/EFI physical ancestry.
+- [x] Verify manifest SHA-256, gzip/tar integrity, and archive member paths before writes.
+- [x] Stage root/EFI trees before replacing target contents; require exact-device and final confirmation.
+- [x] Add multi-architecture QEMU coverage that corrupts and restores both root and EFI sentinels.
+- [ ] Run full CI and review the restore flow before marking the stacked PR ready.
+- [x] Add `restore.sh --verify-only` to validate backup compatibility without writable mounts or media changes.

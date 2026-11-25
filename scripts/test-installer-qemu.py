@@ -364,6 +364,7 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
                 check=True,
                 cwd=verification_dir,
             )
+        return backup_dir
 
     except Exception:
         if child.logfile:
@@ -375,6 +376,152 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
         if child.logfile:
             child.logfile.close()
 
+def run_offline_restore(
+    architecture: str,
+    iso: Path,
+    disk: Path,
+    efi_disk: Path,
+    backup_disk: Path,
+    *,
+    verify_only: bool = False,
+) -> None:
+    """Verify a backup without writes, or restore damaged root/EFI test volumes."""
+    if architecture == "x86_64":
+        vars_template = Path(os.environ.get("OVMF_VARS", "/usr/share/OVMF/OVMF_VARS_4M.fd"))
+    elif architecture == "aarch64":
+        vars_template = Path(os.environ.get("AAVMF_VARS", "/usr/share/AAVMF/AAVMF_VARS.fd"))
+    else:
+        vars_template = Path(os.environ.get("RISCV_EFI_VARS", "/usr/share/qemu-efi-riscv64/RISCV_VIRT_VARS.fd"))
+    require_file(vars_template, "UEFI variables template")
+
+    backup_before_digest = sha256_file(backup_disk)
+    root_before_digest = sha256_file(disk)
+    efi_before_digest = sha256_file(efi_disk)
+    suffix = "verify" if verify_only else "restore"
+    log_path = LOG_DIR / f"aura-{architecture}-offline-{suffix}.log"
+    child = spawn_qemu(
+        architecture, disk, vars_template, iso=iso, log_path=log_path,
+        timeout=360, backup_disk=backup_disk, efi_disk=efi_disk,
+    )
+    try:
+        child.expect("Choose boot mode", timeout=240)
+        child.sendline("r")
+        child.expect("AURA_RESCUE_ROOT_RO_OK", timeout=60)
+        child.expect("AURA_RESCUE_ESP_RO_OK", timeout=60)
+        child.expect("AURA_RESCUE_READY", timeout=180)
+        child.expect(r"\[Aura offline rescue\]# ", timeout=60)
+
+        restore_command = "/bin/sh /usr/lib/aura/installer/restore.sh"
+        if verify_only:
+            restore_command += " --verify-only"
+        child.sendline(restore_command)
+        child.expect("Select the target root number:", timeout=30)
+        child.sendline("1")
+        child.expect("Select the backup filesystem number:", timeout=30)
+        child.sendline("1")
+        child.expect("Select the backup number:", timeout=60)
+        child.sendline("1")
+
+        if verify_only:
+            child.expect("AURA_BACKUP_VERIFY_COMPLETE", timeout=120)
+            child.expect(r"\[Aura offline rescue\]# ", timeout=60)
+
+            # A wrong final confirmation must abort without writing to any disk.
+            child.sendline("/bin/sh /usr/lib/aura/installer/restore.sh")
+            child.expect("Select the target root number:", timeout=30)
+            child.sendline("1")
+            child.expect("Select the backup filesystem number:", timeout=30)
+            child.sendline("1")
+            child.expect("Select the backup number:", timeout=60)
+            child.sendline("1")
+            child.expect(r"Type RESTORE TO (/dev/[A-Za-z0-9]+) to confirm:", timeout=60)
+            target = child.match.group(1)
+            child.sendline(f"RESTORE TO {target}")
+            child.expect("Final confirmation: type RESTORE AURA to overwrite the selected installation:", timeout=30)
+            child.sendline("CANCEL RESTORE")
+            child.expect("final restore confirmation did not match", timeout=30)
+            child.expect(r"\[Aura offline rescue\]# ", timeout=60)
+            child.sendline("echo AURA_RESTORE_CANCELLED_OK")
+            child.expect("AURA_RESTORE_CANCELLED_OK", timeout=30)
+            child.sendline("poweroff --force --force")
+            child.expect(pexpect.EOF, timeout=120)
+            child.close()
+            if child.exitstatus not in (0, None):
+                raise RuntimeError(
+                    f"offline backup verification QEMU exited with status {child.exitstatus}; see {log_path}"
+                )
+        else:
+            child.expect(r"Type RESTORE TO (/dev/[A-Za-z0-9]+) to confirm:", timeout=60)
+            target = child.match.group(1)
+            child.sendline(f"RESTORE TO {target}")
+            child.expect("Final confirmation: type RESTORE AURA to overwrite the selected installation:", timeout=30)
+            child.sendline("RESTORE AURA")
+            child.expect("AURA_RESTORE_COMPLETE", timeout=300)
+            child.expect(r"\[Aura offline rescue\]# ", timeout=60)
+            child.sendline(
+                "findmnt -n -o OPTIONS --target /mnt/aura-rescue/root-1 "
+                "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESTORE_ROOT_RO_OK"
+            )
+            child.expect("AURA_RESTORE_ROOT_RO_OK", timeout=30)
+            child.sendline(
+                "findmnt -n -o OPTIONS --target /mnt/aura-rescue/esp-1 "
+                "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESTORE_EFI_RO_OK"
+            )
+            child.expect("AURA_RESTORE_EFI_RO_OK", timeout=30)
+            child.sendline("poweroff --force --force")
+            child.expect(pexpect.EOF, timeout=120)
+            child.close()
+            if child.exitstatus not in (0, None):
+                raise RuntimeError(f"offline restore QEMU exited with status {child.exitstatus}; see {log_path}")
+    except Exception:
+        if child.logfile:
+            child.logfile.flush()
+        child.close(force=True)
+        report_serial_log_tail(log_path)
+        raise
+    finally:
+        if child.logfile:
+            child.logfile.close()
+
+    log_text = log_path.read_text(encoding="utf-8", errors="replace")
+    if "AURA_INSTALLER_READY" in log_text:
+        raise RuntimeError("offline restore mode unexpectedly entered the installer")
+    if sha256_file(backup_disk) != backup_before_digest:
+        raise RuntimeError("offline restore modified the read-only backup disk image")
+
+    if verify_only:
+        if sha256_file(disk) != root_before_digest:
+            raise RuntimeError("read-only backup verification modified the root disk image")
+        if sha256_file(efi_disk) != efi_before_digest:
+            raise RuntimeError("read-only backup verification modified the EFI disk image")
+        if "AURA_BACKUP_VERIFY_COMPLETE" not in log_text:
+            raise RuntimeError("offline backup verification did not reach its success marker")
+        if "AURA_RESTORE_CANCELLED_OK" not in log_text:
+            raise RuntimeError("restore was not cleanly cancelled after an incorrect final confirmation")
+        if "AURA_RESTORE_COMPLETE" in log_text:
+            raise RuntimeError("restore unexpectedly completed after an incorrect final confirmation")
+        return
+
+    root_marker = subprocess.run(
+        ["debugfs", "-R", "cat /etc/aura-restore-sentinel", str(disk)],
+        check=False, capture_output=True, text=True,
+    )
+    expected_root_marker = f"AURA-RESTORE-ROOT-{architecture}"
+    if root_marker.returncode != 0 or expected_root_marker not in root_marker.stdout:
+        raise RuntimeError("offline restore did not restore the original root sentinel")
+
+    efi_loader = {
+        "x86_64": "BOOTX64.EFI",
+        "aarch64": "BOOTAA64.EFI",
+        "riscv64": "BOOTRISCV64.EFI",
+    }[architecture]
+    efi_marker = subprocess.run(
+        ["mtype", "-i", str(efi_disk), f"::/EFI/BOOT/{efi_loader}"],
+        check=False, capture_output=True, text=True,
+    )
+    expected_efi_marker = f"AURA-RESTORE-EFI-{architecture}"
+    if efi_marker.returncode != 0 or expected_efi_marker not in efi_marker.stdout:
+        raise RuntimeError("offline restore did not restore the original EFI sentinel")
 
 def run_installer(architecture: str, iso: Path, disk: Path) -> None:
     if architecture == "x86_64":
@@ -770,7 +917,6 @@ def main() -> int:
         check=True, capture_output=True, text=True,
     ).stdout.strip()
     fstab_seed = LOG_DIR / f"aura-{args.arch}-rescue-fstab"
-    fstab_seed.write_text(f"UUID={efi_uuid} /boot/efi vfat umask=0077 0 2" + chr(10), encoding="utf-8")
 
     backup_disk = LOG_DIR / f"aura-{args.arch}-backup.raw"
     if backup_disk.exists():
@@ -796,14 +942,67 @@ def main() -> int:
         ["debugfs", "-w", "-R", "mkdir /etc", str(disk)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
+    root_uuid = subprocess.run(
+        ["blkid", "-s", "UUID", "-o", "value", str(disk)],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    fstab_seed.write_text(
+        f"UUID={root_uuid} / ext4 defaults,noatime 0 1\n"
+        f"UUID={efi_uuid} /boot/efi vfat umask=0077 0 2\n",
+        encoding="utf-8",
+    )
     subprocess.run(
         ["debugfs", "-w", "-R", f"write {fstab_seed} /etc/fstab", str(disk)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
+    root_sentinel = LOG_DIR / f"aura-{args.arch}-restore-root-sentinel"
+    root_sentinel.write_text(f"AURA-RESTORE-ROOT-{args.arch}\n", encoding="utf-8")
+    subprocess.run(
+        ["debugfs", "-w", "-R", f"write {root_sentinel} /etc/aura-restore-sentinel", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+    efi_loader = {
+        "x86_64": "BOOTX64.EFI",
+        "aarch64": "BOOTAA64.EFI",
+        "riscv64": "BOOTRISCV64.EFI",
+    }[args.arch]
+    efi_sentinel = LOG_DIR / f"aura-{args.arch}-restore-efi-sentinel"
+    efi_sentinel.write_text(f"AURA-RESTORE-EFI-{args.arch}\n", encoding="utf-8")
+    subprocess.run(["mmd", "-i", str(efi_disk), "::/EFI"], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["mmd", "-i", str(efi_disk), "::/EFI/BOOT"], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(
+        ["mcopy", "-i", str(efi_disk), str(efi_sentinel), f"::/EFI/BOOT/{efi_loader}"],
+        check=True, stdout=subprocess.DEVNULL,
+    )
 
     print(f"Validating offline read-only rescue mode for {args.arch} from {iso}")
-    run_offline_rescue(args.arch, iso, disk, efi_disk, backup_disk)
-    print("Offline rescue inspection passed without changing the target disk.")
+    backup_set = run_offline_rescue(args.arch, iso, disk, efi_disk, backup_disk)
+    print(f"Offline rescue backup validated: {backup_set}")
+    print("Checking backup compatibility without writing to any filesystem.")
+    run_offline_restore(args.arch, iso, disk, efi_disk, backup_disk, verify_only=True)
+
+    # Simulate damaged files after the backup was made. The restore test must
+    # recover both the root sentinel and the EFI fallback-loader payload.
+    corrupted_root = LOG_DIR / f"aura-{args.arch}-corrupted-root-sentinel"
+    corrupted_root.write_text("AURA-RESTORE-ROOT-CORRUPTED\n", encoding="utf-8")
+    subprocess.run(
+        ["debugfs", "-w", "-R", "rm /etc/aura-restore-sentinel", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["debugfs", "-w", "-R", f"write {corrupted_root} /etc/aura-restore-sentinel", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    corrupted_efi = LOG_DIR / f"aura-{args.arch}-corrupted-efi-sentinel"
+    corrupted_efi.write_text("AURA-RESTORE-EFI-CORRUPTED\n", encoding="utf-8")
+    subprocess.run(
+        ["mcopy", "-o", "-i", str(efi_disk), str(corrupted_efi), f"::/EFI/BOOT/{efi_loader}"],
+        check=True, stdout=subprocess.DEVNULL,
+    )
+    print("Validating explicit offline restore after simulated root and EFI damage.")
+    run_offline_restore(args.arch, iso, disk, efi_disk, backup_disk)
+    print("Offline rescue backup and restore passed; backup media remained unchanged during restore.")
     print(f"Installing {args.arch} from {iso} to disposable QEMU disk {disk}")
     run_installer(args.arch, iso, disk)
     print("Installer completed; booting the installed target disk without the ISO.")
