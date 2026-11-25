@@ -35,12 +35,12 @@ awk -v rootfs="rootfs/aura-base-$ARCH.tar.gz" \
     NF != 2 || length($1) != 64 || $1 !~ /^[[:xdigit:]]+$/ { invalid = 1; next }
     $2 == rootfs { seen_rootfs++; next }
     $2 == kernel { seen_kernel++; next }
-    $2 == initrd { seen_initrd++; next }
+    $2 == meta { seen_meta++; next }
     $2 == esp { seen_esp++; next }
     { invalid = 1 }
     END {
         if (invalid || NR != 4 || seen_rootfs != 1 || seen_kernel != 1 ||
-            seen_initrd != 1 || seen_esp != 1) {
+            seen_meta != 1 || seen_esp != 1) {
             exit 1
         }
     }
