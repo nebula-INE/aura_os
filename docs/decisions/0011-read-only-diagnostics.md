@@ -64,11 +64,12 @@ validator verifies that the executable is present in every generated rootfs.
 
 ## Deferred work
 
-- A bootable recovery/rescue environment that can operate when the installed
-  userspace does not start.
-- Recovery-mode bootloader integration across UEFI profiles.
-- Filesystem repair, bootloader repair, or configuration rollback. These need
-  a separate threat model, explicit user confirmation, and a dry-run/backup
-  contract.
+- Additional repair actions beyond the existing installed-system Recovery Mode
+  and installer-media Offline Rescue workflows. Those workflows are separate
+  from `aura-diagnose` and must retain their own confirmation and data-safety
+  contracts.
+- Broader filesystem repair, bootloader repair, or configuration rollback.
+  Each operation needs a separate threat model, explicit user confirmation,
+  and a dry-run/backup contract.
 - A/B system updates or filesystem snapshots. The current single ext4 root
   layout does not provide an established rollback primitive.
