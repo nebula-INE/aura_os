@@ -695,6 +695,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "&& test -s /boot/vmlinuz-aura-$current_kernel_version "
             "&& grep -Fxq \"$current_kernel_version\" /var/lib/aura-kernel/known-good "
             "&& test ! -e /var/lib/aura-kernel/pending "
+            "&& { if grep -Fxq 'AURA_KERNEL_MODULES=1' /usr/share/aura-kernel/$current_kernel_version.conf; then test -s /lib/modules/$current_kernel_version/modules.dep; fi; } "
             "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
             "&& cat /var/lib/aura/install-manifest "
             "&& cat /etc/fstab "
