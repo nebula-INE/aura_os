@@ -11,11 +11,8 @@ MEDIA_ROOT=/run/aura-media
 MEDIA_DEVICE="${AURA_MEDIA_DEVICE:-}"
 ARCH="${AURA_TARGET_ARCH:-}"
 ROOTFS_ARCHIVE="$MEDIA_ROOT/rootfs/aura-base-$ARCH.tar.gz"
-ROOTFS_CHECKSUM="$ROOTFS_ARCHIVE.sha256"
 BOOT_KERNEL="$MEDIA_ROOT/boot/vmlinuz-$ARCH"
-BOOT_KERNEL_CHECKSUM="$BOOT_KERNEL.sha256"
 BOOT_INITRAMFS="$MEDIA_ROOT/boot/initramfs-$ARCH.cpio.gz"
-BOOT_INITRAMFS_CHECKSUM="$BOOT_INITRAMFS.sha256"
 
 ROOT_MNT=/mnt/aura-root
 ESP_MNT="$ROOT_MNT/boot/efi"
@@ -44,27 +41,12 @@ case "$ARCH:$(uname -m)" in
     *) fail "installer architecture does not match this machine." ;;
 esac
 [ -b "$MEDIA_DEVICE" ] || fail "installer media device is missing."
+# Verify the publisher signature and every payload hash before enumerating disks.
 [ -s "$ROOTFS_ARCHIVE" ] || fail "Debian root filesystem archive is missing."
 [ -s "$BOOT_KERNEL" ] || fail "installed kernel payload is missing."
 [ -s "$BOOT_INITRAMFS" ] || fail "persistent-root initramfs payload is missing."
-[ -s "$ROOTFS_CHECKSUM" ] || fail "Debian root filesystem checksum is missing."
-[ -s "$BOOT_KERNEL_CHECKSUM" ] || fail "installed kernel checksum is missing."
-[ -s "$BOOT_INITRAMFS_CHECKSUM" ] || fail "persistent-root initramfs checksum is missing."
-
-# Verify every installed payload before presenting or writing any target disk.
-(
-    cd "$MEDIA_ROOT/rootfs"
-    sha256sum --check --status "$(basename "$ROOTFS_CHECKSUM")"
-) || fail "Debian root filesystem checksum verification failed."
-(
-    cd "$MEDIA_ROOT/boot"
-    sha256sum --check --status "$(basename "$BOOT_KERNEL_CHECKSUM")"
-) || fail "installed kernel checksum verification failed."
-(
-    cd "$MEDIA_ROOT/boot"
-    sha256sum --check --status "$(basename "$BOOT_INITRAMFS_CHECKSUM")"
-) || fail "persistent-root initramfs checksum verification failed."
-echo "[Aura OS] Installer payload checksums verified."
+/bin/sh /usr/lib/aura/installer/verify-media.sh "$MEDIA_ROOT" ||
+    fail "installer media signature or signed payload verification failed."
 
 case "$ARCH" in
     x86_64)
@@ -91,7 +73,7 @@ case "$ARCH" in
 esac
 
 for command_name in lsblk sfdisk blockdev wipefs mkfs.fat mkfs.ext4 blkid \
-                    udevadm tar grub-install sha256sum; do
+                    udevadm tar grub-install sha256sum openssl; do
     command -v "$command_name" >/dev/null 2>&1 ||
         fail "required installer command is unavailable: $command_name"
 done
@@ -295,7 +277,8 @@ done
 [ -b "$ROOT_PART" ] || fail "root partition was not created or discovered."
 
 mkfs.fat -F 32 -n AURA_EFI "$ESP_PART"
-mkfs.ext4 -F -m 0 -L AURA_ROOTFS "$ROOT_PART"
+# Keep 1% of ext4 blocks reserved for privileged recovery when root is full.
+mkfs.ext4 -F -m 1 -L AURA_ROOTFS "$ROOT_PART"
 ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
 ESP_UUID="$(blkid -s UUID -o value "$ESP_PART")"
 [ -n "$ROOT_UUID" ] && [ -n "$ESP_UUID" ] ||
@@ -315,7 +298,7 @@ ESP_MOUNTED=1
 
 mkdir -p "$ROOT_MNT/etc" "$ROOT_MNT/boot/grub"
 cat > "$ROOT_MNT/etc/fstab" <<EOF
-UUID=$ROOT_UUID / ext4 defaults,noatime 0 1
+UUID=$ROOT_UUID / ext4 defaults,noatime,errors=remount-ro 0 1
 UUID=$ESP_UUID /boot/efi vfat umask=0077 0 2
 EOF
 
