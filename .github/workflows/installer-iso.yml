@@ -143,7 +143,7 @@ jobs:
             install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
             git gnupg curl perl cpio gzip binutils file mtools xorriso openssl \
-            mmdebstrap qemu-user-static binfmt-support e2fsprogs util-linux \
+            mmdebstrap qemu-user-static binfmt-support e2fsprogs kmod util-linux \
             dosfstools python3-pexpect \
             ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
           sudo systemctl restart systemd-binfmt.service
