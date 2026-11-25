@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  remove|purge)
+    if [ -x /usr/lib/aura-kernel/update-grub-menu ]; then
+      /usr/lib/aura-kernel/update-grub-menu
+    fi
+    ;;
+esac
+exit 0
