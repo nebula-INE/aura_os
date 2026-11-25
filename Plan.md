@@ -180,7 +180,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 ### Phase 5 — Security, updates, and release engineering
 
-- [x] Define Ed25519 signed installer payload manifests and detached ISO checksum signatures (ADR 0017); production key provisioning is required for releases and UEFI Secure Boot remains open.
+- [x] Define Ed25519 signed installer payload manifests and detached ISO checksum signatures (ADR 0017); production key provisioning is required for releases.
+- [ ] Define UEFI Secure Boot and hardware-rooted boot trust policy for each platform.
 - [ ] Harden default services, permissions, and network exposure.
 - [ ] Establish vulnerability tracking and kernel/userspace update cadence.
 - [ ] Validate `apt upgrade` of `aura-kernel`, matched initramfs deployment, GRUB regeneration, failed-candidate fallback, and previous-kernel rollback on x86-64, AArch64, and RV64GC.
