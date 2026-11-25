@@ -148,6 +148,7 @@ The ISO carries a separate Debian rootfs archive and the installed kernel/initra
 The install payload manifest and EFI image are Ed25519 signed. Verify the
 detached ISO signature with the Aura release public key before booting.
 Signing mode: $AURA_RELEASE_SIGNING_MODE
+Ed25519 public-key DER SHA-256 fingerprint: ${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-unavailable}
 
 The installer lists eligible disks and requires the operator to type:
   ERASE /dev/<target>
@@ -216,8 +217,12 @@ if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
     -in "$OUTPUT_ISO.sha256" \
     -out "$OUTPUT_ISO.sha256.sig"
   cp "$AURA_RELEASE_PUBLIC_KEY_FILE" "$OUTPUT_ISO.pub"
-  openssl pkey -pubin -in "$AURA_RELEASE_PUBLIC_KEY_FILE" -outform DER | \
-    sha256sum | awk '{print $1 "  Ed25519 public key DER SHA-256"}' > "$OUTPUT_ISO.pub.fingerprint"
+  actual_fingerprint="$(openssl pkey -pubin -in "$AURA_RELEASE_PUBLIC_KEY_FILE" -outform DER | sha256sum | awk '{print $1}')"
+  if [[ -n "${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-}" && "$actual_fingerprint" != "$AURA_RELEASE_PUBLIC_KEY_FINGERPRINT" ]]; then
+    echo "error: release public-key fingerprint changed during the build." >&2
+    exit 1
+  fi
+  printf '%s  Ed25519 public key DER SHA-256\n' "$actual_fingerprint" > "$OUTPUT_ISO.pub.fingerprint"
 fi
 
 python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" "$AURA_RELEASE_SIGNING_MODE" \
