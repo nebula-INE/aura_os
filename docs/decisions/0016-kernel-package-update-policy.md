@@ -1,73 +1,96 @@
 # ADR 0016: APT-managed kernel packages and boot update policy
 
-- **Status:** Accepted design; implementation pending
+- **Status:** Initial versioned package and GRUB trial-boot implementation added; signed APT publication and failure-injection validation pending
 - **Date:** 2026-11-25
 - **Scope:** Installed kernel delivery, security updates, and rollback across x86-64, AArch64, and RV64GC
 
 ## Context
 
-The current installer copies the ISO's fixed kernel payload to
-`/boot/vmlinuz-aura` and writes a hand-maintained `grub.cfg`. That image is
-not owned by dpkg, so `apt upgrade` cannot update the Aura kernel. An OS
-whose kernel is outside the package lifecycle has no complete security-update
-path.
+The previous installer copied a fixed kernel payload to /boot/vmlinuz-aura and
+wrote a hand-maintained GRUB configuration. That kernel was not owned by dpkg,
+so the package lifecycle could not protect or replace it consistently.
 
 ## Decision
 
-Use Debian's **APT/dpkg package lifecycle** for Aura's installed kernel.
-Do not introduce an A/B root filesystem as the first update mechanism.
+Use Debian **APT/dpkg packages** for the installed kernel. Do not introduce an
+A/B root filesystem as the first update mechanism.
 
-The implementation contract is:
+The package contract is:
 
-1. Build one architecture-native `aura-kernel` Debian binary package for each
-   supported target from the pinned, signature-verified upstream Linux stable
-   source and Aura's architecture-specific kernel configuration.
-2. Package the kernel image and its matching persistent-root initramfs as one
-   versioned, dependency-consistent unit. RV64GC keeps the current embedded
-   `/init` behavior; x86-64 and AArch64 use the external GRUB initrd handoff.
-3. Install versioned kernel/initramfs files under `/boot`; do not overwrite
-   the currently booted file in place.
-4. Use Debian maintainer scripts to refresh GRUB configuration after package
-   installation/removal. Preserve the root UUID, Aura kernel command-line
-   arguments, and an explicit Recovery Mode menu entry.
-5. Publish kernel packages in a signed APT repository. APT's authenticated
-   repository metadata (`InRelease`/Release signature) is the trust boundary
-   for updates; repository package hashes alone are not authentication.
-6. Keep the previously bootable kernel package and its GRUB entry until the
-   new kernel has passed the post-update boot/health check. Automatic removal
-   of that last-known-good kernel is prohibited. A failed boot must leave a
-   selectable previous kernel and a documented manual rollback path.
+1. Build an architecture-native image package named
+   aura-kernel-image-<kernel-release> and a lifecycle meta package named
+   aura-kernel. The image package version is derived from the exact
+   make kernelrelease output, not merely the upstream source tag.
+2. Keep the kernel image and matching persistent-root initramfs together.
+   x86-64 and AArch64 ship a versioned external initramfs; RV64GC keeps its
+   current embedded persistent-root /init behavior.
+3. Install versioned files under /boot; never overwrite the currently booted
+   kernel in place. Keep older image packages installed as fallback candidates.
+4. Generate GRUB entries from installed version metadata. Each version gets
+   a normal entry and a Recovery Mode entry, both using the installed root
+   UUID and the architecture-specific command line.
+5. On package configuration, make the previous known-good version the saved
+   GRUB default and select a newly installed candidate for one boot using
+   GRUB's next_entry. On a fresh installation, the first installed kernel
+   is the initial default.
+6. A boot-confirmation service records a candidate as known-good only when
+   uname -r matches the pending kernel release. The image package's
+   removal hook refuses to remove the pending, known-good, or last installed
+   kernel unless an explicit unsafe-removal override is supplied.
+7. Publish kernel packages through a signed APT repository. Authenticated
+   InRelease/Release metadata is the trust boundary; package hashes alone
+   are not publisher authentication.
 
 ## Update lifecycle
 
-`apt update` authenticates repository metadata; `apt upgrade` installs the
-new kernel package and matching initramfs; package hooks regenerate GRUB;
-the next reboot selects the new version. The previous version remains
-available until a successful boot is recorded. An update is not considered
-complete merely because dpkg installed the package.
+The installer ISO carries the two architecture-matched Debian packages in
+its signed payload manifest and installs them into the target with dpkg.
+The package maintainer script generates the initial GRUB menu and stages the
+first-boot confirmation state.
 
-The first package publication must include the kernel source version,
-source signature verification result, kernel config hash, architecture,
-initramfs mode, package SHA-256, and reproducible build provenance.
+For future repository-based updates, apt update must authenticate the
+repository metadata; apt upgrade then installs the new image and meta
+packages. Their maintainer scripts generate the new menu and request a
+one-time candidate boot. After a successful boot is confirmed, the new
+version becomes the saved default. The previous image remains installed and
+manually selectable.
+
+## Current implementation boundary
+
+Implemented in the versioned-kernel package change:
+
+- Architecture-specific .deb creation for x86-64, AArch64, and RV64GC.
+- Exact kernel release metadata from make kernelrelease.
+- Installer ISO manifest entries for both packages and dpkg installation
+  into the target root.
+- Versioned GRUB and Recovery Mode entries.
+- One-boot candidate selection, known-good state, and package removal guards.
+- Unit and QEMU contract assertions for package metadata and first boot.
+
+Not yet implemented or proven:
+
+- A published signed APT repository, its separate signing key, repository
+  metadata generation, and release/update publication workflow. Therefore
+  apt upgrade does not yet receive Aura kernel updates from a repository.
+- A QEMU failure-injection test that boots a deliberately bad candidate and
+  observes the previous default on the next reboot.
+- A firmware watchdog or automatic recovery from a kernel that hangs without
+  rebooting. The current one-shot selection falls back when the candidate
+  boot returns/restarts; a hard hang still requires a reset or manual
+  intervention.
+- UEFI Secure Boot and a firmware-rooted trust chain.
 
 ## Security and rollback requirements
 
-- The APT repository signing key is separate from the installer-media
+- The APT repository signing key must be separate from the installer-media
   signing key.
-- Package version and architecture must match the target system; cross-arch
-  packages are rejected.
-- Kernel and initramfs are installed as a matched pair.
-- GRUB must retain a known-good previous entry while the candidate is pending
-  first successful boot.
-- Tests must cover successful `apt upgrade`, a failed candidate boot,
-  selection of the previous kernel, and cleanup only after health confirmation.
-
-## Consequences and current status
-
-This decision establishes the intended update route, but **does not yet make
-`apt upgrade` update the kernel**. The current installer still installs the
-fixed ISO payload until the versioned package builder, maintainer hooks,
-signed APT repository, and update/rollback QEMU tests are implemented.
+- Reject packages whose Debian architecture does not match the installed OS.
+- Treat the kernel and initramfs as a matched versioned pair.
+- Keep the previous known-good entry and image until the candidate's boot is
+  confirmed.
+- Never garbage-collect the only bootable kernel.
+- Test successful repository update, candidate boot, failed candidate boot,
+  fallback selection, and cleanup only after health confirmation.
 
 A/B rootfs updates may be reconsidered later if package-based kernel/rootfs
 updates cannot meet a measured atomicity or rollback requirement. The initial
