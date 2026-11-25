@@ -61,6 +61,7 @@ Implemented in the versioned-kernel package change:
 
 - Architecture-specific .deb creation for x86-64, AArch64, and RV64GC.
 - Exact kernel release metadata from make kernelrelease.
+- Config-driven module build/install and packaging of the matching /lib/modules/<release> tree when CONFIG_MODULES=y.
 - Installer ISO manifest entries for both packages and dpkg installation
   into the target root.
 - Versioned GRUB and Recovery Mode entries.
