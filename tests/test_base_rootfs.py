@@ -34,6 +34,11 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "sbin/init").symlink_to("../usr/lib/systemd/systemd")
     (root / "usr/bin/apt-get").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/bin/apt-get").chmod(0o755)
+    for relative in ("usr/bin/grub-editenv", "usr/sbin/grub-reboot", "usr/sbin/grub-set-default"):
+        tool = root / relative
+        tool.parent.mkdir(parents=True, exist_ok=True)
+        tool.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+        tool.chmod(0o755)
     (root / "usr/bin/aura-diagnose").write_text(
         "#!/bin/sh\nexit 0\n", encoding="utf-8"
     )
