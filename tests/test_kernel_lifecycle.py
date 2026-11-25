@@ -42,6 +42,7 @@ class KernelLifecycleTests(unittest.TestCase):
         self.command("grub-set-default", 'printf \'default:%s\\n\' "$1" >> "$AURA_TEST_LOG"')
         self.command("grub-reboot", 'printf \'reboot:%s\\n\' "$1" >> "$AURA_TEST_LOG"')
         self.command("apt-mark", 'printf \'apt-mark:%s\\n\' "$*" >> "$AURA_TEST_LOG"')
+        self.command("apt-cache", "exit 0")
         self.command(
             "dpkg-query",
             'printf \'aura-kernel-image-6.18.63\\naura-kernel-image-6.18.64\\n\'',
@@ -104,6 +105,13 @@ class KernelLifecycleTests(unittest.TestCase):
         self.assertIn("default:aura-6.18.63", log)
         self.assertIn("reboot:aura-6.18.64", log)
         self.assertTrue(any(line.startswith("apt-mark:manual") for line in log))
+
+    def test_offline_dpkg_install_skips_apt_mark_when_package_indexes_are_missing(self) -> None:
+        self.command("apt-cache", "exit 1")
+        result = self.run_script(ACTIVATE)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("reboot:aura-6.18.64", self.log_lines())
+        self.assertFalse(any(line.startswith("apt-mark:") for line in self.log_lines()))
 
     def test_old_kernel_boot_does_not_confirm_pending_candidate(self) -> None:
         (self.root / "var/lib/aura-kernel/pending").write_text(
