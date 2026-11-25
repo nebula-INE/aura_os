@@ -33,8 +33,8 @@ class InstallerSigningTests(unittest.TestCase):
         )
         self.expected = {
             "rootfs/aura-base-x86_64.tar.gz": b"rootfs payload",
-            "boot/vmlinuz-x86_64": b"kernel payload",
-            "boot/initramfs-x86_64.cpio.gz": b"initramfs payload",
+            "boot/aura-kernel-image-x86_64.deb": b"kernel image package",
+            "boot/aura-kernel-x86_64.deb": b"kernel lifecycle package",
             "boot/efi.img": b"EFI boot image",
         }
         for relative, data in self.expected.items():
