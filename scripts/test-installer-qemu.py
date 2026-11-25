@@ -331,7 +331,7 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
                 or "efi_archive=aura-efi-" not in manifest.stdout or "repair_performed=no" not in manifest.stdout):
             raise RuntimeError("backup manifest is missing its read-only safety metadata")
 
-        archive_names = re.findall(r"(?m)^(root_archive|efi_archive)=([^\\n]+)$", manifest.stdout)
+        archive_names = re.findall(r"(?m)^(root_archive|efi_archive)=([^\n]+)$", manifest.stdout)
         expected_archives = dict(archive_names)
         if expected_archives.get("root_archive") is None or expected_archives.get("efi_archive") is None:
             raise RuntimeError("backup manifest does not name both root and EFI archives")
