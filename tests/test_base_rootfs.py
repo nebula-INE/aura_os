@@ -37,7 +37,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     for relative in ("usr/bin/grub-editenv", "usr/sbin/grub-reboot", "usr/sbin/grub-set-default"):
         tool = root / relative
         tool.parent.mkdir(parents=True, exist_ok=True)
-        tool.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+        tool.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         tool.chmod(0o755)
     (root / "usr/bin/aura-diagnose").write_text(
         "#!/bin/sh\nexit 0\n", encoding="utf-8"
