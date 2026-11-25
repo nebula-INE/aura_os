@@ -173,7 +173,7 @@ class KernelLifecycleTests(unittest.TestCase):
         only = self.root / "boot/vmlinuz-aura-6.18.64"
         (self.root / "boot/vmlinuz-aura-6.18.63").unlink()
         (self.root / "var/lib/aura-kernel/known-good").unlink()
-        (self.root / "var/lib/aura-kernel/pending").unlink()
+        (self.root / "var/lib/aura-kernel/pending").unlink(missing_ok=True)
         result = self.run_script(
             PRERM,
             ["remove"],
