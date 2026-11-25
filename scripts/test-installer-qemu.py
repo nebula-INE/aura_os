@@ -284,6 +284,23 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path,
             "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_ESP_READ_ONLY_OK"
         )
         child.expect("AURA_RESCUE_ESP_READ_ONLY_OK", timeout=30)
+        child.sendline(
+            "/bin/sh /usr/lib/aura/installer/diagnose.sh "
+            "--output aura-rescue-report.tar.gz"
+        )
+        child.expect("Select the root filesystem number to inspect:", timeout=30)
+        child.sendline("1")
+        child.expect("AURA_RESCUE_DIAGNOSTICS_COMPLETE", timeout=120)
+        child.expect(r"\\[Aura offline rescue\\]# ", timeout=60)
+        child.sendline(
+            "test -s /run/aura-rescue-report.tar.gz "
+            "&& test -s /run/aura-rescue-report.tar.gz.sha256 "
+            "&& sha256sum --check --status /run/aura-rescue-report.tar.gz.sha256 "
+            "&& tar -xOf /run/aura-rescue-report.tar.gz ./README.txt "
+            "| grep -q 'Collection mode: offline, read-only' "
+            "&& echo AURA_RESCUE_DIAGNOSTICS_ARCHIVE_OK"
+        )
+        child.expect("AURA_RESCUE_DIAGNOSTICS_ARCHIVE_OK", timeout=30)
         child.sendline("/bin/sh /usr/lib/aura/installer/backup.sh")
         child.expect("Select the source root number:", timeout=30)
         child.sendline("1")
