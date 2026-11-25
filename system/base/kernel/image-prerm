@@ -17,7 +17,9 @@ case "${1:-}" in
     remaining=0
     for image in "$(path /boot)"/vmlinuz-aura-*; do
       [ -s "$image" ] || continue
-      [ "${image##*-}" = "$version" ] && continue
+      image_name="${image##*/}"
+      image_version="${image_name#vmlinuz-aura-}"
+      [ "$image_version" = "$version" ] && continue
       remaining=1
       break
     done
