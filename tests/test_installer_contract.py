@@ -248,6 +248,12 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("initramfs_mode=embedded-in-kernel", installer)
         self.assertIn("initramfs_mode=external", installer)
         self.assertIn("aura-kernel-confirm.service", package_builder)
+        self.assertIn('grep -qx \'CONFIG_MODULES=y\'', builder)
+        self.assertIn('make -C "$SOURCE_DIR" O="$OUT_DIR" -j"$JOBS" modules', builder)
+        self.assertIn('modules_install', builder)
+        self.assertIn('INSTALL_MOD_PATH="$MODULES_ROOT"', builder)
+        self.assertIn('MODULES_ENABLED', package_builder)
+        self.assertIn('/lib/modules/$KERNEL_RELEASE', package_builder)
 
 
 
