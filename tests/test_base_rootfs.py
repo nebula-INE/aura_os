@@ -50,7 +50,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "tar", "udev"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "dpkg", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "tar", "udev"})
         ) + "\n",
         encoding="utf-8",
     )
@@ -235,7 +235,7 @@ class BaseRootfsTests(unittest.TestCase):
             root = Path(tmp) / "rootfs"
             make_rootfs(root)
             status = root / "var/lib/dpkg/status"
-            packages = {"apt", "dbus", "debian-archive-keyring", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "tar", "udev"}
+            packages = {"apt", "dbus", "debian-archive-keyring", "dpkg", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "tar", "udev"}
             status.write_text(
                 "\n\n".join(
                     f"Package: {name}\nStatus: install ok installed"
