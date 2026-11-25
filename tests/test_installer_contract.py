@@ -224,6 +224,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("pexpect.EOF", qemu_test)
 
     def test_installed_kernel_uses_architecture_appropriate_initramfs(self) -> None:
+        installer = self.read("system/base/installer/install.sh")
         builder = self.read("scripts/build-installed-kernel.sh")
         self.assertIn("EMBED_INITRAMFS=0", builder)
         self.assertIn("EMBED_INITRAMFS=1", builder)
