@@ -18,7 +18,9 @@ The installable ISO keeps the installation environment separate from the install
 - The EFI El Torito FAT32 image contains the architecture's Linux EFI-stub installer kernel.
 - The kernel embeds a target-native Debian 13 initramfs which runs the installer from RAM.
 - The ISO9660 data area contains a target-native Debian 13 rootfs archive, the kernel intended for the installed system, and the persistent-root initramfs payload.
-- x86-64 and AArch64 load the persistent-root initramfs separately through GRUB. RV64GC embeds the small persistent-root /init into its installed kernel because the tested RISC-V UEFI path did not deliver the external initrd to Linux; the ISO payload is still checksum-verified and preserved during installation.
+- A signed Ed25519 manifest covers the rootfs archive, installed kernel, persistent-root initramfs, and EFI boot image. The installer validates this signature and all payload hashes before showing either Install or Offline Rescue.
+- The completed ISO also has a detached Ed25519 signature over its SHA-256 checksum file. Users must verify this detached signature with a public key obtained through a separately trusted channel before booting.
+- x86-64 and AArch64 load the persistent-root initramfs separately through GRUB. RV64GC embeds the small persistent-root /init into its installed kernel because the tested RISC-V UEFI path did not deliver the external initrd to Linux.
 - The installed system boots through its own ESP and GRUB fallback loader; it does not need the installation ISO after installation.
 
 ## Disk layout and safety
@@ -27,7 +29,7 @@ The initial installation layout is intentionally small and explicit:
 
 1. GPT partition table.
 2. 512 MiB FAT32 EFI System Partition, filesystem label `AURA_EFI`.
-3. One ext4 root partition using the remaining disk space, filesystem label `AURA_ROOTFS`.
+3. One ext4 root partition using the remaining disk space, filesystem label `AURA_ROOTFS`. The filesystem reserves 1% of ext4 blocks for privileged recovery and uses `errors=remount-ro` in `/etc/fstab` so detected ext4 errors remount root read-only.
 
 The installer lists eligible whole disks and does not choose a target automatically. It excludes the installer medium and its block-device ancestry, disks with mounted descendants, read-only disks, disks with active swap on a descendant partition, disks or partitions held by device-mapper/LVM/RAID/multipath consumers, and disks smaller than 4 GiB. The device identity, mount state, swap state, holder state, read-only flag, and minimum size are checked again after the two confirmations immediately before the first write. Before writing, the operator must select a disk number, type the exact `ERASE /dev/...` phrase, and then type `INSTALL AURA`.
 
@@ -41,7 +43,7 @@ The `Aura installable UEFI media` workflow builds each target independently. Its
 2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including architecture-matched GRUB EFI modules, the `grub2-common` package providing `grub-install`, and FAT formatting tools.
 3. Create the separate in-memory installer rootfs/initramfs and installer EFI-stub kernel.
 4. Build a separate installed-system EFI-stub kernel. GRUB supplies the root UUID and boot arguments; x86-64/AArch64 load the persistent initramfs with GRUB, while RV64GC carries the small persistent-root /init embedded in the kernel to avoid the external-initrd handoff failure observed in the RISC-V QEMU profile.
-5. Build the installable ISO and record its SHA-256, El Torito report, and provenance.
+5. Build the installable ISO, sign its payload manifest and detached ISO checksum, and record the signing mode, public key, El Torito report, and provenance.
 6. Attach the ISO and a disposable second disk to QEMU, perform the interactive install, shut down, remove the ISO, and boot from the installed disk.
 7. Verify root UUID discovery against `/etc/fstab` and the installation manifest, ESP UUID and mounted fallback loader, systemd, first administrator creation, serial login, sudo, DHCP/default route/DNS, and clean shutdown. Rootfs, installed-kernel, and persistent-initramfs payload checksums are verified before target-disk selection.
 
@@ -57,9 +59,40 @@ The CI workflow uses Ubuntu 24.04 and installs these categories of tools: build-
 
 A local installable build is resource-intensive and must use the same target-native rootfs and kernel sequence as the workflow. The exact commands are maintained in `.github/workflows/installer-iso.yml`; prefer running that workflow rather than assembling payloads manually.
 
+## Signed-media verification
+
+For a downloaded installable ISO, obtain the Aura release public key from a
+separately trusted location and confirm its fingerprint through the published
+release channel. Do not trust a key merely because it is included beside the
+ISO or inside the ISO itself.
+
+```sh
+openssl pkeyutl -verify -pubin -inkey aura-os-x86_64-uefi.iso.pub \
+  -rawin -in aura-os-x86_64-uefi.iso.sha256 \
+  -sigfile aura-os-x86_64-uefi.iso.sha256.sig
+sha256sum --check aura-os-x86_64-uefi.iso.sha256
+```
+
+PR and ordinary branch CI use an ephemeral key to exercise signing and
+verification; those artifacts are test-only and are not trusted release
+media. A version-tagged release build requires the persistent
+`AURA_RELEASE_PRIVATE_KEY_PEM` GitHub Secret and matching
+`AURA_RELEASE_PUBLIC_KEY_PEM` repository variable. It fails closed when
+either is missing or the key pair does not match.
+
+The installer verifies the payload manifest after the EFI-stub installer
+kernel has started. This does not authenticate the EFI-stub kernel before
+execution; external verification of the detached ISO signature is therefore
+required before boot. UEFI Secure Boot and a hardware-rooted trust chain are
+not implemented by this change.
+
 ## Support boundary
 
-The first installer milestone validates the three QEMU firmware profiles. It does not claim compatibility with every PC, ARM board, or RISC-V board; nor does it establish Secure Boot, legacy BIOS, Wi-Fi, graphics/desktop support, encryption, upgrade/rollback, or physical-device support. These require separate reference hardware and release tests.
+The first installer milestone validates the three QEMU firmware profiles. It
+does not claim compatibility with every PC, ARM board, or RISC-V board; nor
+does it establish Secure Boot, legacy BIOS, Wi-Fi, graphics/desktop support,
+encryption, upgrade/rollback, or physical-device support. These require
+separate reference hardware and release tests.
 
 
 ## Installed-system Recovery Mode
