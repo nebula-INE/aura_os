@@ -34,6 +34,10 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "sbin/init").symlink_to("../usr/lib/systemd/systemd")
     (root / "usr/bin/apt-get").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/bin/apt-get").chmod(0o755)
+    (root / "usr/bin/aura-diagnose").write_text(
+        "#!/bin/sh\nexit 0\n", encoding="utf-8"
+    )
+    (root / "usr/bin/aura-diagnose").chmod(0o755)
     (root / "usr/lib/systemd/systemd-udevd").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/lib/systemd/systemd-udevd").chmod(0o755)
     (root / "usr/sbin/modprobe").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -41,7 +45,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "fdisk", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "udev"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "fdisk", "gzip", "kmod", "libc6", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "tar", "udev"})
         ) + "\n",
         encoding="utf-8",
     )

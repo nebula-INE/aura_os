@@ -88,3 +88,12 @@ prompt.
 This is not an offline rescue image: the installed root filesystem is still
 mounted normally. It does not run automatic filesystem repair or change
 configuration. See [Recovery Mode](../../docs/recovery-mode.md).
+
+
+## Read-only diagnostics
+
+The base rootfs installs `/usr/bin/aura-diagnose`. It creates a private
+`tar.gz` report containing systemd, storage, and network summaries without
+changing the system. Journal collection is excluded unless
+`--include-journal` is explicitly supplied. Review the privacy notice inside
+the archive before sharing it; see [diagnostics.md](../../docs/diagnostics.md).

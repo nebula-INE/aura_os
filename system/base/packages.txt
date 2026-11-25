@@ -16,3 +16,5 @@ sudo
 passwd
 e2fsprogs
 util-linux
+tar
+gzip
