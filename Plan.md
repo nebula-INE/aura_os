@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-21
+> Last updated: 2026-11-23
 
 ## 1. Vision
 
@@ -108,6 +108,10 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Build one architecture-specific UEFI El Torito ISO for x86-64, AArch64, and RV64GC; boot each as a virtual CD-ROM under its matching QEMU UEFI firmware (validated by Actions run [#33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448); ADR 0009 / Issue #12).
 - [x] Publish ISO files, SHA-256 checksums, El Torito inspection reports, firmware provenance, and serial boot logs as CI artifacts (artifacts from run [#33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448)).
 - [x] Keep boot-validation ISOs explicitly separate from installable media until the installer and post-install disk boot tests pass.
+- [ ] Add a separate Debian 13 installer initramfs and package the target-native rootfs, installed kernel, and persistent initramfs into an installable ISO.
+- [ ] Implement explicit target-disk selection, live-media exclusion, repeated destructive confirmation, and GPT + FAT32 ESP + ext4 root installation.
+- [ ] Install architecture-matched GRUB removable-media loaders and boot the installed system using root=UUID=.
+- [ ] Pass install-to-second-disk, remove-ISO, standalone boot, first-user/login, sudo, network, and shutdown tests on all three QEMU targets.
 
 - [ ] Produce a bootable x86-64 image.
 - [ ] Produce a bootable RV64GC image for the selected emulator/reference platform.

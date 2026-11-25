@@ -20,6 +20,7 @@ REQUIRED_PACKAGES = {
     "apt",
     "dbus",
     "debian-archive-keyring",
+    "fdisk",
     "kmod",
     "libc6",
     "passwd",

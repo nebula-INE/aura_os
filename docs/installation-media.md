@@ -1,10 +1,11 @@
-# Aura OS bootable ISO prototype
+# Aura OS installation media and boot validation
 
-Aura OS publishes architecture-specific UEFI ISO prototypes through the **Aura multi-architecture UEFI ISO boot** GitHub Actions workflow.
+Aura OS builds separate UEFI ISO images for x86-64, AArch64, and RV64GC. The repository now contains two distinct media paths:
 
-## Current scope
+- **Boot-validation prototype** — the original small initramfs menu used by the already-passed UEFI boot matrix.
+- **Installable-media implementation** — a Debian 13 installer initramfs, target-native Debian rootfs archive, installed-system kernel/initramfs payload, GPT/ESP/root deployment, and a QEMU install-then-boot test. The implementation is under review and is not a released installer until the new Actions matrix passes.
 
-These are real ISO9660 images with a UEFI El Torito boot catalog and a FAT32 EFI System Partition:
+## Architecture and payloads
 
 | Architecture | ISO filename | UEFI fallback loader | QEMU firmware |
 |---|---|---|---|
@@ -12,65 +13,50 @@ These are real ISO9660 images with a UEFI El Torito boot catalog and a FAT32 EFI
 | AArch64 | aura-os-aarch64-uefi.iso | EFI/BOOT/BOOTAA64.EFI | AAVMF |
 | RV64GC | aura-os-riscv64-uefi.iso | EFI/BOOT/BOOTRISCV64.EFI | EDK2 RISC-V via QEMU virt firmware |
 
-The workflow builds an EFI-stub Linux kernel with a target-native initramfs embedded, assembles the ISO, then boots it as virtual CD-ROM media under the matching UEFI firmware. The initramfs opens a serial-console boot menu and prints AURA_INIT_OK, AURA_ISO_BOOT_READY, and AURA_QEMU_TEST_PASS. Type p then Enter to power off, or r then Enter to reboot. The CI sends p after the boot-ready marker and verifies a clean poweroff.
+The installable ISO keeps the installation environment separate from the installed OS payload:
 
-**Important:** the current images are boot-validation prototypes, not installation ISOs. They do not show an installer, write to a target disk, install a root filesystem, create a user, or launch a desktop. The console is a boot-validation menu, not a general-purpose shell. Do not use them to install Aura OS on a PC.
+- The EFI El Torito FAT32 image contains the architecture's Linux EFI-stub installer kernel.
+- The kernel embeds a target-native Debian 13 initramfs which runs the installer from RAM.
+- The ISO9660 data area contains a target-native Debian 13 rootfs archive, the kernel intended for the installed system, and the persistent-root initramfs payload.
+- x86-64 and AArch64 load the persistent-root initramfs separately through GRUB. RV64GC embeds the small persistent-root /init into its installed kernel because the tested RISC-V UEFI path did not deliver the external initrd to Linux; the ISO payload is still checksum-verified and preserved during installation.
+- The installed system boots through its own ESP and GRUB fallback loader; it does not need the installation ISO after installation.
 
-## Validated prototype downloads
+## Disk layout and safety
 
-The first three-architecture ISO boot matrix passed on 2026-11-21 in [GitHub Actions run #33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448). Download the corresponding per-architecture artifact from that run:
+The initial installation layout is intentionally small and explicit:
 
-- `aura-os-uefi-iso-x86_64`
-- `aura-os-uefi-iso-aarch64`
-- `aura-os-uefi-iso-riscv64`
+1. GPT partition table.
+2. 512 MiB FAT32 EFI System Partition, filesystem label `AURA_EFI`.
+3. One ext4 root partition using the remaining disk space, filesystem label `AURA_ROOTFS`.
 
-Each artifact ZIP contains a real 128 MiB `.iso`, a SHA-256 file, JSON provenance, an El Torito report, and the serial boot log. GitHub packages the ISO inside a ZIP for artifact transport; extract the ZIP to obtain the bootable `.iso`.
+The installer lists eligible whole disks and does not choose a target automatically. It excludes the installer medium and its block-device ancestry, disks with mounted descendants, read-only disks, disks with active swap on a descendant partition, disks or partitions held by device-mapper/LVM/RAID/multipath consumers, and disks smaller than 4 GiB. The device identity, mount state, swap state, holder state, read-only flag, and minimum size are checked again after the two confirmations immediately before the first write. Before writing, the operator must select a disk number, type the exact `ERASE /dev/...` phrase, and then type `INSTALL AURA`.
 
-## Download
+**All existing data on the confirmed target disk is destroyed.** The installer does not provide a partition-preservation mode, encryption, LVM, separate home/data/swap partitions, or rollback. Do not test on a disk containing data you need.
 
-1. Open the repository's Actions tab.
-2. Select **Aura multi-architecture UEFI ISO boot**.
-3. Open a successful run and download the matching artifact:
-   - aura-os-uefi-iso-x86_64
-   - aura-os-uefi-iso-aarch64
-   - aura-os-uefi-iso-riscv64
-4. Extract the ZIP downloaded by GitHub Actions; it contains the actual .iso, its .sha256 checksum, JSON provenance, and boot logs.
+## Installable-media build and QEMU test
 
-GitHub wraps Actions artifacts in a ZIP for download. The ISO inside that ZIP is the bootable optical-disc image; the ZIP itself is not an ISO.
+The `Aura installable UEFI media` workflow builds each target independently. Its steps include:
 
-## Build locally
+1. Build and validate the upstream Linux kernel and persistent-root initramfs.
+2. Bootstrap and validate the Debian 13 (trixie) base rootfs, including architecture-matched GRUB EFI modules, the `grub2-common` package providing `grub-install`, and FAT formatting tools.
+3. Create the separate in-memory installer rootfs/initramfs and installer EFI-stub kernel.
+4. Build a separate installed-system EFI-stub kernel. GRUB supplies the root UUID and boot arguments; x86-64/AArch64 load the persistent initramfs with GRUB, while RV64GC carries the small persistent-root /init embedded in the kernel to avoid the external-initrd handoff failure observed in the RISC-V QEMU profile.
+5. Build the installable ISO and record its SHA-256, El Torito report, and provenance.
+6. Attach the ISO and a disposable second disk to QEMU, perform the interactive install, shut down, remove the ISO, and boot from the installed disk.
+7. Verify root UUID discovery against `/etc/fstab` and the installation manifest, ESP UUID and mounted fallback loader, systemd, first administrator creation, serial login, sudo, DHCP/default route/DNS, and clean shutdown. Rootfs, installed-kernel, and persistent-initramfs payload checksums are verified before target-disk selection.
 
-On an Ubuntu 24.04 or Linux Mint host, install the native and cross toolchains, QEMU firmware, and image tools:
+Per-architecture artifacts retain the ISO, checksums, rootfs, installer initramfs, kernel provenance, and QEMU logs. Passing the existing prototype ISO workflow does not imply that the new installer workflow has passed.
 
-~~~
-sudo apt update
-sudo apt install -y \
-  build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-  git gnupg curl cpio gzip binutils file mtools xorriso \
-  qemu-system-x86 ovmf \
-  qemu-system-arm qemu-efi-aarch64 gcc-aarch64-linux-gnu \
-  qemu-system-misc opensbi qemu-efi-riscv64 gcc-riscv64-linux-gnu
-~~~
+## Existing boot-only prototype
 
-Build one architecture after checking out the repository:
+The original `Aura multi-architecture UEFI ISO boot` workflow passed all three QEMU UEFI boot jobs on 2026-11-21 in [Actions run #33](https://github.com/nebula-INE/aura_os/actions/runs/44902232448). Those artifacts remain boot-validation prototypes; the old images contain no installer and do not write disks.
 
-~~~
-TARGET_ARCH=x86_64 bash scripts/build-kernel.sh
-TARGET_ARCH=x86_64 bash scripts/build-initramfs-target.sh
-TARGET_ARCH=x86_64 bash scripts/build-kernel-efi-iso.sh
-TARGET_ARCH=x86_64 bash scripts/build-uefi-iso.sh
-~~~
+## Local prerequisites
 
-Change TARGET_ARCH to aarch64 or riscv64 for the other images. Kernel compilation is resource intensive. The ISO is written to build/iso/aura-os-<architecture>-uefi.iso.
+The CI workflow uses Ubuntu 24.04 and installs these categories of tools: build-essential, Linux kernel dependencies, mmdebstrap, qemu-user-static/binfmt support, dosfstools, mtools, xorriso, per-architecture cross compilers, QEMU, and architecture-matched UEFI firmware.
 
-To boot the ISO in the matching QEMU firmware profile:
+A local installable build is resource-intensive and must use the same target-native rootfs and kernel sequence as the workflow. The exact commands are maintained in `.github/workflows/installer-iso.yml`; prefer running that workflow rather than assembling payloads manually.
 
-~~~
-TARGET_ARCH=x86_64 bash scripts/test-uefi-iso-qemu.sh
-~~~
+## Support boundary
 
-The QEMU validation script sends p to the serial-console menu after the boot-ready marker delay, verifies successful initialization and clean poweroff, and exits. For interactive manual testing, launch the ISO from QEMU with a serial terminal attached and press p to power off or r to reboot.
-
-## Next milestone
-
-Issue #12 tracks the installer runtime, GPT partition layout, installation to a disposable target disk, and post-install boot verification. Those features must pass independently before these images are called install media.
+The first installer milestone validates the three QEMU firmware profiles. It does not claim compatibility with every PC, ARM board, or RISC-V board; nor does it establish Secure Boot, legacy BIOS, Wi-Fi, graphics/desktop support, encryption, upgrade/rollback, or physical-device support. These require separate reference hardware and release tests.

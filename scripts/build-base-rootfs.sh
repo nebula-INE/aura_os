@@ -14,9 +14,18 @@ OUTPUT_DIR="${OUTPUT_DIR:-}"
 DEBIAN_KEYRING="${DEBIAN_KEYRING:-$BASE_OUTPUT_DIR/debian-trixie-keyring.gpg}"
 
 case "$TARGET_ARCH" in
-  x86_64) DEBIAN_ARCH="amd64" ;;
-  aarch64) DEBIAN_ARCH="arm64" ;;
-  riscv64) DEBIAN_ARCH="riscv64" ;;
+  x86_64)
+    DEBIAN_ARCH="amd64"
+    GRUB_PACKAGE="grub-efi-amd64-bin"
+    ;;
+  aarch64)
+    DEBIAN_ARCH="arm64"
+    GRUB_PACKAGE="grub-efi-arm64-bin"
+    ;;
+  riscv64)
+    DEBIAN_ARCH="riscv64"
+    GRUB_PACKAGE="grub-efi-riscv64-bin"
+    ;;
   *)
     echo "error: TARGET_ARCH must be x86_64, aarch64, or riscv64." >&2
     exit 2
@@ -83,6 +92,9 @@ MANIFEST_FILE="$OUTPUT_DIR/packages.tsv"
 PROVENANCE_FILE="$OUTPUT_DIR/build-provenance.txt"
 
 mapfile -t PACKAGES < <(sed -E 's/[[:space:]]*#.*$//; /^[[:space:]]*$/d' "$PACKAGES_FILE")
+# These target-native packages provide the offline installer with FAT32
+# formatting and architecture-matched UEFI GRUB modules.
+PACKAGES+=(dosfstools fdisk grub2-common "$GRUB_PACKAGE")
 if [[ "${#PACKAGES[@]}" -eq 0 ]]; then
   echo "error: no packages were found in $PACKAGES_FILE" >&2
   exit 1

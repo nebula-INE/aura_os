@@ -1,0 +1,91 @@
+#!/bin/sh
+# Aura OS installer initramfs entry point.
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+export HOME=/root
+export TERM=linux
+export LC_ALL=C
+
+mkdir -p /dev /proc /sys /run /run/udev /run/aura-media /newroot
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run 2>/dev/null || true
+mkdir -p /run/udev /run/aura-media
+
+# Bring up udev before looking for the optical drive and target disks.
+if [ -x /usr/lib/systemd/systemd-udevd ]; then
+    /usr/lib/systemd/systemd-udevd --daemon --resolve-names=never
+fi
+if command -v udevadm >/dev/null 2>&1; then
+    udevadm trigger --action=add --type=subsystems >/dev/null 2>&1 || true
+    udevadm trigger --action=add --type=devices >/dev/null 2>&1 || true
+    udevadm settle --timeout=30 || true
+fi
+
+# All prompts and diagnostics must stay on the physical/serial console.
+exec </dev/console >/dev/console 2>&1
+
+media_device=""
+attempt=0
+while [ "$attempt" -lt 120 ]; do
+    # Accept optical media and hybrid ISO written to a USB mass-storage disk.
+    # Only accept a block device whose filesystem is actually ISO9660 and whose
+    # rootfs payload matches this machine's architecture.
+    for candidate in /dev/sr* /dev/cdrom /dev/sd* /dev/vd* /dev/nvme*n* /dev/mmcblk*; do
+        [ -b "$candidate" ] || continue
+        fs_type="$(blkid -p -s TYPE -o value "$candidate" 2>/dev/null || true)"
+        [ "$fs_type" = "iso9660" ] || continue
+        if mount -t iso9660 -o ro "$candidate" /run/aura-media 2>/dev/null; then
+            case "$(uname -m)" in
+                x86_64) media_arch=x86_64 ;;
+                aarch64) media_arch=aarch64 ;;
+                riscv64) media_arch=riscv64 ;;
+                *) media_arch=unsupported ;;
+            esac
+            if [ -n "$media_arch" ] &&
+               [ -s "/run/aura-media/rootfs/aura-base-$media_arch.tar.gz" ]; then
+                media_device="$candidate"
+                break
+            fi
+            umount /run/aura-media
+        fi
+    done
+    [ -n "$media_device" ] && break
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+if [ -z "$media_device" ]; then
+    echo "[Aura OS] ERROR: a valid Aura installer ISO9660 device was not detected."
+    echo "Attach the installer ISO as a CD/DVD or write it to a USB storage device."
+    exec /bin/sh
+fi
+
+case "$(uname -m)" in
+    x86_64) AURA_TARGET_ARCH=x86_64 ;;
+    aarch64) AURA_TARGET_ARCH=aarch64 ;;
+    riscv64) AURA_TARGET_ARCH=riscv64 ;;
+    *)
+        echo "[Aura OS] ERROR: unsupported installer CPU architecture: $(uname -m)"
+        exec /bin/sh
+        ;;
+esac
+export AURA_TARGET_ARCH AURA_MEDIA_DEVICE="$media_device"
+
+if [ ! -s "/run/aura-media/rootfs/aura-base-$AURA_TARGET_ARCH.tar.gz" ] ||
+   [ ! -s "/run/aura-media/boot/vmlinuz-$AURA_TARGET_ARCH" ] ||
+   [ ! -s "/run/aura-media/boot/initramfs-$AURA_TARGET_ARCH.cpio.gz" ]; then
+    echo "[Aura OS] ERROR: installation payload is incomplete for $AURA_TARGET_ARCH."
+    exec /bin/sh
+fi
+
+echo "AURA_INSTALLER_READY"
+echo "[Aura OS] Debian 13 installer environment is ready."
+if ! /bin/sh /usr/lib/aura/installer/install.sh; then
+    echo "[Aura OS] Installer stopped with an error. No automatic disk selection was made."
+fi
+echo "[Aura OS] Rescue shell is available; inspect the messages above."
+exec /bin/sh

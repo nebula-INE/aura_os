@@ -5,7 +5,16 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TARGET_ARCH="${TARGET_ARCH:-}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/build/iso}"
 STAGING_DIR="${STAGING_DIR:-$ROOT_DIR/build/iso/staging/$TARGET_ARCH}"
-ESP_SIZE="${ESP_SIZE:-128M}"
+if [[ "${AURA_INSTALLER_MODE:-0}" == "1" ]]; then
+  ESP_SIZE="${ESP_SIZE:-512M}"
+else
+  ESP_SIZE="${ESP_SIZE:-128M}"
+fi
+AURA_INSTALLER_MODE="${AURA_INSTALLER_MODE:-0}"
+ROOTFS_ARCHIVE="${ROOTFS_ARCHIVE:-$ROOT_DIR/build/base-userspace/$TARGET_ARCH/aura-base-$TARGET_ARCH.tar.gz}"
+ROOTFS_CHECKSUM="${ROOTFS_CHECKSUM:-$ROOTFS_ARCHIVE.sha256}"
+INSTALLED_KERNEL="${INSTALLED_KERNEL:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/vmlinuz-$TARGET_ARCH}"
+INSTALLED_INITRAMFS="${INSTALLED_INITRAMFS:-$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz}"
 
 case "$TARGET_ARCH" in
   x86_64)
@@ -49,10 +58,37 @@ if [[ ! -s "$KERNEL_IMAGE" ]]; then
   echo "error: architecture-specific EFI kernel is missing: $KERNEL_IMAGE" >&2
   exit 1
 fi
+case "$AURA_INSTALLER_MODE" in
+  0) ;;
+  1)
+    for payload in "$ROOTFS_ARCHIVE" "$ROOTFS_CHECKSUM" "$INSTALLED_KERNEL" "$INSTALLED_INITRAMFS"; do
+      if [[ ! -s "$payload" ]]; then
+        echo "error: installable ISO payload is missing or empty: $payload" >&2
+        exit 1
+      fi
+    done
+    ;;
+  *)
+    echo "error: AURA_INSTALLER_MODE must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR/boot" "$STAGING_DIR/EFI/BOOT"
+if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
+  mkdir -p "$STAGING_DIR/rootfs"
+  cp "$ROOTFS_ARCHIVE" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz"
+  cp "$ROOTFS_CHECKSUM" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz.sha256"
+  cp "$INSTALLED_KERNEL" "$STAGING_DIR/boot/vmlinuz-$TARGET_ARCH"
+  cp "$INSTALLED_INITRAMFS" "$STAGING_DIR/boot/initramfs-$TARGET_ARCH.cpio.gz"
+  (
+    cd "$STAGING_DIR/boot"
+    sha256sum "vmlinuz-$TARGET_ARCH" > "vmlinuz-$TARGET_ARCH.sha256"
+    sha256sum "initramfs-$TARGET_ARCH.cpio.gz" > "initramfs-$TARGET_ARCH.cpio.gz.sha256"
+  )
+fi
 ESP_IMAGE="$STAGING_DIR/boot/efi.img"
 VOLUME_ID="$ISO_LABEL"
 OUTPUT_ISO="$OUTPUT_DIR/aura-os-$TARGET_ARCH-uefi.iso"
@@ -66,7 +102,26 @@ mcopy -i "$ESP_IMAGE" "$KERNEL_IMAGE" "::/EFI/BOOT/$EFI_FILENAME"
 mdir -i "$ESP_IMAGE" ::/
 mdir -i "$ESP_IMAGE" ::/EFI/BOOT
 
-cat > "$STAGING_DIR/README.txt" <<README
+if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
+  cat > "$STAGING_DIR/README.txt" <<README
+Aura OS $TARGET_ARCH UEFI install media (Debian 13 trixie)
+
+Firmware profile: $FIRMWARE_PROFILE
+EFI removable-media loader: EFI/BOOT/$EFI_FILENAME
+The installer runs from a Debian 13 initramfs in memory.
+The ISO carries a separate Debian rootfs archive and the installed kernel/initramfs.
+
+The installer lists eligible disks and requires the operator to type:
+  ERASE /dev/<target>
+followed by:
+  INSTALL AURA
+
+It creates GPT, a 512 MiB FAT32 EFI System Partition, and an ext4 root
+filesystem. Do not select a disk containing data you want to keep.
+The installer never selects a target automatically.
+README
+else
+  cat > "$STAGING_DIR/README.txt" <<README
 Aura OS $TARGET_ARCH UEFI boot media (bring-up prototype)
 
 Firmware profile: $FIRMWARE_PROFILE
@@ -75,10 +130,11 @@ Boot medium: UEFI El Torito ISO9660 with an embedded FAT32 EFI System Partition.
 
 This image is a boot-validation prototype. It starts the embedded Aura OS
 initramfs and opens a serial console. Type 'p' then Enter to power off, or 'r' then Enter to reboot.
-It is NOT yet an installer and does not install Aura OS onto a target disk.
+It is NOT an installer and does not install Aura OS onto a target disk.
 
 See docs/installation-media.md in the Aura OS repository for current status.
 README
+fi
 
 echo "Creating UEFI El Torito ISO..."
 rm -f "$OUTPUT_ISO"
@@ -117,14 +173,15 @@ rm -f "$VERIFY_ESP"
   sha256sum "$(basename "$OUTPUT_ISO")" > "$(basename "$OUTPUT_ISO").sha256"
 )
 
-python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" \
+python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" \
   > "$OUTPUT_ISO.provenance.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-image, architecture, loader, firmware = sys.argv[1:]
+image, architecture, loader, firmware, installer_mode = sys.argv[1:]
 path = Path(image)
+installer_ready = installer_mode == "1"
 record = {
     "status": "built",
     "architecture": architecture,
@@ -134,9 +191,13 @@ record = {
     "firmware_profile": firmware,
     "image": path.name,
     "image_size_bytes": path.stat().st_size,
-    "installer_ready": False,
-    "purpose": "interactive serial-console boot-validation prototype",
+    "installer_ready": installer_ready,
+    "purpose": "Debian 13 installer with GPT/ESP/rootfs deployment" if installer_ready else "interactive serial-console boot-validation prototype",
 }
+if installer_ready:
+    record["rootfs_archive"] = f"rootfs/aura-base-{architecture}.tar.gz"
+    record["installed_kernel"] = f"boot/vmlinuz-{architecture}"
+    record["installed_initramfs"] = f"boot/initramfs-{architecture}.cpio.gz"
 print(json.dumps(record, sort_keys=True, indent=2))
 PY
 

@@ -163,6 +163,15 @@ ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   "$OUT_DIR/.config" "$FRAGMENT"
 make -C "$SOURCE_DIR" O="$OUT_DIR" olddefconfig
 
+# The installer mounts a FAT32 EFI System Partition from the initramfs.
+# Keep both the on-disk codepage and the default ISO-8859-1 charset built in.
+for option in CONFIG_NLS CONFIG_NLS_CODEPAGE_437 CONFIG_NLS_ISO8859_1; do
+  grep -qx "${option}=y" "$OUT_DIR/.config" || {
+    echo "error: installer kernel is missing required FAT charset support: ${option}" >&2
+    exit 1
+  }
+done
+
 echo "Building $IMAGE_TARGET with $JOBS job(s)..."
 make -C "$SOURCE_DIR" O="$OUT_DIR" -j"$JOBS" "$IMAGE_TARGET"
 
