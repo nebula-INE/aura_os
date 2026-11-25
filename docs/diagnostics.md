@@ -65,6 +65,8 @@ for a bootable recovery environment. It requires a running Aura OS userspace
 and the existing Debian base commands (systemd, util-linux, iproute2, tar, and
 gzip). It is architecture-independent and does not require Python.
 
-The next recovery milestone can add a separately bootable rescue environment
-and carefully gated repair workflows. Those must not be implied by this
-diagnostic command.
+Aura OS also has separate installed-system Recovery Mode and installer-media
+Offline Rescue workflows. They are not invoked by `aura-diagnose`; backup,
+restore, and any future repair operations retain their own safety checks and
+confirmation requirements. The diagnostic command only collects information
+from a running userspace.
