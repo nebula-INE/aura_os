@@ -7,6 +7,8 @@ PENDING=/var/lib/aura-kernel/pending
 VERSION="$(sed -n '1p' "$VERSION_FILE")"
 [ -s "/boot/vmlinuz-aura-$VERSION" ] || { echo "Aura kernel: package image is missing: $VERSION" >&2; exit 1; }
 /usr/lib/aura-kernel/update-grub-menu
+command -v grub-editenv >/dev/null 2>&1 || { echo "Aura kernel: grub-editenv is unavailable." >&2; exit 1; }
+[ -e /boot/grub/grubenv ] || grub-editenv /boot/grub/grubenv create
 command -v grub-set-default >/dev/null 2>&1 || { echo "Aura kernel: grub-set-default is unavailable." >&2; exit 1; }
 command -v grub-reboot >/dev/null 2>&1 || { echo "Aura kernel: grub-reboot is unavailable." >&2; exit 1; }
 mkdir -p /var/lib/aura-kernel
