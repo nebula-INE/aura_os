@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+VERSION_FILE=/usr/share/aura-kernel/current-version
+KNOWN_GOOD=/var/lib/aura-kernel/known-good
+PENDING=/var/lib/aura-kernel/pending
+[ -s "$VERSION_FILE" ] || { echo "Aura kernel: current package version is missing." >&2; exit 1; }
+VERSION="$(sed -n '1p' "$VERSION_FILE")"
+[ -s "/boot/vmlinuz-aura-$VERSION" ] || { echo "Aura kernel: package image is missing: $VERSION" >&2; exit 1; }
+/usr/lib/aura-kernel/update-grub-menu
+command -v grub-set-default >/dev/null 2>&1 || { echo "Aura kernel: grub-set-default is unavailable." >&2; exit 1; }
+command -v grub-reboot >/dev/null 2>&1 || { echo "Aura kernel: grub-reboot is unavailable." >&2; exit 1; }
+mkdir -p /var/lib/aura-kernel
+if [ -s "$KNOWN_GOOD" ]; then
+    PREVIOUS="$(sed -n '1p' "$KNOWN_GOOD")"
+    if [ "$PREVIOUS" != "$VERSION" ] && [ -s "/boot/vmlinuz-aura-$PREVIOUS" ]; then
+        grub-set-default "aura-$PREVIOUS"
+        grub-reboot "aura-$VERSION"
+    else
+        grub-set-default "aura-$VERSION"
+    fi
+else
+    grub-set-default "aura-$VERSION"
+fi
+printf '%s\n' "$VERSION" > "$PENDING.tmp"
+chmod 0600 "$PENDING.tmp"
+mv -f "$PENDING.tmp" "$PENDING"
+if command -v apt-mark >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
+    packages="$(dpkg-query -W -f='${binary:Package}\n' 'aura-kernel-image-*' 2>/dev/null || true)"
+    if [ -n "$packages" ]; then
+        # Debian package names contain no whitespace.
+        # shellcheck disable=SC2086
+        apt-mark manual $packages >/dev/null
+    fi
+fi
+printf 'Aura kernel %s is staged for the next boot.\n' "$VERSION"
