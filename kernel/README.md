@@ -137,6 +137,8 @@ After building the persistent-root initramfs and the GRUB-loaded installed
 kernel for a target architecture, run:
 
 ~~~sh
+TARGET_ARCH=x86_64 bash scripts/build-kernel.sh
+TARGET_ARCH=x86_64 bash scripts/build-initramfs-target.sh
 TARGET_ARCH=x86_64 bash scripts/build-installed-kernel.sh
 TARGET_ARCH=x86_64 bash scripts/build-kernel-package.sh
 ~~~
