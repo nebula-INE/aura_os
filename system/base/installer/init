@@ -75,6 +75,12 @@ case "$(uname -m)" in
 esac
 export AURA_TARGET_ARCH AURA_MEDIA_DEVICE="$media_device"
 
+if ! /bin/sh /usr/lib/aura/installer/verify-media.sh /run/aura-media; then
+    echo "[Aura OS] ERROR: installer media is unsigned, modified, or not trusted."
+    echo "Verify the detached ISO signature with the separately trusted release key."
+    exec /bin/sh
+fi
+
 if [ ! -s "/run/aura-media/rootfs/aura-base-$AURA_TARGET_ARCH.tar.gz" ] ||
    [ ! -s "/run/aura-media/boot/vmlinuz-$AURA_TARGET_ARCH" ] ||
    [ ! -s "/run/aura-media/boot/initramfs-$AURA_TARGET_ARCH.cpio.gz" ]; then
