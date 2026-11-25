@@ -17,7 +17,11 @@ ROOT_SOURCE="$(awk '$2 == "/" { print $1; exit }' "$FSTAB")"
 case "$ROOT_SOURCE" in UUID=*) ROOT_UUID="${ROOT_SOURCE#UUID=}" ;; *) echo "Aura kernel: root filesystem must use a UUID in /etc/fstab." >&2; exit 1 ;; esac
 case "$ROOT_UUID" in *[!0123456789abcdefABCDEF-]*|'') echo "Aura kernel: invalid root UUID." >&2; exit 1 ;; esac
 CMDLINE="$(sed -n '1p' "$CMDLINE_FILE")"
-case "$CMDLINE" in *[!A-Za-z0-9_.=,:+\ -]*) echo "Aura kernel: unsafe character in /etc/aura-kernel/cmdline." >&2; exit 1 ;; esac
+[ -n "$CMDLINE" ] || { echo "Aura kernel: kernel command line is empty." >&2; exit 1; }
+if ! printf '%s\\n' "$CMDLINE" | awk 'length($0) > 512 || $0 !~ /^[A-Za-z0-9_.=,:+ -]*$/ { exit 1 }'; then
+    echo "Aura kernel: unsafe character or excessive length in /etc/aura-kernel/cmdline." >&2
+    exit 1
+fi
 mkdir -p "$GRUB_DIR"
 TMP_OUTPUT="$OUTPUT.tmp.$$"
 trap 'rm -f "$TMP_OUTPUT"' EXIT HUP INT TERM
@@ -44,7 +48,8 @@ printf 'search --no-floppy --fs-uuid --set=root %s\n\n' "$ROOT_UUID" >> "$TMP_OU
 found=0
 for kernel in "$BOOT_DIR"/vmlinuz-aura-*; do
     [ -s "$kernel" ] || continue
-    version="${kernel##*-}"
+    kernel_name="${kernel##*/}"
+    version="${kernel_name#vmlinuz-aura-}"
     config="$(path "/usr/share/aura-kernel/$version.conf")"
     [ -s "$config" ] || continue
     . "$config"
