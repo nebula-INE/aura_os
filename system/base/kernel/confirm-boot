@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+PENDING=/var/lib/aura-kernel/pending
+KNOWN_GOOD=/var/lib/aura-kernel/known-good
+[ -s "$PENDING" ] || exit 0
+VERSION="$(sed -n '1p' "$PENDING")"
+[ -n "$VERSION" ] || exit 1
+[ "$(uname -r)" = "$VERSION" ] || exit 0
+command -v grub-set-default >/dev/null 2>&1 || { echo "Aura kernel: cannot confirm candidate; grub-set-default is unavailable." >&2; exit 1; }
+grub-set-default "aura-$VERSION"
+mkdir -p /var/lib/aura-kernel
+printf '%s\n' "$VERSION" > "$KNOWN_GOOD.tmp"
+chmod 0600 "$KNOWN_GOOD.tmp"
+mv -f "$KNOWN_GOOD.tmp" "$KNOWN_GOOD"
+rm -f "$PENDING"
+printf 'Aura kernel %s reached multi-user.target and is now known-good.\n' "$VERSION"
