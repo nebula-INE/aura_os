@@ -121,7 +121,8 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("mounted filesystem", installer)
         self.assertIn("4294967296", installer)
         self.assertIn('lsblk --list --noheadings --paths --output MOUNTPOINTS "$disk"', installer)
-        self.assertIn("verify-media.sh", installer)
+        self.assertEqual(installer.count("verify-media.sh"), 1)
+        self.assertNotIn("sha256sum --check", installer)
         verifier = self.read("system/base/installer/verify-media.sh")
         self.assertIn("openssl pkeyutl -verify", verifier)
         self.assertIn("sha256sum --check --strict", verifier)
@@ -135,6 +136,8 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn(",512M,U", installer)
         self.assertIn("mkfs.fat -F 32 -n AURA_EFI", installer)
         self.assertIn("mkfs.ext4 -F -m 1 -L AURA_ROOTFS", installer)
+        disk_builder = self.read("scripts/build-base-rootfs-disk.sh")
+        self.assertIn('mkfs.ext4 -F -m 1 -L AURA_ROOTFS "$OUTPUT_IMAGE"', disk_builder)
 
     def test_installer_writes_uuid_fstab_and_grub_fallback(self) -> None:
         installer = self.read("system/base/installer/install.sh")
@@ -176,6 +179,7 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('aura-qemu-smoke.target.wants/aura-rootfs-smoke.service', builder)
         self.assertNotIn('multi-user.target.wants/aura-rootfs-smoke.service', builder)
         self.assertEqual(qemu.count("systemd.unit=aura-qemu-smoke.target"), 3)
+        self.assertEqual(builder.count("multi-user.target.wants/aura-rootfs-smoke.service"), 0)
 
     def test_build_uses_architecture_matched_grub_modules(self) -> None:
         builder = self.read("scripts/build-base-rootfs.sh")
