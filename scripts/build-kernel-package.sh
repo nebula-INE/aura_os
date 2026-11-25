@@ -6,6 +6,8 @@ source "$ROOT_DIR/kernel/linux-version.env"
 KERNEL_IMAGE="${KERNEL_IMAGE:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/vmlinuz-$TARGET_ARCH}"
 INITRAMFS_IMAGE="${INITRAMFS_IMAGE:-$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/build/kernel-packages/$TARGET_ARCH}"
+MODULES_ROOT="${MODULES_ROOT:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/modules-root}"
+MODULES_ENABLED_FILE="${MODULES_ENABLED_FILE:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/modules-enabled}"
 KERNEL_RELEASE_FILE="$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/kernelrelease"
 if [[ -z "${KERNEL_RELEASE:-}" ]]; then
   [[ -s "$KERNEL_RELEASE_FILE" ]] || { echo "error: exact kernel release metadata is missing: $KERNEL_RELEASE_FILE" >&2; exit 1; }
@@ -23,6 +25,22 @@ for cmd in dpkg-deb install cp; do
 done
 [[ -s "$KERNEL_IMAGE" ]] || { echo "error: installed kernel is missing: $KERNEL_IMAGE" >&2; exit 1; }
 [[ -s "$INITRAMFS_IMAGE" ]] || { echo "error: persistent-root initramfs is missing: $INITRAMFS_IMAGE" >&2; exit 1; }
+[[ -s "$MODULES_ENABLED_FILE" ]] || { echo "error: kernel module build marker is missing: $MODULES_ENABLED_FILE" >&2; exit 1; }
+MODULES_ENABLED="$(cat "$MODULES_ENABLED_FILE")"
+case "$MODULES_ENABLED" in
+  0) ;;
+  1)
+    [[ -d "$MODULES_ROOT/lib/modules/$KERNEL_RELEASE" ]] || {
+      echo "error: installed kernel module tree is missing for $KERNEL_RELEASE." >&2
+      exit 1
+    }
+    [[ -s "$MODULES_ROOT/lib/modules/$KERNEL_RELEASE/modules.dep" ]] || {
+      echo "error: module dependency index is missing for $KERNEL_RELEASE." >&2
+      exit 1
+    }
+    ;;
+  *) echo "error: invalid kernel module build marker: $MODULES_ENABLED" >&2; exit 1 ;;
+esac
 [[ "$PACKAGE_VERSION" =~ ^[0-9][A-Za-z0-9.+:~_-]*$ ]] || { echo "error: invalid Debian package version: $PACKAGE_VERSION" >&2; exit 2; }
 
 IMAGE_PACKAGE="aura-kernel-image-$KERNEL_RELEASE"
@@ -39,9 +57,14 @@ install -m 0644 "$KERNEL_IMAGE" "$IMAGE_ROOT/boot/vmlinuz-aura-$KERNEL_RELEASE"
 if [[ "$INITRAMFS_MODE" == external ]]; then
   install -m 0644 "$INITRAMFS_IMAGE" "$IMAGE_ROOT/boot/aura-initramfs-$KERNEL_RELEASE.cpio.gz"
 fi
+if [[ "$MODULES_ENABLED" == "1" ]]; then
+  mkdir -p "$IMAGE_ROOT/lib/modules"
+  cp -a "$MODULES_ROOT/lib/modules/$KERNEL_RELEASE" "$IMAGE_ROOT/lib/modules/"
+fi
 cat > "$IMAGE_ROOT/usr/share/aura-kernel/$KERNEL_RELEASE.conf" <<CONF
 AURA_KERNEL_ARCH=$TARGET_ARCH
 AURA_INITRAMFS_MODE=$INITRAMFS_MODE
+AURA_KERNEL_MODULES=$MODULES_ENABLED
 CONF
 cat > "$IMAGE_ROOT/DEBIAN/control" <<CONTROL
 Package: $IMAGE_PACKAGE
