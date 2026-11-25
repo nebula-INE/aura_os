@@ -90,3 +90,36 @@ product. Automatic repair, bootloader recreation, encryption recovery,
 credential reset, backup tooling, and recovery from damaged media firmware
 remain deferred. The installed-system **Recovery Mode** described above is a
 different feature and still boots from the installed root filesystem.
+
+
+## Backup from Offline Rescue
+
+The offline rescue environment includes an explicit backup wizard:
+
+~~~sh
+sh /usr/lib/aura/installer/backup.sh
+~~~
+
+The first version exports the selected installed ext4 root filesystem and,
+when the installed fstab identifies a mounted Aura EFI partition by UUID, a
+separate EFI archive. It writes compressed tar archives, SHA-256 files, and a
+manifest into AuraOS-backups/<UTC timestamp>-<root UUID>/.
+
+The destination must be a separate, unmounted, writable ext4 filesystem.
+The wizard checks the source and destination block-device ancestry and
+refuses a destination that shares a physical disk with the selected root
+filesystem. It does not format the destination. The operator must confirm
+the exact destination device and then type CREATE BACKUP. Available space is
+checked conservatively before archive creation.
+
+The source root and EFI filesystems stay mounted read-only. The backup
+archives exclude transient /dev, /proc, /sys, /run, and /tmp contents. The
+wizard verifies each gzip archive and tar directory, computes SHA-256
+checksums, and only publishes the completed backup directory after the
+archives and manifest are ready.
+
+The initial implementation supports ext4 backup destinations only. It does
+not format storage, perform a restore, repair filesystems, decrypt volumes,
+or guarantee recovery from failing hardware. Keep another independent copy
+of important data; a backup written to a single device is not a substitute
+for a tested restore.

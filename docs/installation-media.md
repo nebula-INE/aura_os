@@ -88,3 +88,15 @@ In rescue mode, **AURA_ROOTFS** ext4 filesystems are mounted using
 read-only. The target disk image is checked before and after the QEMU rescue
 test to ensure the rescue boot did not modify it. No repair command runs
 automatically. See [Offline Rescue Mode](recovery-mode.md#offline-rescue-mode).
+
+
+## Offline rescue backup
+
+From the Offline Rescue shell, run
+sh /usr/lib/aura/installer/backup.sh. Select the installed root volume
+and a separate, unmounted ext4 backup filesystem. The wizard checks that the
+destination does not share a physical disk with the source, never formats
+the destination, requires two explicit confirmations, and keeps the source
+mounted read-only. Completed root and optional EFI archives are accompanied
+by SHA-256 checksums and a manifest under AuraOS-backups/. This is a
+backup/export feature only; restore and repair operations are not included.

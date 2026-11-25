@@ -54,6 +54,8 @@ def qemu_profile(
     firmware_vars: Path,
     *,
     iso: Path | None,
+    backup_disk: Path | None = None,
+    efi_disk: Path | None = None,
 ) -> tuple[str, list[str]]:
     target_boot_index = "2" if iso is not None else "1"
     common = [
@@ -86,6 +88,8 @@ def qemu_profile(
             f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
             f"virtio-blk-pci,drive=target,bootindex={target_boot_index}",
+            *(["-drive", f"if=none,id=efi,format=raw,file={efi_disk},cache=none", "-device", "virtio-blk-pci,drive=efi"] if efi_disk is not None else []),
+            *(["-drive", f"if=none,id=backup,format=raw,file={backup_disk},cache=none", "-device", "virtio-blk-pci,drive=backup"] if backup_disk is not None else []),
             "-netdev",
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
@@ -120,6 +124,8 @@ def qemu_profile(
             f"if=none,id=target,format=raw,file={disk},cache=none",
             "-device",
             f"virtio-blk-device,drive=target,bootindex={target_boot_index}",
+            *(["-drive", f"if=none,id=efi,format=raw,file={efi_disk},cache=none", "-device", "virtio-blk-device,drive=efi"] if efi_disk is not None else []),
+            *(["-drive", f"if=none,id=backup,format=raw,file={backup_disk},cache=none", "-device", "virtio-blk-device,drive=backup"] if backup_disk is not None else []),
             "-netdev",
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
@@ -175,6 +181,8 @@ def qemu_profile(
             "user,id=auranet,ipv4=on,ipv6=on,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3",
             "-device",
             "virtio-net-device,netdev=auranet",
+            *(["-drive", f"if=none,id=efi,format=raw,file={efi_disk},cache=none", "-device", "virtio-blk-device,drive=efi"] if efi_disk is not None else []),
+            *(["-drive", f"if=none,id=backup,format=raw,file={backup_disk},cache=none", "-device", "virtio-blk-device,drive=backup"] if backup_disk is not None else []),
             "-machine",
             "virt,pflash0=pflash0,pflash1=pflash1,acpi=off,accel=tcg",
             "-cpu",
@@ -206,10 +214,12 @@ def spawn_qemu(
     iso: Path | None,
     log_path: Path,
     timeout: int,
+    backup_disk: Path | None = None,
+    efi_disk: Path | None = None,
 ) -> pexpect.spawn:
     firmware_vars = LOG_DIR / f"{architecture}-{ 'installer' if iso else 'installed' }-vars.fd"
     shutil.copyfile(vars_template, firmware_vars)
-    binary, args = qemu_profile(architecture, disk, firmware_vars, iso=iso)
+    binary, args = qemu_profile(architecture, disk, firmware_vars, iso=iso, backup_disk=backup_disk, efi_disk=efi_disk)
     if shutil.which(binary) is None:
         raise RuntimeError(f"QEMU binary is not installed: {binary}")
     child = pexpect.spawn(
@@ -225,7 +235,7 @@ def spawn_qemu(
     return child
 
 
-def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
+def run_offline_rescue(architecture: str, iso: Path, disk: Path, efi_disk: Path, backup_disk: Path) -> None:
     """Boot the installer ISO's inspection-only rescue mode and prove the disk is untouched."""
     if architecture == "x86_64":
         vars_template = Path(
@@ -244,6 +254,8 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
     require_file(vars_template, "UEFI variables template")
 
     before_digest = sha256_file(disk)
+    backup_before_digest = sha256_file(backup_disk)
+    efi_before_digest = sha256_file(efi_disk)
     log_path = LOG_DIR / f"aura-{architecture}-offline-rescue.log"
     child = spawn_qemu(
         architecture,
@@ -252,11 +264,14 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
         iso=iso,
         log_path=log_path,
         timeout=300,
+        backup_disk=backup_disk,
+        efi_disk=efi_disk,
     )
     try:
         child.expect("Choose boot mode", timeout=240)
         child.sendline("r")
         child.expect("AURA_RESCUE_ROOT_RO_OK", timeout=60)
+        child.expect("AURA_RESCUE_ESP_RO_OK", timeout=60)
         child.expect("AURA_RESCUE_READY", timeout=180)
         child.expect(r"\[Aura offline rescue\]# ", timeout=60)
         child.sendline(
@@ -264,6 +279,23 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
             "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_READ_ONLY_OK"
         )
         child.expect("AURA_RESCUE_READ_ONLY_OK", timeout=30)
+        child.sendline(
+            "findmnt -n -o OPTIONS --target /mnt/aura-rescue/esp-1 "
+            "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_ESP_READ_ONLY_OK"
+        )
+        child.expect("AURA_RESCUE_ESP_READ_ONLY_OK", timeout=30)
+        child.sendline("/bin/sh /usr/lib/aura/installer/backup.sh")
+        child.expect("Select the source root number:", timeout=30)
+        child.sendline("1")
+        child.expect("Select the backup destination number:", timeout=30)
+        child.sendline("1")
+        child.expect(r"Type BACKUP TO (/dev/[A-Za-z0-9]+) to confirm:", timeout=30)
+        backup_target = child.match.group(1)
+        child.sendline(f"BACKUP TO {backup_target}")
+        child.expect("Final confirmation: type CREATE BACKUP to write the backup:", timeout=30)
+        child.sendline("CREATE BACKUP")
+        child.expect("AURA_BACKUP_COMPLETE", timeout=300)
+        child.expect(r"\[Aura offline rescue\]# ", timeout=60)
         child.sendline("poweroff --force --force")
         child.expect(pexpect.EOF, timeout=120)
         child.close()
@@ -275,7 +307,64 @@ def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
         if "AURA_INSTALLER_READY" in log_text:
             raise RuntimeError("offline rescue mode unexpectedly entered the installer")
         if sha256_file(disk) != before_digest:
-            raise RuntimeError("offline rescue mode modified the target disk image")
+            raise RuntimeError("offline rescue mode modified the source disk image")
+        if sha256_file(backup_disk) == backup_before_digest:
+            raise RuntimeError("offline rescue backup destination was not modified")
+        if sha256_file(efi_disk) != efi_before_digest:
+            raise RuntimeError("offline rescue mode modified the EFI source disk image")
+        backup_match = re.search(r"Backup directory: AuraOS-backups/([A-Za-z0-9-]+)", log_text)
+        if backup_match is None:
+            raise RuntimeError("backup wizard did not report its completed backup directory")
+        backup_dir = backup_match.group(1)
+        listing = subprocess.run(
+            ["debugfs", "-R", f"ls /AuraOS-backups/{backup_dir}", str(backup_disk)],
+            check=False, capture_output=True, text=True,
+        )
+        if (listing.returncode != 0 or "manifest.txt" not in listing.stdout
+                or "aura-rootfs-" not in listing.stdout or "aura-efi-" not in listing.stdout):
+            raise RuntimeError("backup destination is missing its root archive or manifest")
+        manifest = subprocess.run(
+            ["debugfs", "-R", f"cat /AuraOS-backups/{backup_dir}/manifest.txt", str(backup_disk)],
+            check=False, capture_output=True, text=True,
+        )
+        if (manifest.returncode != 0 or "source_mount=read-only" not in manifest.stdout
+                or "efi_archive=aura-efi-" not in manifest.stdout or "repair_performed=no" not in manifest.stdout):
+            raise RuntimeError("backup manifest is missing its read-only safety metadata")
+
+        archive_names = re.findall(r"(?m)^(root_archive|efi_archive)=([^\n]+)$", manifest.stdout)
+        expected_archives = dict(archive_names)
+        if expected_archives.get("root_archive") is None or expected_archives.get("efi_archive") is None:
+            raise RuntimeError("backup manifest does not name both root and EFI archives")
+        verification_dir = LOG_DIR / f"{architecture}-backup-verification"
+        verification_dir.mkdir(parents=True, exist_ok=True)
+        for archive_kind in ("root_archive", "efi_archive"):
+            archive_name = expected_archives[archive_kind]
+            if archive_name == "none":
+                raise RuntimeError(f"backup manifest omitted the expected {archive_kind}")
+            # Keep the archive basename unchanged because the embedded .sha256
+            # file refers to that relative name.
+            archive_path = verification_dir / archive_name
+            checksum_path = verification_dir / f"{archive_name}.sha256"
+            archive_in_image = f"/AuraOS-backups/{backup_dir}/{archive_name}"
+            checksum_in_image = f"/AuraOS-backups/{backup_dir}/{archive_name}.sha256"
+            for image_path, host_path in (
+                (archive_in_image, archive_path),
+                (checksum_in_image, checksum_path),
+            ):
+                extracted = subprocess.run(
+                    ["debugfs", "-R", f"dump {image_path} {host_path}", str(backup_disk)],
+                    check=False, capture_output=True, text=True,
+                )
+                if extracted.returncode != 0 or not host_path.is_file():
+                    raise RuntimeError(f"could not extract backup artifact for verification: {image_path}")
+            subprocess.run(["gzip", "-t", str(archive_path)], check=True)
+            subprocess.run(["tar", "-tzf", str(archive_path)], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(
+                ["sha256sum", "--check", "--status", checksum_path.name],
+                check=True,
+                cwd=verification_dir,
+            )
+
     except Exception:
         if child.logfile:
             child.logfile.flush()
@@ -671,6 +760,24 @@ def main() -> int:
     require_file(iso, "installable ISO")
     if disk.exists():
         disk.unlink()
+    efi_disk = LOG_DIR / f"aura-{args.arch}-efi.raw"
+    if efi_disk.exists():
+        efi_disk.unlink()
+    subprocess.run(["truncate", "-s", "128M", str(efi_disk)], check=True)
+    subprocess.run(["mkfs.vfat", "-F", "32", "-n", "AURA_EFI", str(efi_disk)], check=True, stdout=subprocess.DEVNULL)
+    efi_uuid = subprocess.run(
+        ["blkid", "-s", "UUID", "-o", "value", str(efi_disk)],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    fstab_seed = LOG_DIR / f"aura-{args.arch}-rescue-fstab"
+    fstab_seed.write_text(f"UUID={efi_uuid} /boot/efi vfat umask=0077 0 2" + chr(10), encoding="utf-8")
+
+    backup_disk = LOG_DIR / f"aura-{args.arch}-backup.raw"
+    if backup_disk.exists():
+        backup_disk.unlink()
+    subprocess.run(["truncate", "-s", "1G", str(backup_disk)], check=True)
+    subprocess.run(["mkfs.ext4", "-F", "-L", "AURA_BACKUP", str(backup_disk)], check=True, stdout=subprocess.DEVNULL)
+
     subprocess.run(["truncate", "-s", "6G", str(disk)], check=True)
     subprocess.run(
         [
@@ -685,9 +792,17 @@ def main() -> int:
         check=True,
         stdout=subprocess.DEVNULL,
     )
+    subprocess.run(
+        ["debugfs", "-w", "-R", "mkdir /etc", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["debugfs", "-w", "-R", f"write {fstab_seed} /etc/fstab", str(disk)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
 
     print(f"Validating offline read-only rescue mode for {args.arch} from {iso}")
-    run_offline_rescue(args.arch, iso, disk)
+    run_offline_rescue(args.arch, iso, disk, efi_disk, backup_disk)
     print("Offline rescue inspection passed without changing the target disk.")
     print(f"Installing {args.arch} from {iso} to disposable QEMU disk {disk}")
     run_installer(args.arch, iso, disk)
