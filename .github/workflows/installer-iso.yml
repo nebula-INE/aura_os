@@ -24,9 +24,12 @@ on:
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
+      - "tests/test_offline_diagnose.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
+      - "docs/decisions/0015-offline-rescue-diagnostics.md"
+      - "docs/diagnostics.md"
       - ".github/workflows/installer-iso.yml"
   pull_request:
     paths:
@@ -49,9 +52,12 @@ on:
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
+      - "tests/test_offline_diagnose.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
+      - "docs/decisions/0015-offline-rescue-diagnostics.md"
+      - "docs/diagnostics.md"
       - ".github/workflows/installer-iso.yml"
   workflow_dispatch:
 
@@ -96,10 +102,11 @@ jobs:
             scripts/ensure-ubuntu-apt-sources.sh
           sh -n system/base/installer/init system/base/installer/install.sh \
             system/base/installer/rescue.sh system/base/installer/backup.sh \
-            system/base/installer/restore.sh
+            system/base/installer/restore.sh system/base/installer/diagnose.sh
           sh -n system/base/recovery/aura-recovery-banner
           python3 -m py_compile scripts/test-installer-qemu.py
           python3 -m unittest discover -s tests -p 'test_installer_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_offline_diagnose.py' -v
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_ubuntu_apt_sources.py' -v
