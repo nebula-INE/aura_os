@@ -17,7 +17,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     for directory in (
         "etc", "usr/lib/systemd", "usr/lib/systemd/system", "usr/lib/systemd/system/sysinit.target.wants",
         "usr/lib/aura", "usr/bin", "usr/sbin", "sbin", "var/lib/dpkg",
-        "etc/systemd/system/multi-user.target.wants", "etc/systemd/network", "etc/systemd/timesyncd.conf.d"
+        "etc/systemd/system/multi-user.target.wants", "etc/systemd/system/aura-recovery.target.wants", "usr/lib/aura/recovery", "etc/systemd/network", "etc/systemd/timesyncd.conf.d"
     ):
         (root / directory).mkdir(parents=True, exist_ok=True)
 
@@ -46,15 +46,36 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
         encoding="utf-8",
     )
     (root / "usr/lib/aura/aura-firstboot").write_text(
-        "#!/bin/bash\\nexit 0\\n", encoding="utf-8"
+        "#!/bin/bash\nexit 0\n", encoding="utf-8"
     )
     (root / "etc/systemd/system/aura-firstboot.service").write_text(
-        "[Service]\\nExecStart=/bin/bash /usr/lib/aura/aura-firstboot\\n",
+        "[Service]\nExecStart=/bin/bash /usr/lib/aura/aura-firstboot\n",
         encoding="utf-8",
     )
     (
         root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
     ).symlink_to("/etc/systemd/system/aura-firstboot.service")
+    recovery_target = root / "etc/systemd/system/aura-recovery.target"
+    recovery_target.write_text(
+        "[Unit]\nRequires=basic.target\nWants=systemd-user-sessions.service getty.target\n"
+        "Wants=aura-firstboot.service aura-recovery-banner.service\n"
+        "Conflicts=multi-user.target graphical.target\nAllowIsolate=yes\n",
+        encoding="utf-8",
+    )
+    recovery_banner_unit = root / "etc/systemd/system/aura-recovery-banner.service"
+    recovery_banner_unit.write_text(
+        "[Unit]\nAfter=aura-firstboot.service systemd-user-sessions.service\nBefore=getty.target\n",
+        encoding="utf-8",
+    )
+    recovery_banner = root / "usr/lib/aura/recovery/aura-recovery-banner"
+    recovery_banner.write_text("#!/bin/sh\necho AURA_RECOVERY_MODE_READY\n", encoding="utf-8")
+    recovery_banner.chmod(0o755)
+    (
+        root / "etc/systemd/system/aura-recovery.target.wants/aura-firstboot.service"
+    ).symlink_to("/etc/systemd/system/aura-firstboot.service")
+    (
+        root / "etc/systemd/system/aura-recovery.target.wants/aura-recovery-banner.service"
+    ).symlink_to("/etc/systemd/system/aura-recovery-banner.service")
     (root / "etc/shadow").write_text(
         "root:!:20000:0:99999:7:::\n", encoding="utf-8"
     )
@@ -154,6 +175,25 @@ class BaseRootfsTests(unittest.TestCase):
                 root / "etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
             ).unlink()
             with self.assertRaisesRegex(ValueError, "must be enabled"):
+                validate_rootfs(root, "x86_64")
+
+
+    def test_rejects_missing_recovery_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (root / "etc/systemd/system/aura-recovery.target").unlink()
+            with self.assertRaisesRegex(ValueError, "missing /etc/systemd/system/aura-recovery.target"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_disabled_recovery_banner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (
+                root / "etc/systemd/system/aura-recovery.target.wants/aura-recovery-banner.service"
+            ).unlink()
+            with self.assertRaisesRegex(ValueError, "must be enabled for aura-recovery.target"):
                 validate_rootfs(root, "x86_64")
 
     def test_rejects_missing_wired_network_configuration(self) -> None:

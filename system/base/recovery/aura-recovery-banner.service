@@ -1,0 +1,13 @@
+[Unit]
+Description=Aura OS recovery-mode console guidance
+After=aura-firstboot.service systemd-user-sessions.service
+Before=getty.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/aura/recovery/aura-recovery-banner
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=aura-recovery.target

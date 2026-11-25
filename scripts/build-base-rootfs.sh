@@ -150,6 +150,28 @@ mkdir -p "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants"
 ln -sfn /etc/systemd/system/aura-firstboot.service \
   "$ROOTFS_DIR/etc/systemd/system/multi-user.target.wants/aura-firstboot.service"
 
+echo "Installing the authenticated Aura Recovery Mode..."
+RECOVERY_SOURCE="$ROOT_DIR/system/base/recovery"
+for source in "$RECOVERY_SOURCE/aura-recovery.target" \
+              "$RECOVERY_SOURCE/aura-recovery-banner.service" \
+              "$RECOVERY_SOURCE/aura-recovery-banner"; do
+  if [[ ! -s "$source" ]]; then
+    echo "error: Aura Recovery Mode source is missing: $source" >&2
+    exit 1
+  fi
+done
+install -D -m 0644 "$RECOVERY_SOURCE/aura-recovery.target" \
+  "$ROOTFS_DIR/etc/systemd/system/aura-recovery.target"
+install -D -m 0644 "$RECOVERY_SOURCE/aura-recovery-banner.service" \
+  "$ROOTFS_DIR/etc/systemd/system/aura-recovery-banner.service"
+install -D -m 0755 "$RECOVERY_SOURCE/aura-recovery-banner" \
+  "$ROOTFS_DIR/usr/lib/aura/recovery/aura-recovery-banner"
+mkdir -p "$ROOTFS_DIR/etc/systemd/system/aura-recovery.target.wants"
+ln -sfn /etc/systemd/system/aura-firstboot.service \
+  "$ROOTFS_DIR/etc/systemd/system/aura-recovery.target.wants/aura-firstboot.service"
+ln -sfn /etc/systemd/system/aura-recovery-banner.service \
+  "$ROOTFS_DIR/etc/systemd/system/aura-recovery.target.wants/aura-recovery-banner.service"
+
 echo "Installing Aura network and time configuration..."
 NETWORK_SOURCE="$ROOT_DIR/system/base/network"
 for source in "$NETWORK_SOURCE/20-wired.network" "$NETWORK_SOURCE/20-aura-timesyncd.conf"; do

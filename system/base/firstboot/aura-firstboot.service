@@ -19,4 +19,4 @@ TTYVTDisallocate=no
 TimeoutStartSec=infinity
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target aura-recovery.target

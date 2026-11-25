@@ -43,6 +43,14 @@ class InstallerContractTests(unittest.TestCase):
         for loader in ("BOOTX64.EFI", "BOOTAA64.EFI", "BOOTRISCV64.EFI"):
             self.assertIn(loader, installer)
 
+    def test_installer_adds_a_separate_authenticated_recovery_entry(self) -> None:
+        installer = self.read("system/base/installer/install.sh")
+        self.assertIn("menuentry 'Aura OS (Recovery Mode)'", installer)
+        self.assertIn("systemd.unit=aura-recovery.target", installer)
+        self.assertIn("root=UUID=$ROOT_UUID aura.rootfs=1", installer)
+        self.assertEqual(installer.count("${GRUB_INITRD_LINE}"), 2)
+        self.assertIn("aura-recovery.target", installer)
+
     def test_installer_rootfs_archive_is_separate_from_live_initramfs(self) -> None:
         builder = self.read("scripts/build-installer-initramfs.sh")
         self.assertIn("BASE_ARCHIVE=", builder)

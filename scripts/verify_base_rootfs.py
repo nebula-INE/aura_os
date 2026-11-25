@@ -180,6 +180,42 @@ def validate_rootfs(
     if firstboot_target != firstboot_unit.resolve(strict=True):
         raise ValueError("aura-firstboot.service enablement link points to the wrong unit")
 
+    recovery_target = root / "etc/systemd/system/aura-recovery.target"
+    if not recovery_target.is_file():
+        raise ValueError("root filesystem is missing /etc/systemd/system/aura-recovery.target")
+    recovery_text = recovery_target.read_text(encoding="utf-8")
+    for setting in (
+        "Requires=basic.target",
+        "Wants=systemd-user-sessions.service getty.target",
+        "Wants=aura-firstboot.service aura-recovery-banner.service",
+        "Conflicts=multi-user.target graphical.target",
+        "AllowIsolate=yes",
+    ):
+        if setting not in recovery_text:
+            raise ValueError(f"aura-recovery.target is missing {setting}")
+
+    recovery_banner = root / "usr/lib/aura/recovery/aura-recovery-banner"
+    if not recovery_banner.is_file() or not os.access(recovery_banner, os.X_OK):
+        raise ValueError("root filesystem is missing executable /usr/lib/aura/recovery/aura-recovery-banner")
+    recovery_banner_unit = root / "etc/systemd/system/aura-recovery-banner.service"
+    if not recovery_banner_unit.is_file():
+        raise ValueError("root filesystem is missing aura-recovery-banner.service")
+
+    recovery_wants = root / "etc/systemd/system/aura-recovery.target.wants"
+    for unit_name, unit_path in (
+        ("aura-firstboot.service", firstboot_unit),
+        ("aura-recovery-banner.service", recovery_banner_unit),
+    ):
+        link = recovery_wants / unit_name
+        if not link.is_symlink():
+            raise ValueError(f"{unit_name} must be enabled for aura-recovery.target")
+        try:
+            target = _resolve_rootfs_absolute_symlink(root, link)
+        except OSError as exc:
+            raise ValueError(f"{unit_name} recovery enablement link is broken: {exc}") from exc
+        if target != unit_path.resolve(strict=True):
+            raise ValueError(f"{unit_name} recovery enablement link points to the wrong unit")
+
     # udev must enumerate QEMU's virtio NIC before networkd can configure it.
     udevd = root / "usr/lib/systemd/systemd-udevd"
     if not udevd.is_file() or not os.access(udevd, os.X_OK):
