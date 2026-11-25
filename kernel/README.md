@@ -131,6 +131,36 @@ The test first validates the embedded EFI structure with `scripts/verify_aarch64
 
 This test exercises UEFI firmware → AArch64 Linux EFI stub → embedded initramfs `/init`. It is still an emulator reference profile only; it does not establish physical-device compatibility, Secure Boot trust policy, an installer, or a complete bootable system image. The UEFI-specific build and boot must pass in CI before this profile is considered verified.
 
+## Versioned installed-kernel Debian packages
+
+After building the persistent-root initramfs and the GRUB-loaded installed
+kernel for a target architecture, run:
+
+~~~sh
+TARGET_ARCH=x86_64 bash scripts/build-installed-kernel.sh
+TARGET_ARCH=x86_64 bash scripts/build-kernel-package.sh
+~~~
+
+Repeat with aarch64 or riscv64 for the other targets. The installed-kernel
+builder records the exact output of make kernelrelease; the package builder
+uses that release to create an architecture-native
+aura-kernel-image-<release> package and the architecture-independent
+aura-kernel lifecycle package. The first package carries versioned /boot
+files and a matched external initramfs where applicable. RV64GC retains its
+embedded initramfs design.
+
+The lifecycle package generates versioned GRUB normal and Recovery Mode
+entries, keeps the previous known-good kernel as the saved default during a
+candidate update, and asks GRUB to try the candidate for one boot. The boot
+confirmation service changes the saved default only when the running
+uname -r matches the pending release. Kernel package removal hooks protect
+the pending, known-good, and last installed images.
+
+The installer ISO builder includes both .deb files in the signed payload
+manifest and the installer installs them through dpkg. A signed APT
+repository is not published yet, so this package foundation does not mean
+that apt upgrade can already download Aura kernel updates. See ADR 0016.
+
 ## Scope
 
-This is the first bootable kernel bring-up path only. It does not yet create a bootable disk image, installer, package system, or complete Aura userspace. Do not install this development kernel on the host machine.
+This repository now includes the installable ISO flow and an initial versioned kernel .deb lifecycle. Signed APT repository publication, failed-boot QEMU injection, Secure Boot, physical-board validation, and a complete Aura userspace remain unfinished. Do not install this development kernel on the host machine.
