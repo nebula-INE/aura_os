@@ -82,9 +82,9 @@ if ! /bin/sh /usr/lib/aura/installer/verify-media.sh /run/aura-media; then
 fi
 
 if [ ! -s "/run/aura-media/rootfs/aura-base-$AURA_TARGET_ARCH.tar.gz" ] ||
-   [ ! -s "/run/aura-media/boot/vmlinuz-$AURA_TARGET_ARCH" ] ||
-   [ ! -s "/run/aura-media/boot/initramfs-$AURA_TARGET_ARCH.cpio.gz" ]; then
-    echo "[Aura OS] ERROR: installation payload is incomplete for $AURA_TARGET_ARCH."
+   [ ! -s "/run/aura-media/boot/aura-kernel-image-$AURA_TARGET_ARCH.deb" ] ||
+   [ ! -s "/run/aura-media/boot/aura-kernel-$AURA_TARGET_ARCH.deb" ]; then
+    echo "[Aura OS] ERROR: signed kernel package or rootfs payload is incomplete for $AURA_TARGET_ARCH."
     exec /bin/sh
 fi
 
