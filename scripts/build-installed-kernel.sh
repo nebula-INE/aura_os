@@ -150,7 +150,7 @@ if grep -qx 'CONFIG_MODULES=y' "$OUT_DIR/.config"; then
   # These links point into the runner's source/build directories and must
   # never escape into the installed target filesystem.
   rm -f "$MODULES_TREE/build" "$MODULES_TREE/source"
-  [[ -s "$MODULES_TREE/modules.dep" ]] || {
+  [[ -f "$MODULES_TREE/modules.dep" ]] || {
     echo "error: depmod did not generate modules.dep for $KERNEL_RELEASE" >&2
     exit 1
   }
