@@ -216,6 +216,8 @@ if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
     -in "$OUTPUT_ISO.sha256" \
     -out "$OUTPUT_ISO.sha256.sig"
   cp "$AURA_RELEASE_PUBLIC_KEY_FILE" "$OUTPUT_ISO.pub"
+  openssl pkey -pubin -in "$AURA_RELEASE_PUBLIC_KEY_FILE" -outform DER | \
+    sha256sum | awk '{print $1 "  Ed25519 public key DER SHA-256"}' > "$OUTPUT_ISO.pub.fingerprint"
 fi
 
 python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" "$AURA_RELEASE_SIGNING_MODE" \
@@ -248,6 +250,7 @@ if installer_ready:
     record["payload_signature"] = "Ed25519"
     record["iso_signature"] = f"{path.name}.sha256.sig"
     record["release_public_key"] = f"{path.name}.pub"
+    record["release_public_key_fingerprint"] = f"{path.name}.pub.fingerprint"
     record["signing_mode"] = signing_mode
 print(json.dumps(record, sort_keys=True, indent=2))
 PY
