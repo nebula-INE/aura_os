@@ -76,9 +76,14 @@ case "$AURA_INSTALLER_MODE" in
         exit 1
       fi
     done
-    derived_public_key="$OUTPUT_DIR/aura-derived-release-key.pub"
-    openssl pkey -in "$AURA_RELEASE_PRIVATE_KEY_FILE" -pubout -out "$derived_public_key"
+    derived_public_key="$(mktemp)"
+    if ! openssl pkey -in "$AURA_RELEASE_PRIVATE_KEY_FILE" -pubout -out "$derived_public_key"; then
+      rm -f "$derived_public_key"
+      echo "error: could not derive the release public key." >&2
+      exit 1
+    fi
     if ! cmp -s "$derived_public_key" "$AURA_RELEASE_PUBLIC_KEY_FILE"; then
+      rm -f "$derived_public_key"
       echo "error: release private and public keys do not match." >&2
       exit 1
     fi
