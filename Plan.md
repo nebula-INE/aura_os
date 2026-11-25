@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-23
+> Last updated: 2026-11-25
 
 ## 1. Vision
 
@@ -135,6 +135,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Design and validate a partitioned GPT/EFI layout, optional swap/data volumes, encryption, and installer-facing disk layout; these are not part of the current raw-ext4 image.
 - [x] Add and validate an authenticated installed-system Recovery Mode target and GRUB menu entry that starts a minimal local console without the normal multi-user services (ADR 0012; QEMU validation passed on x86-64, AArch64, and RV64GC in PR #17).
 - [x] Add the first inspection-only offline rescue mode to installer media; it mounts Aura root and EFI filesystems read-only and is QEMU-tested on all three architectures (PR #18).
+- [x] Add the read-only `aura-diagnose` support archive with owner-only output, journal opt-in, and no-overwrite protection (ADR 0011; PR #16).
 - [ ] Add an explicit external backup wizard to Offline Rescue; retain the source read-only, require a separate ext4 destination and two confirmations, and record SHA-256/manifest data (PR in progress).
 - [ ] Add backup verification/restore workflows and explicit backup-first repair workflows for damaged filesystems, bootloader recreation, encryption recovery, and credential recovery.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
@@ -381,9 +382,10 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 3. Validate the new RV64GC and AArch64 cross-build/first-boot jobs, then add firmware-mediated boot paths (including AArch64 UEFI) and complete disk-image assembly.
 4. Define the shared userspace, init/service model, desktop, package, and update strategy.
 5. [x] Pass the persistent-root QEMU integration workflow on all three architectures and validate first-user creation, console login, sudo, repeat boot, and shutdown (CI run 44646382671).
-6. Validate the installed-system Recovery Mode target, GRUB entry, and authenticated console on x86-64, AArch64, and RV64GC (implemented in this branch; CI pending).
-7. Design a separate offline rescue environment that can inspect an unbootable installed root filesystem without automatically modifying it.
-8. Establish per-architecture kernel security-update and regression-test workflows.
+6. Add the read-only `aura-diagnose` support archive to the shared Debian base and validate it on x86-64, AArch64, and RV64GC (ADR 0011; PR #16).
+7. Validate the installed-system Recovery Mode target, GRUB entry, and authenticated console on x86-64, AArch64, and RV64GC.
+8. Design and validate offline rescue workflows that inspect or back up an unbootable installed root without modifying the source filesystem.
+9. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
 
