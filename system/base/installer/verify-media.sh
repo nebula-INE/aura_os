@@ -29,8 +29,8 @@ command -v awk >/dev/null 2>&1 || fail "awk is unavailable"
 # The signed manifest is deliberately limited to the four assets used by the
 # installer. Reject unexpected paths even when the signature is valid.
 awk -v rootfs="rootfs/aura-base-$ARCH.tar.gz" \
-    -v kernel="boot/aura-kernel-image-$ARCH.deb" \\
-    -v meta="boot/aura-kernel-$ARCH.deb" \\
+    -v kernel="boot/aura-kernel-image-$ARCH.deb" \
+    -v meta="boot/aura-kernel-$ARCH.deb" \
     -v esp="boot/efi.img" '
     NF != 2 || length($1) != 64 || $1 !~ /^[[:xdigit:]]+$/ { invalid = 1; next }
     $2 == rootfs { seen_rootfs++; next }
