@@ -21,6 +21,7 @@ REQUIRED_PACKAGES = {
     "dbus",
     "debian-archive-keyring",
     "fdisk",
+    "grub2-common",
     "gzip",
     "kmod",
     "libc6",
