@@ -29,7 +29,7 @@ case "$TARGET_ARCH" in
     QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
     CPU_MODEL="qemu64"
     CONSOLE="ttyS0"
-    KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip root=UUID=$ROOT_FS_UUID"
+    KERNEL_CMDLINE="console=ttyS0,115200n8 rdinit=/init panic=-1 aura.rootfs=1 aura.firstboot.skip systemd.unit=aura-qemu-smoke.target root=UUID=$ROOT_FS_UUID"
     QEMU_ARGS=(
       -machine q35,accel=tcg
       -cpu "$CPU_MODEL"
