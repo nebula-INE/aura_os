@@ -55,14 +55,14 @@ trap cleanup EXIT
 
 rm -f -- "$OUTPUT_IMAGE"
 truncate -s "$IMAGE_SIZE" "$OUTPUT_IMAGE"
-mkfs.ext4 -F -m 0 -L AURA_ROOTFS "$OUTPUT_IMAGE"
+mkfs.ext4 -F -m 1 -L AURA_ROOTFS "$OUTPUT_IMAGE"
 mount -o loop "$OUTPUT_IMAGE" "$MOUNT_DIR"
 
 echo "Copying the $TARGET_ARCH Debian rootfs into the ext4 image..."
 tar --numeric-owner --xattrs --acls -C "$ROOTFS_DIR" -cf - . |
   tar --numeric-owner --xattrs --acls -xf - -C "$MOUNT_DIR"
 
-mkdir -p "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants"
+mkdir -p "$MOUNT_DIR/etc/systemd/system/aura-qemu-smoke.target.wants"
 INSTALL_QEMU_SMOKE_SERVICE="${AURA_INSTALL_QEMU_SMOKE_SERVICE:-1}"
 case "$INSTALL_QEMU_SMOKE_SERVICE" in
   1)
@@ -73,11 +73,19 @@ case "$INSTALL_QEMU_SMOKE_SERVICE" in
     fi
     install -D -m 0755 "$NETWORK_SMOKE_SOURCE" \
       "$MOUNT_DIR/usr/lib/aura/qemu-network-smoke"
+    cat > "$MOUNT_DIR/etc/systemd/system/aura-qemu-smoke.target" <<'UNIT'
+[Unit]
+Description=Aura OS explicit QEMU-only smoke-test boot target
+Requires=multi-user.target
+After=multi-user.target
+Wants=aura-rootfs-smoke.service
+AllowIsolate=yes
+UNIT
     cat > "$MOUNT_DIR/etc/systemd/system/aura-rootfs-smoke.service" <<'UNIT'
 [Unit]
 Description=Aura OS persistent rootfs and network QEMU smoke test
 Wants=systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
-After=basic.target systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
+After=multi-user.target systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
 
 [Service]
 Type=oneshot
@@ -88,10 +96,10 @@ StandardOutput=journal+console
 StandardError=journal+console
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=aura-qemu-smoke.target
 UNIT
     ln -sfn /etc/systemd/system/aura-rootfs-smoke.service \
-      "$MOUNT_DIR/etc/systemd/system/multi-user.target.wants/aura-rootfs-smoke.service"
+      "$MOUNT_DIR/etc/systemd/system/aura-qemu-smoke.target.wants/aura-rootfs-smoke.service"
     ;;
   0)
     echo "Skipping the auto-poweroff smoke service for interactive first-boot login testing."
