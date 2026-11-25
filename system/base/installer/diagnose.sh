@@ -9,8 +9,8 @@ LC_ALL=C
 export LC_ALL
 umask 077
 
-ROOT_MOUNT_BASE=\${AURA_RESCUE_ROOT_MOUNT_BASE:-/mnt/aura-rescue}
-RUN_DIR=\${AURA_RESCUE_RUN_DIR:-/run}
+ROOT_MOUNT_BASE=${AURA_RESCUE_ROOT_MOUNT_BASE:-/mnt/aura-rescue}
+RUN_DIR=${AURA_RESCUE_RUN_DIR:-/run}
 INCLUDE_JOURNAL=0
 OUTPUT_NAME=
 
@@ -70,7 +70,7 @@ esac
     fail "installer RAM directory is unavailable: $RUN_DIR"
 RUN_FS=$(findmnt -n -o FSTYPE --target "$RUN_DIR" 2>/dev/null || true)
 [ "$RUN_FS" = tmpfs ] ||
-    fail "refusing to write diagnostics outside a tmpfs RAM filesystem (found: \${RUN_FS:-unknown})"
+    fail "refusing to write diagnostics outside a tmpfs RAM filesystem (found: ${RUN_FS:-unknown})"
 [ -d "$ROOT_MOUNT_BASE" ] && [ ! -L "$ROOT_MOUNT_BASE" ] ||
     fail "offline rescue root mount directory is unavailable: $ROOT_MOUNT_BASE"
 
@@ -83,9 +83,11 @@ ROOTS_LIST=$(mktemp "$RUN_DIR/aura-rescue-roots.XXXXXX") ||
     fail 'could not create a temporary root inventory'
 WORK_DIR=
 TEMP_ARCHIVE=
+CHECKSUM_TEMP=
 cleanup() {
     [ -z "$WORK_DIR" ] || rm -rf -- "$WORK_DIR"
     [ -z "$TEMP_ARCHIVE" ] || rm -f -- "$TEMP_ARCHIVE"
+    [ -z "$CHECKSUM_TEMP" ] || rm -f -- "$CHECKSUM_TEMP"
     [ -z "$ROOTS_LIST" ] || rm -f -- "$ROOTS_LIST"
 }
 trap cleanup EXIT
@@ -105,6 +107,10 @@ for candidate in "$ROOT_MOUNT_BASE"/root-*; do
         *,ro,*) ;;
         *) continue ;;
     esac
+    case ",$candidate_opts," in
+        *,noload,*) ;;
+        *) continue ;;
+    esac
     root_index=$((root_index + 1))
     printf '%s\n' "$candidate" >> "$ROOTS_LIST"
     printf '  %s) %s\n' "$root_index" "$candidate"
@@ -117,7 +123,7 @@ IFS= read -r selection || fail 'could not read root selection'
 case "$selection" in
     ''|*[!0-9]*) fail 'invalid root selection' ;;
 esac
-ROOT=$(sed -n "\${selection}p" "$ROOTS_LIST")
+ROOT=$(sed -n "${selection}p" "$ROOTS_LIST")
 [ -n "$ROOT" ] || fail 'selected root filesystem does not exist'
 [ -d "$ROOT" ] && [ ! -L "$ROOT" ] || fail 'selected root mount disappeared'
 findmnt --mountpoint "$ROOT" >/dev/null 2>&1 || fail 'selected root is no longer mounted'
@@ -128,6 +134,10 @@ ROOT_DEVICE=$(findmnt -n -o SOURCE --target "$ROOT" 2>/dev/null || true)
 case ",$ROOT_OPTIONS," in
     *,ro,*) ;;
     *) fail 'selected root filesystem is not mounted read-only' ;;
+esac
+case ",$ROOT_OPTIONS," in
+    *,noload,*) ;;
+    *) fail 'selected root filesystem is not mounted with ext4 noload' ;;
 esac
 [ -n "$ROOT_DEVICE" ] || fail 'could not identify the selected source device'
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEVICE" 2>/dev/null || true)
@@ -149,7 +159,6 @@ capture_live() {
         result=$?
         printf '\nexit_status=%s\n' "$result"
     } > "$output_file" 2>&1
-    result=$?
     if [ "$result" -eq 0 ]; then
         printf '%s\tcaptured\n' "$section" >> "$CAPTURE_INDEX"
     else
@@ -160,15 +169,15 @@ capture_live() {
 
 locate_target_file() {
     relative=$1
-    relative_parent=\${relative%/*}
-    relative_name=\${relative##*/}
+    relative_parent=${relative%/*}
+    relative_name=${relative##*/}
     parent_path=$ROOT
     remaining=$relative_parent
     while [ -n "$remaining" ]; do
         case "$remaining" in
             */*)
-                component=\${remaining%%/*}
-                remaining=\${remaining#*/}
+                component=${remaining%%/*}
+                remaining=${remaining#*/}
                 ;;
             *)
                 component=$remaining
@@ -209,15 +218,38 @@ capture_target_file() {
     return 0
 }
 
+locate_target_directory() {
+    relative=$1
+    parent_path=$ROOT
+    remaining=$relative
+    while [ -n "$remaining" ]; do
+        case "$remaining" in
+            */*)
+                component=${remaining%%/*}
+                remaining=${remaining#*/}
+                ;;
+            *)
+                component=$remaining
+                remaining=
+                ;;
+        esac
+        [ -n "$component" ] || continue
+        parent_path="$parent_path/$component"
+        [ ! -L "$parent_path" ] && [ -d "$parent_path" ] || return 1
+    done
+    SAFE_TARGET_DIRECTORY=$parent_path
+    return 0
+}
+
 capture_target_inventory() {
     relative=$1
     output_name=$2
     inventory_kind=$3
     output_file="$WORK_DIR/$output_name"
-    directory="$ROOT/$relative"
     {
         printf 'source_path=%s\n' "$relative"
-        if [ -d "$directory" ] && [ ! -L "$directory" ]; then
+        if locate_target_directory "$relative"; then
+            directory=$SAFE_TARGET_DIRECTORY
             case "$inventory_kind" in
                 symlinks)
                     find "$directory" -xdev -maxdepth 4 -type l -printf '%P -> %l\n' 2>&1
@@ -300,6 +332,14 @@ if [ "$INCLUDE_JOURNAL" -eq 1 ]; then
     printf 'offline-journal-warnings\t%s\n' "$JOURNAL_STATUS" >> "$CAPTURE_INDEX"
 fi
 
+FINAL_FS=$(findmnt -n -o FSTYPE --target "$ROOT" 2>/dev/null || true)
+FINAL_OPTIONS=$(findmnt -n -o OPTIONS --target "$ROOT" 2>/dev/null || true)
+FINAL_DEVICE=$(findmnt -n -o SOURCE --target "$ROOT" 2>/dev/null || true)
+[ "$FINAL_FS" = ext4 ] && [ "$FINAL_DEVICE" = "$ROOT_DEVICE" ] ||
+    fail 'selected root mount changed during collection'
+case ",$FINAL_OPTIONS," in *,ro,*) ;; *) fail 'selected root became read-write' ;; esac
+case ",$FINAL_OPTIONS," in *,noload,*) ;; *) fail 'selected root lost the ext4 noload option' ;; esac
+
 CREATED_UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf 'unknown')
 {
     printf 'Aura OS offline diagnostic report\n'
@@ -308,7 +348,7 @@ CREATED_UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf 'unknown')
     printf 'Collection mode: offline, read-only\n'
     printf 'Target device: %s\n' "$ROOT_DEVICE"
     printf 'Target filesystem: %s\n' "$ROOT_FS"
-    printf 'Target UUID: %s\n' "\${ROOT_UUID:-unknown}"
+    printf 'Target UUID: %s\n' "${ROOT_UUID:-unknown}"
     printf 'Target mount: %s\n' "$ROOT"
     printf 'Verified mount options: %s\n' "$ROOT_OPTIONS"
     printf 'Target architecture: %s\n' "$(uname -m)"
