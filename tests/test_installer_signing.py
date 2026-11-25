@@ -117,15 +117,19 @@ class InstallerSigningTests(unittest.TestCase):
         self.assertIn("signature is invalid", result.stderr)
 
     def test_manifest_cannot_add_unlisted_paths_or_duplicate_payloads(self) -> None:
-        original = self.manifest.read_text(encoding="ascii")
-        self.manifest.write_text(
-            original + original.splitlines()[0] + "\n",
-            encoding="ascii",
+        original_lines = self.manifest.read_text(encoding="ascii").splitlines()
+        digest = original_lines[0].split()[0]
+        invalid_cases = (
+            original_lines + [original_lines[0]],
+            original_lines + [f"{digest}  boot/unlisted-file.bin"],
         )
-        self._sign_manifest()
-        result = self._verify()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("unexpected or duplicate entries", result.stderr)
+        for lines in invalid_cases:
+            with self.subTest(entries=len(lines), last_entry=lines[-1]):
+                self.manifest.write_text("\n".join(lines) + "\n", encoding="ascii")
+                self._sign_manifest()
+                result = self._verify()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unexpected or duplicate entries", result.stderr)
 
 
 if __name__ == "__main__":
