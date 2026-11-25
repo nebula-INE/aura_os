@@ -104,6 +104,12 @@ Create a backup to a separate existing ext4 filesystem:
 The backup wizard never formats its destination. It requires two confirmations,
 keeps the source filesystems read-only, and records SHA-256 checksums.
 
+Create an offline diagnostic report (stored only in installer RAM):
+  sh /usr/lib/aura/installer/diagnose.sh
+
+Journal collection is excluded by default. Add --include-journal only when
+needed; logs may contain private information. The report is lost at shutdown.
+
 Verify a backup without writing to disk:
   sh /usr/lib/aura/installer/restore.sh --verify-only
 
