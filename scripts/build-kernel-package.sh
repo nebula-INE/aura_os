@@ -14,6 +14,10 @@ if [[ -z "${KERNEL_RELEASE:-}" ]]; then
   KERNEL_RELEASE="$(cat "$KERNEL_RELEASE_FILE")"
 fi
 PACKAGE_VERSION="${PACKAGE_VERSION:-${KERNEL_RELEASE}+aura1}"
+[[ "$KERNEL_RELEASE" =~ ^[0-9][A-Za-z0-9.+~_-]*$ ]] || {
+  echo "error: invalid kernel release for Debian package naming: $KERNEL_RELEASE" >&2
+  exit 2
+}
 case "$TARGET_ARCH" in
   x86_64) DEB_ARCH=amd64; INITRAMFS_MODE=external ;;
   aarch64) DEB_ARCH=arm64; INITRAMFS_MODE=external ;;
