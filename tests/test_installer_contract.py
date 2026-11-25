@@ -93,6 +93,8 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("Choose boot mode", installer_init)
         self.assertIn("r|R|rescue|RESCUE", installer_init)
         self.assertIn("/usr/lib/aura/installer/rescue.sh", installer_init)
+        self.assertIn("verify-media.sh /run/aura-media", installer_init)
+        self.assertLess(installer_init.index("verify-media.sh /run/aura-media"), installer_init.index("Choose boot mode"))
 
         self.assertIn("LABEL=AURA_ROOTFS", rescue)
         self.assertIn("ro,noload,nodev,nosuid,noexec", rescue)
@@ -119,7 +121,10 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("mounted filesystem", installer)
         self.assertIn("4294967296", installer)
         self.assertIn('lsblk --list --noheadings --paths --output MOUNTPOINTS "$disk"', installer)
-        self.assertIn("sha256sum --check --status", installer)
+        self.assertIn("verify-media.sh", installer)
+        verifier = self.read("system/base/installer/verify-media.sh")
+        self.assertIn("openssl pkeyutl -verify", verifier)
+        self.assertIn("sha256sum --check --strict", verifier)
         self.assertIn("/holders/", installer)
         self.assertIn("TARGET_DEVICE_ID", installer)
         self.assertIn("immediately before the first disk write", installer)
@@ -129,11 +134,11 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("label: gpt", installer)
         self.assertIn(",512M,U", installer)
         self.assertIn("mkfs.fat -F 32 -n AURA_EFI", installer)
-        self.assertIn("mkfs.ext4 -F -m 0 -L AURA_ROOTFS", installer)
+        self.assertIn("mkfs.ext4 -F -m 1 -L AURA_ROOTFS", installer)
 
     def test_installer_writes_uuid_fstab_and_grub_fallback(self) -> None:
         installer = self.read("system/base/installer/install.sh")
-        self.assertIn("UUID=$ROOT_UUID / ext4", installer)
+        self.assertIn("UUID=$ROOT_UUID / ext4 defaults,noatime,errors=remount-ro 0 1", installer)
         self.assertIn("UUID=$ESP_UUID /boot/efi vfat", installer)
         self.assertIn("--no-nvram", installer)
         self.assertIn("--removable", installer)
@@ -159,6 +164,18 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('boot/initramfs-$TARGET_ARCH.cpio.gz', iso_builder)
         self.assertIn('initramfs-$TARGET_ARCH.cpio.gz.sha256', iso_builder)
         self.assertIn('aura-base-$TARGET_ARCH.tar.gz.sha256', iso_builder)
+        self.assertIn("aura-payloads.sha256.sig", iso_builder)
+        self.assertIn('"$OUTPUT_ISO.sha256.sig"', iso_builder)
+        self.assertIn("AURA_RELEASE_PRIVATE_KEY_FILE", iso_builder)
+
+    def test_qemu_smoke_path_requires_explicit_target(self) -> None:
+        builder = self.read("scripts/build-base-rootfs-disk.sh")
+        qemu = self.read("scripts/test-base-rootfs-qemu.sh")
+        self.assertIn("aura-qemu-smoke.target", builder)
+        self.assertIn("WantedBy=aura-qemu-smoke.target", builder)
+        self.assertIn('aura-qemu-smoke.target.wants/aura-rootfs-smoke.service', builder)
+        self.assertNotIn('multi-user.target.wants/aura-rootfs-smoke.service', builder)
+        self.assertEqual(qemu.count("systemd.unit=aura-qemu-smoke.target"), 3)
 
     def test_build_uses_architecture_matched_grub_modules(self) -> None:
         builder = self.read("scripts/build-base-rootfs.sh")
