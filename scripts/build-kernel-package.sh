@@ -6,7 +6,12 @@ source "$ROOT_DIR/kernel/linux-version.env"
 KERNEL_IMAGE="${KERNEL_IMAGE:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/vmlinuz-$TARGET_ARCH}"
 INITRAMFS_IMAGE="${INITRAMFS_IMAGE:-$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/build/kernel-packages/$TARGET_ARCH}"
-PACKAGE_VERSION="${PACKAGE_VERSION:-${LINUX_KERNEL_VERSION}+aura1}"
+KERNEL_RELEASE_FILE="$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/kernelrelease"
+if [[ -z "${KERNEL_RELEASE:-}" ]]; then
+  [[ -s "$KERNEL_RELEASE_FILE" ]] || { echo "error: exact kernel release metadata is missing: $KERNEL_RELEASE_FILE" >&2; exit 1; }
+  KERNEL_RELEASE="$(cat "$KERNEL_RELEASE_FILE")"
+fi
+PACKAGE_VERSION="${PACKAGE_VERSION:-${KERNEL_RELEASE}+aura1}"
 case "$TARGET_ARCH" in
   x86_64) DEB_ARCH=amd64; INITRAMFS_MODE=external ;;
   aarch64) DEB_ARCH=arm64; INITRAMFS_MODE=external ;;
@@ -20,7 +25,7 @@ done
 [[ -s "$INITRAMFS_IMAGE" ]] || { echo "error: persistent-root initramfs is missing: $INITRAMFS_IMAGE" >&2; exit 1; }
 [[ "$PACKAGE_VERSION" =~ ^[0-9][A-Za-z0-9.+:~_-]*$ ]] || { echo "error: invalid Debian package version: $PACKAGE_VERSION" >&2; exit 2; }
 
-IMAGE_PACKAGE="aura-kernel-image-$LINUX_KERNEL_VERSION"
+IMAGE_PACKAGE="aura-kernel-image-$KERNEL_RELEASE"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aura-kernel-package.XXXXXX")"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
@@ -30,11 +35,11 @@ mkdir -p "$IMAGE_ROOT/DEBIAN" "$IMAGE_ROOT/boot" "$IMAGE_ROOT/usr/share/aura-ker
 mkdir -p "$META_ROOT/DEBIAN" "$META_ROOT/usr/share/aura-kernel" "$META_ROOT/usr/lib/aura-kernel"
 mkdir -p "$META_ROOT/etc/systemd/system/multi-user.target.wants"
 
-install -m 0644 "$KERNEL_IMAGE" "$IMAGE_ROOT/boot/vmlinuz-aura-$LINUX_KERNEL_VERSION"
+install -m 0644 "$KERNEL_IMAGE" "$IMAGE_ROOT/boot/vmlinuz-aura-$KERNEL_RELEASE"
 if [[ "$INITRAMFS_MODE" == external ]]; then
-  install -m 0644 "$INITRAMFS_IMAGE" "$IMAGE_ROOT/boot/aura-initramfs-$LINUX_KERNEL_VERSION.cpio.gz"
+  install -m 0644 "$INITRAMFS_IMAGE" "$IMAGE_ROOT/boot/aura-initramfs-$KERNEL_RELEASE.cpio.gz"
 fi
-cat > "$IMAGE_ROOT/usr/share/aura-kernel/$LINUX_KERNEL_VERSION.conf" <<CONF
+cat > "$IMAGE_ROOT/usr/share/aura-kernel/$KERNEL_RELEASE.conf" <<CONF
 AURA_KERNEL_ARCH=$TARGET_ARCH
 AURA_INITRAMFS_MODE=$INITRAMFS_MODE
 CONF
@@ -57,7 +62,7 @@ install -m 0755 "$ROOT_DIR/system/base/kernel/activate-kernel" "$META_ROOT/usr/l
 install -m 0755 "$ROOT_DIR/system/base/kernel/confirm-boot" "$META_ROOT/usr/lib/aura-kernel/confirm-boot"
 install -m 0644 "$ROOT_DIR/system/base/kernel/aura-kernel-confirm.service" "$META_ROOT/etc/systemd/system/aura-kernel-confirm.service"
 ln -s /etc/systemd/system/aura-kernel-confirm.service "$META_ROOT/etc/systemd/system/multi-user.target.wants/aura-kernel-confirm.service"
-printf '%s\n' "$LINUX_KERNEL_VERSION" > "$META_ROOT/usr/share/aura-kernel/current-version"
+printf '%s\n' "$KERNEL_RELEASE" > "$META_ROOT/usr/share/aura-kernel/current-version"
 cat > "$META_ROOT/DEBIAN/control" <<CONTROL
 Package: aura-kernel
 Version: $PACKAGE_VERSION
