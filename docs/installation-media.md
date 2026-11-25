@@ -98,5 +98,26 @@ and a separate, unmounted ext4 backup filesystem. The wizard checks that the
 destination does not share a physical disk with the source, never formats
 the destination, requires two explicit confirmations, and keeps the source
 mounted read-only. Completed root and optional EFI archives are accompanied
-by SHA-256 checksums and a manifest under AuraOS-backups/. This is a
-backup/export feature only; restore and repair operations are not included.
+by SHA-256 checksums and a manifest under AuraOS-backups/. A separate restore
+wizard is documented below; filesystem repair remains out of scope.
+
+
+## Restoring from a backup
+
+Offline Rescue can restore a verified AuraOS backup using
+`/usr/lib/aura/installer/restore.sh`. The initial implementation accepts only
+the original root UUID and matching CPU architecture recorded in the backup
+manifest. It does not repartition, format filesystems, rewrite UUIDs, or repair
+the bootloader. The backup filesystem remains read-only, must be ext4, and
+must be on a separate physical device from both target filesystems. The
+restore wizard requires two confirmations and stages the archives before
+replacing the existing root/EFI contents. A restore is destructive; maintain
+an independent backup and verify recovery procedures before relying on it.
+
+
+Before a destructive restore, operators can run
+`sh /usr/lib/aura/installer/restore.sh --verify-only` from Offline Rescue.
+This verifies the selected backup against the selected target root UUID and
+architecture, including archive SHA-256, gzip and tar integrity, without
+mounting the target or backup read-write. A successful verification does not
+guarantee the physical storage will remain healthy during restore.

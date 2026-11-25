@@ -87,8 +87,9 @@ backup device before attempting a future repair workflow.
 
 This is an offline inspection environment, not yet a complete repair/rescue
 product. Automatic repair, bootloader recreation, encryption recovery,
-credential reset, backup tooling, and recovery from damaged media firmware
-remain deferred. The installed-system **Recovery Mode** described above is a
+credential reset, network-based recovery, and recovery from damaged media
+firmware remain deferred. The installed-system **Recovery Mode** described
+above is a
 different feature and still boots from the installed root filesystem.
 
 
@@ -118,8 +119,53 @@ wizard verifies each gzip archive and tar directory, computes SHA-256
 checksums, and only publishes the completed backup directory after the
 archives and manifest are ready.
 
-The initial implementation supports ext4 backup destinations only. It does
-not format storage, perform a restore, repair filesystems, decrypt volumes,
-or guarantee recovery from failing hardware. Keep another independent copy
+The initial backup implementation supports ext4 backup destinations only. It
+does not format storage, repair filesystems, decrypt volumes, or guarantee
+recovery from failing hardware. Keep another independent copy
 of important data; a backup written to a single device is not a substitute
 for a tested restore.
+
+
+## Restore from an Offline Rescue backup
+
+Run the explicit restore wizard from the installer ISO's Offline Rescue shell:
+
+~~~sh
+sh /usr/lib/aura/installer/restore.sh
+~~~
+
+The initial restore implementation is deliberately limited to the **same
+architecture and original AURA_ROOTFS UUID** recorded in the backup manifest.
+It will not relocate a backup to a newly formatted root filesystem or rewrite
+UUIDs in /etc/fstab. When the manifest contains an EFI archive, the wizard
+requires the EFI partition referenced by the target root's /etc/fstab and
+verifies that its UUID and AURA_EFI label match before continuing.
+
+The backup filesystem is mounted read-only and must be an existing, unmounted
+ext4 filesystem on a separate physical device from the target root and EFI.
+The root and EFI archives are checked against the manifest SHA-256 values,
+tested with gzip and tar, and checked for absolute or parent-traversal paths.
+Both filesystems are extracted to staging directories before existing target
+files are removed. The operator must enter the exact root device name and then
+type **RESTORE AURA**. No filesystem is formatted, no UUID is regenerated, and
+no bootloader repair is attempted.
+
+After a successful restore, the root and EFI filesystems are remounted
+read-only. A restore is destructive and power loss during the final promotion
+can leave the target incomplete; keep an independent copy of the backup and
+do not treat checksum verification as proof that the backup is trustworthy.
+
+
+### Verify a backup without restoring
+
+To validate a backup against a selected installed root UUID without writing to
+the target or backup media, run:
+
+~~~sh
+sh /usr/lib/aura/installer/restore.sh --verify-only
+~~~
+
+The wizard checks the selected target UUID and architecture against the
+manifest, verifies SHA-256, gzip, tar integrity and archive paths, then exits
+before any read-write mount or restore confirmation. The QEMU installer test
+checks that the root image, EFI image, and backup image hashes are unchanged.
