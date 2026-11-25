@@ -124,6 +124,41 @@ KERNEL_RELEASE="$(make -s -C "$SOURCE_DIR" O="$OUT_DIR" kernelrelease)"
 [[ -n "$KERNEL_RELEASE" ]] || { echo "error: could not determine installed kernel release." >&2; exit 1; }
 printf '%s\n' "$KERNEL_RELEASE" > "$OUTPUT_DIR/kernelrelease"
 
+# Install the modules that belong to this exact kernel release into a clean
+# staging root so the matching .deb can ship them with the kernel image.
+MODULES_ROOT="$OUTPUT_DIR/modules-root"
+rm -rf "$MODULES_ROOT"
+if grep -qx 'CONFIG_MODULES=y' "$OUT_DIR/.config"; then
+  for command_name in depmod find; do
+    command -v "$command_name" >/dev/null 2>&1 || {
+      echo "error: required module packaging command is unavailable: $command_name" >&2
+      exit 1
+    }
+  done
+  echo "Building loadable modules for $TARGET_ARCH ($KERNEL_RELEASE)..."
+  ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
+    make -C "$SOURCE_DIR" O="$OUT_DIR" -j"$JOBS" modules
+  mkdir -p "$MODULES_ROOT"
+  ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
+    make -C "$SOURCE_DIR" O="$OUT_DIR" modules_install \
+      INSTALL_MOD_PATH="$MODULES_ROOT" INSTALL_MOD_STRIP=1
+  MODULES_TREE="$MODULES_ROOT/lib/modules/$KERNEL_RELEASE"
+  [[ -d "$MODULES_TREE" ]] || {
+    echo "error: modules_install did not create $MODULES_TREE" >&2
+    exit 1
+  }
+  # These links point into the runner's source/build directories and must
+  # never escape into the installed target filesystem.
+  rm -f "$MODULES_TREE/build" "$MODULES_TREE/source"
+  [[ -s "$MODULES_TREE/modules.dep" ]] || {
+    echo "error: depmod did not generate modules.dep for $KERNEL_RELEASE" >&2
+    exit 1
+  }
+  printf '1\n' > "$OUTPUT_DIR/modules-enabled"
+else
+  printf '0\n' > "$OUTPUT_DIR/modules-enabled"
+fi
+
 KERNEL_IMAGE="$OUT_DIR/$IMAGE_RELATIVE_PATH"
 [[ -s "$KERNEL_IMAGE" ]] || {
   echo "error: installed kernel output is missing: $KERNEL_IMAGE" >&2
