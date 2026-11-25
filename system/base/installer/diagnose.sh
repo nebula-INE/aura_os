@@ -76,7 +76,8 @@ RUN_FS=$(findmnt -n -o FSTYPE --target "$RUN_DIR" 2>/dev/null || true)
 
 OUTPUT="$RUN_DIR/$OUTPUT_NAME"
 CHECKSUM="$OUTPUT.sha256"
-[ ! -e "$OUTPUT" ] && [ ! -e "$CHECKSUM" ] ||
+[ ! -e "$OUTPUT" ] && [ ! -L "$OUTPUT" ] &&
+[ ! -e "$CHECKSUM" ] && [ ! -L "$CHECKSUM" ] ||
     fail "refusing to overwrite an existing report: $OUTPUT"
 
 ROOTS_LIST=$(mktemp "$RUN_DIR/aura-rescue-roots.XXXXXX") ||
