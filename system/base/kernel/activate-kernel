@@ -39,8 +39,10 @@ if command -v apt-mark >/dev/null 2>&1 &&
         # Packages installed offline with dpkg are manual by default. During
         # APT upgrades, only mark packages that the current package indexes
         # can resolve; apt-mark otherwise fails on a fresh, offline install.
-        if apt-cache show "$package" >/dev/null 2>&1; then
-            apt-mark manual "$package" >/dev/null
+        if apt-cache show "$package" 2>/dev/null | grep -q '^Package:'; then
+            if ! apt-mark manual "$package" >/dev/null; then
+                echo "Aura kernel: warning: could not mark $package as manually installed." >&2
+            fi
         fi
     done
 fi
