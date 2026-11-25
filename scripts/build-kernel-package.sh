@@ -97,6 +97,7 @@ Version: $PACKAGE_VERSION
 Section: kernel
 Priority: optional
 Architecture: all
+Maintainer: Aura OS
 Depends: $IMAGE_PACKAGE (= $PACKAGE_VERSION), apt, grub2-common, systemd
 Description: Aura OS kernel lifecycle and GRUB integration
  Installs the versioned-kernel menu generator and first-boot health
