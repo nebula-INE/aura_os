@@ -680,7 +680,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "sudo -S sh -c 'test -s /var/lib/aura/firstboot/complete "
             "&& passwd -S root | grep -q \"^root L \" "
             "&& root_uuid=$(findmnt -n -o UUID /) "
-            "&& grep -Fxq \"UUID=$root_uuid / ext4 defaults,noatime 0 1\" /etc/fstab "
+            "&& grep -Fxq \"UUID=$root_uuid / ext4 defaults,noatime,errors=remount-ro 0 1\" /etc/fstab "
             "&& grep -Fxq \"root_uuid=$root_uuid\" /var/lib/aura/install-manifest "
             "&& esp_uuid=$(findmnt -n -o UUID /boot/efi) "
             "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
