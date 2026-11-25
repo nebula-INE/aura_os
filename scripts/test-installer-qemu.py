@@ -24,6 +24,14 @@ def require_file(path: Path, description: str) -> None:
         raise RuntimeError(f"required {description} is missing or empty: {path}")
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def report_serial_log_tail(log_path: Path, *, max_lines: int = 160) -> None:
     """Print the guest serial failure context into the GitHub Actions job log."""
     try:
@@ -217,6 +225,68 @@ def spawn_qemu(
     return child
 
 
+def run_offline_rescue(architecture: str, iso: Path, disk: Path) -> None:
+    """Boot the installer ISO's inspection-only rescue mode and prove the disk is untouched."""
+    if architecture == "x86_64":
+        vars_template = Path(
+            os.environ.get("OVMF_VARS", "/usr/share/OVMF/OVMF_VARS_4M.fd")
+        )
+    elif architecture == "aarch64":
+        vars_template = Path(
+            os.environ.get("AAVMF_VARS", "/usr/share/AAVMF/AAVMF_VARS.fd")
+        )
+    else:
+        vars_template = Path(
+            os.environ.get(
+                "RISCV_EFI_VARS", "/usr/share/qemu-efi-riscv64/RISCV_VIRT_VARS.fd"
+            )
+        )
+    require_file(vars_template, "UEFI variables template")
+
+    before_digest = sha256_file(disk)
+    log_path = LOG_DIR / f"aura-{architecture}-offline-rescue.log"
+    child = spawn_qemu(
+        architecture,
+        disk,
+        vars_template,
+        iso=iso,
+        log_path=log_path,
+        timeout=300,
+    )
+    try:
+        child.expect("Choose boot mode", timeout=240)
+        child.sendline("r")
+        child.expect("AURA_RESCUE_ROOT_RO_OK", timeout=60)
+        child.expect("AURA_RESCUE_READY", timeout=180)
+        child.expect(r"\[Aura offline rescue\]# ", timeout=60)
+        child.sendline(
+            "findmnt -n -o OPTIONS --target /mnt/aura-rescue/root-1 "
+            "| grep -Eq '(^|,)ro(,|$)' && echo AURA_RESCUE_READ_ONLY_OK"
+        )
+        child.expect("AURA_RESCUE_READ_ONLY_OK", timeout=30)
+        child.sendline("poweroff --force --force")
+        child.expect(pexpect.EOF, timeout=120)
+        child.close()
+        if child.exitstatus not in (0, None):
+            raise RuntimeError(
+                f"offline rescue QEMU exited with status {child.exitstatus}; see {log_path}"
+            )
+        log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        if "AURA_INSTALLER_READY" in log_text:
+            raise RuntimeError("offline rescue mode unexpectedly entered the installer")
+        if sha256_file(disk) != before_digest:
+            raise RuntimeError("offline rescue mode modified the target disk image")
+    except Exception:
+        if child.logfile:
+            child.logfile.flush()
+        child.close(force=True)
+        report_serial_log_tail(log_path)
+        raise
+    finally:
+        if child.logfile:
+            child.logfile.close()
+
+
 def run_installer(architecture: str, iso: Path, disk: Path) -> None:
     if architecture == "x86_64":
         vars_template = Path(
@@ -244,6 +314,8 @@ def run_installer(architecture: str, iso: Path, disk: Path) -> None:
         timeout=600,
     )
     try:
+        child.expect("Choose boot mode")
+        child.sendline("i")
         child.expect("AURA_INSTALLER_READY")
         child.expect("Select the target disk number:")
         child.sendline("1")
@@ -600,7 +672,23 @@ def main() -> int:
     if disk.exists():
         disk.unlink()
     subprocess.run(["truncate", "-s", "6G", str(disk)], check=True)
+    subprocess.run(
+        [
+            "mkfs.ext4",
+            "-F",
+            "-L",
+            "AURA_ROOTFS",
+            "-E",
+            "lazy_itable_init=1,lazy_journal_init=1",
+            str(disk),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
 
+    print(f"Validating offline read-only rescue mode for {args.arch} from {iso}")
+    run_offline_rescue(args.arch, iso, disk)
+    print("Offline rescue inspection passed without changing the target disk.")
     print(f"Installing {args.arch} from {iso} to disposable QEMU disk {disk}")
     run_installer(args.arch, iso, disk)
     print("Installer completed; booting the installed target disk without the ISO.")

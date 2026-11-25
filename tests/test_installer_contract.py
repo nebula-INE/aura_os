@@ -11,6 +11,31 @@ class InstallerContractTests(unittest.TestCase):
     def read(self, relative: str) -> str:
         return (ROOT / relative).read_text(encoding="utf-8")
 
+    def test_offline_rescue_is_explicit_and_read_only(self) -> None:
+        installer_init = self.read("system/base/installer/init")
+        rescue = self.read("system/base/installer/rescue.sh")
+        builder = self.read("scripts/build-installer-initramfs.sh")
+        qemu_test = self.read("scripts/test-installer-qemu.py")
+
+        self.assertIn("Choose boot mode", installer_init)
+        self.assertIn("r|R|rescue|RESCUE", installer_init)
+        self.assertIn("/usr/lib/aura/installer/rescue.sh", installer_init)
+
+        self.assertIn("LABEL=AURA_ROOTFS", rescue)
+        self.assertIn("ro,noload,nodev,nosuid,noexec", rescue)
+        self.assertIn("LABEL=AURA_EFI", rescue)
+        self.assertIn("ro,nodev,nosuid,noexec", rescue)
+        self.assertIn("AURA_RESCUE_READY", rescue)
+        self.assertIn("e2fsck -fn", rescue)
+        self.assertIn("No filesystem repair", rescue)
+
+        self.assertIn("system/base/installer/rescue.sh", builder)
+        self.assertIn("findmnt e2fsck", builder)
+        self.assertIn("run_offline_rescue", qemu_test)
+        self.assertIn("AURA_RESCUE_READ_ONLY_OK", qemu_test)
+        self.assertIn("offline rescue mode modified the target disk image", qemu_test)
+
+
     def test_installer_never_selects_a_target_automatically(self) -> None:
         installer = self.read("system/base/installer/install.sh")
         self.assertIn("Select the target disk number:", installer)

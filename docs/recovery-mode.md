@@ -55,3 +55,38 @@ offline rescue environment.
 There is no auto-login and no default root password. Physical access to the
 GRUB menu is not treated as an authentication boundary; local account
 authentication is still required before an interactive shell is available.
+
+
+## Offline Rescue Mode
+
+The installer ISO now offers a separate **Offline Rescue** choice before the
+installer starts. Boot the matching Aura OS UEFI ISO and select **R** at the
+boot-mode prompt. The rescue environment runs from the in-memory Debian 13
+initramfs, so it does not depend on the installed root filesystem being
+bootable.
+
+The first rescue increment is inspection-only:
+
+- Lists block devices, filesystem labels/UUIDs, and active mounts.
+- Mounts every filesystem labelled **AURA_ROOTFS** as ext4 with
+  **ro,noload,nodev,nosuid,noexec**. The **noload** option prevents ext4 journal
+  replay during inspection.
+- Mounts every filesystem labelled **AURA_EFI** read-only with
+  **nodev,nosuid,noexec**.
+- Does not run filesystem repair, rewrite GRUB, reset credentials, install
+  packages, or modify installed configuration.
+- Verifies and reports read-only mount options before exposing the shell.
+
+Mounted root filesystems are available under
+**/mnt/aura-rescue/root-1**, **root-2**, and so on. EFI partitions are available
+under **/mnt/aura-rescue/esp-1**, **esp-2**, and so on. Useful inspection
+commands include **lsblk -f**, **blkid**, **findmnt**, and
+**e2fsck -fn /dev/DEVICE**. Run filesystem checks only on an unmounted device.
+Rescue mode makes no automatic repairs; copy important data to a separate
+backup device before attempting a future repair workflow.
+
+This is an offline inspection environment, not yet a complete repair/rescue
+product. Automatic repair, bootloader recreation, encryption recovery,
+credential reset, backup tooling, and recovery from damaged media firmware
+remain deferred. The installed-system **Recovery Mode** described above is a
+different feature and still boots from the installed root filesystem.

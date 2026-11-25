@@ -94,7 +94,8 @@ jobs:
             scripts/build-installer-initramfs.sh scripts/build-installed-kernel.sh \
             scripts/build-kernel-efi-iso.sh scripts/build-uefi-iso.sh \
             scripts/ensure-ubuntu-apt-sources.sh
-          sh -n system/base/installer/init system/base/installer/install.sh
+          sh -n system/base/installer/init system/base/installer/install.sh \
+            system/base/installer/rescue.sh
           sh -n system/base/recovery/aura-recovery-banner
           python3 -m py_compile scripts/test-installer-qemu.py
           python3 -m unittest discover -s tests -p 'test_installer_contract.py' -v

@@ -41,6 +41,10 @@ done
   echo "error: installer program is missing." >&2
   exit 1
 }
+[[ -s "$ROOT_DIR/system/base/installer/rescue.sh" ]] || {
+  echo "error: offline rescue entry point is missing." >&2
+  exit 1
+}
 
 rm -rf -- "$OUT_DIR"
 mkdir -p "$ROOTFS_DIR"
@@ -51,12 +55,14 @@ tar --numeric-owner --xattrs --acls -xzf "$BASE_ARCHIVE" -C "$ROOTFS_DIR"
 install -m 0755 "$ROOT_DIR/system/base/installer/init" "$ROOTFS_DIR/init"
 install -D -m 0755 "$ROOT_DIR/system/base/installer/install.sh" \
   "$ROOTFS_DIR/usr/lib/aura/installer/install.sh"
+install -D -m 0755 "$ROOT_DIR/system/base/installer/rescue.sh" \
+  "$ROOTFS_DIR/usr/lib/aura/installer/rescue.sh"
 mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,run,run/udev,run/aura-media,mnt,newroot}
 chmod 1777 "$ROOTFS_DIR/tmp"
 
 for command_name in lsblk sfdisk blockdev wipefs mkfs.fat mkfs.ext4 blkid \
                     udevadm tar grub-install mount umount swapon install basename sha256sum \
-                    sed awk grep poweroff; do
+                    findmnt e2fsck sed awk grep poweroff; do
   if ! chroot "$ROOTFS_DIR" /bin/sh -c "command -v '$command_name' >/dev/null 2>&1"; then
     echo "error: installer runtime is missing required command: $command_name" >&2
     exit 1

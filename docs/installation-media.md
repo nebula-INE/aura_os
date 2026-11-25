@@ -74,3 +74,17 @@ This is not an offline recovery image. The installed root filesystem is
 mounted normally, and the target does not attempt filesystem or bootloader
 repair. A separate offline rescue environment remains a follow-up milestone.
 See [Recovery Mode](recovery-mode.md) and ADR 0012.
+
+
+## Offline Rescue choice
+
+The installable ISO presents a boot-mode prompt after validating its media.
+Press **I** (or Enter) to continue to the destructive installer, or **R** to
+enter the inspection-only offline rescue shell. Rescue mode is started from
+the in-memory Debian 13 initramfs and does not call the installer.
+
+In rescue mode, **AURA_ROOTFS** ext4 filesystems are mounted using
+**ro,noload,nodev,nosuid,noexec**, and **AURA_EFI** filesystems are mounted
+read-only. The target disk image is checked before and after the QEMU rescue
+test to ensure the rescue boot did not modify it. No repair command runs
+automatically. See [Offline Rescue Mode](recovery-mode.md#offline-rescue-mode).
