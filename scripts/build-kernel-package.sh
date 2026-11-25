@@ -14,7 +14,7 @@ if [[ -z "${KERNEL_RELEASE:-}" ]]; then
   KERNEL_RELEASE="$(cat "$KERNEL_RELEASE_FILE")"
 fi
 PACKAGE_VERSION="${PACKAGE_VERSION:-${KERNEL_RELEASE}+aura1}"
-[[ "$KERNEL_RELEASE" =~ ^[0-9][A-Za-z0-9.+~_-]*$ ]] || {
+[[ "$KERNEL_RELEASE" =~ ^[0-9][a-z0-9.+~-]*$ ]] || {
   echo "error: invalid kernel release for Debian package naming: $KERNEL_RELEASE" >&2
   exit 2
 }
@@ -45,7 +45,7 @@ case "$MODULES_ENABLED" in
     ;;
   *) echo "error: invalid kernel module build marker: $MODULES_ENABLED" >&2; exit 1 ;;
 esac
-[[ "$PACKAGE_VERSION" =~ ^[0-9][A-Za-z0-9.+:~_-]*$ ]] || { echo "error: invalid Debian package version: $PACKAGE_VERSION" >&2; exit 2; }
+[[ "$PACKAGE_VERSION" =~ ^[0-9][A-Za-z0-9.+:~-]*$ ]] || { echo "error: invalid Debian package version: $PACKAGE_VERSION" >&2; exit 2; }
 
 IMAGE_PACKAGE="aura-kernel-image-$KERNEL_RELEASE"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aura-kernel-package.XXXXXX")"
