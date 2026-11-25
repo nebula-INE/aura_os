@@ -352,7 +352,11 @@ mkdir -p "$ROOT_MNT/var/lib/aura"
     printf 'kernel_package=aura-kernel\n'
     kernel_version="$(cat "$ROOT_MNT/usr/share/aura-kernel/current-version")"
     printf 'kernel_package_version=%s\n' "$kernel_version"
-    if grep -q '^AURA_INITRAMFS_MODE=embedded
+    if grep -q '^AURA_INITRAMFS_MODE=embedded$' "$ROOT_MNT/usr/share/aura-kernel/$kernel_version.conf"; then
+        printf 'initramfs_mode=embedded-in-kernel\n'
+    else
+        printf 'initramfs_mode=external\n'
+    fi
 } > "$ROOT_MNT/var/lib/aura/install-manifest"
 chmod 0600 "$ROOT_MNT/var/lib/aura/install-manifest"
 
