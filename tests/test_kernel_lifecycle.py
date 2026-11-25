@@ -42,7 +42,7 @@ class KernelLifecycleTests(unittest.TestCase):
         self.command("grub-set-default", 'printf \'default:%s\\n\' "$1" >> "$AURA_TEST_LOG"')
         self.command("grub-reboot", 'printf \'reboot:%s\\n\' "$1" >> "$AURA_TEST_LOG"')
         self.command("apt-mark", 'printf \'apt-mark:%s\\n\' "$*" >> "$AURA_TEST_LOG"')
-        self.command("apt-cache", "exit 0")
+        self.command("apt-cache", 'printf "Package: %s\\n" "$2"')
         self.command(
             "dpkg-query",
             'printf \'aura-kernel-image-6.18.63\\naura-kernel-image-6.18.64\\n\'',
