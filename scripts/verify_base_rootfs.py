@@ -20,6 +20,7 @@ REQUIRED_PACKAGES = {
     "apt",
     "dbus",
     "debian-archive-keyring",
+    "dpkg",
     "fdisk",
     "grub2-common",
     "gzip",
