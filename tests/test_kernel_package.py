@@ -34,6 +34,7 @@ class KernelPackageBuildTests(unittest.TestCase):
                 "KERNEL_IMAGE": str(self.kernel),
                 "INITRAMFS_IMAGE": str(self.initramfs),
                 "OUTPUT_DIR": str(self.output),
+                "KERNEL_RELEASE": KERNEL_VERSION,
             }
         )
         subprocess.run(
