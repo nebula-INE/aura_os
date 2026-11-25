@@ -69,6 +69,8 @@ key merely because it is included beside the ISO or inside the ISO itself.
 ```sh
 openssl pkey -pubin -in aura-os-x86_64-uefi.iso.pub -outform DER | sha256sum
 ```
+Compare the printed value with the ISO's `aura-os-x86_64-uefi.iso.pub.fingerprint`
+sidecar and an independently published value before trusting the signature.
 
 
 ```sh
