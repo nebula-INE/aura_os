@@ -108,6 +108,7 @@ class KernelPackageBuildTests(unittest.TestCase):
                 )
                 self.assertEqual(self.field(image, "Version"), f"{KERNEL_VERSION}+aura1")
                 self.assertEqual(self.field(image, "Architecture"), deb_arch)
+                self.assertEqual(self.field(image, "Depends"), "kmod")
                 self.assertEqual(self.field(meta, "Package"), "aura-kernel")
                 self.assertEqual(self.field(meta, "Architecture"), "all")
                 self.assertIn(
