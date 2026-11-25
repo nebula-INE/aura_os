@@ -54,7 +54,8 @@ class InstallerSigningTests(unittest.TestCase):
         for relative in sorted(self.expected):
             payload = self.media / relative
             digest = subprocess.run(
-                ["sha256sum", str(payload)],
+                ["sha256sum", relative],
+                cwd=self.media,
                 check=True,
                 capture_output=True,
                 text=True,
