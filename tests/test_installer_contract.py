@@ -145,17 +145,21 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("UUID=$ESP_UUID /boot/efi vfat", installer)
         self.assertIn("--no-nvram", installer)
         self.assertIn("--removable", installer)
-        self.assertIn("root=UUID=$ROOT_UUID aura.rootfs=1", installer)
+        self.assertIn('KERNEL_CMDLINE="aura.rootfs=1', installer)
+        generator = self.read("system/base/kernel/update-grub-menu")
+        self.assertIn("root=UUID=$ROOT_UUID", generator)
         for loader in ("BOOTX64.EFI", "BOOTAA64.EFI", "BOOTRISCV64.EFI"):
             self.assertIn(loader, installer)
 
     def test_installer_adds_a_separate_authenticated_recovery_entry(self) -> None:
         installer = self.read("system/base/installer/install.sh")
-        self.assertIn("menuentry 'Aura OS (Recovery Mode)'", installer)
-        self.assertIn("systemd.unit=aura-recovery.target", installer)
-        self.assertIn("root=UUID=$ROOT_UUID aura.rootfs=1", installer)
-        self.assertEqual(installer.count("${GRUB_INITRD_LINE}"), 2)
-        self.assertIn("aura-recovery.target", installer)
+        generator = self.read("system/base/kernel/update-grub-menu")
+        self.assertIn("systemd.unit=aura-recovery.target", generator)
+        self.assertIn("Aura OS ($version, Recovery Mode)", generator)
+        self.assertIn("aura-recovery.target", generator)
+        self.assertNotIn("GRUB_INITRD_LINE", installer)
+        self.assertIn("aura-kernel-image-$ARCH.deb", installer)
+        self.assertIn("chroot \"$ROOT_MNT\" /usr/bin/dpkg -i", installer)
 
     def test_installer_rootfs_archive_is_separate_from_live_initramfs(self) -> None:
         builder = self.read("scripts/build-installer-initramfs.sh")
@@ -163,9 +167,8 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('"$ROOTFS_DIR/init"', builder)
         iso_builder = self.read("scripts/build-uefi-iso.sh")
         self.assertIn('$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz', iso_builder)
-        self.assertIn('boot/vmlinuz-$TARGET_ARCH', iso_builder)
-        self.assertIn('boot/initramfs-$TARGET_ARCH.cpio.gz', iso_builder)
-        self.assertIn('initramfs-$TARGET_ARCH.cpio.gz.sha256', iso_builder)
+        self.assertIn('boot/aura-kernel-image-$TARGET_ARCH.deb', iso_builder)
+        self.assertIn('boot/aura-kernel-$TARGET_ARCH.deb', iso_builder)
         self.assertIn('aura-base-$TARGET_ARCH.tar.gz.sha256', iso_builder)
         self.assertIn("aura-payloads.sha256.sig", iso_builder)
         self.assertIn('"$OUTPUT_ISO.sha256.sig"', iso_builder)
@@ -234,13 +237,16 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('OUT_DIR="$ROOT_DIR/build/kernel-installed-build/$TARGET_ARCH"', builder)
         self.assertIn('cp "$BASE_OUT_DIR/.config" "$OUT_DIR/.config"', builder)
 
-        installer = self.read("system/base/installer/install.sh")
-        riscv_case = installer.split("    riscv64)", 1)[1].split(";;", 1)[0]
-        self.assertIn('GRUB_INITRD_LINE=""', riscv_case)
-        self.assertIn("${GRUB_INITRD_LINE}", installer)
-        self.assertIn('GRUB_INITRD_LINE="initrd /boot/aura-initramfs.cpio.gz"', installer)
+        package_builder = self.read("scripts/build-kernel-package.sh")
+        self.assertIn("INITRAMFS_MODE=external", package_builder)
+        self.assertIn("INITRAMFS_MODE=embedded", package_builder)
+        generator = self.read("system/base/kernel/update-grub-menu")
+        self.assertIn("external)", generator)
+        self.assertIn("embedded)", generator)
+        self.assertIn("/boot/aura-initramfs-$version.cpio.gz", generator)
         self.assertIn("initramfs_mode=embedded-in-kernel", installer)
         self.assertIn("initramfs_mode=external", installer)
+        self.assertIn("aura-kernel-confirm.service", package_builder)
 
 
 
