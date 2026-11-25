@@ -62,9 +62,14 @@ A local installable build is resource-intensive and must use the same target-nat
 ## Signed-media verification
 
 For a downloaded installable ISO, obtain the Aura release public key from a
-separately trusted location and confirm its fingerprint through the published
-release channel. Do not trust a key merely because it is included beside the
-ISO or inside the ISO itself.
+separately trusted location and compare the printed DER/SPKI fingerprint with
+the value distributed through the published release channel. Do not trust a
+key merely because it is included beside the ISO or inside the ISO itself.
+
+```sh
+openssl pkey -pubin -in aura-os-x86_64-uefi.iso.pub -outform DER | sha256sum
+```
+
 
 ```sh
 openssl pkeyutl -verify -pubin -inkey aura-os-x86_64-uefi.iso.pub \
