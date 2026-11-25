@@ -156,6 +156,19 @@ class KernelLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_last_kernel_with_localversion_suffix_is_not_mistaken_for_another_image(self) -> None:
+        for image in (self.root / "boot").glob("vmlinuz-aura-*"):
+            image.unlink()
+        (self.root / "boot/vmlinuz-aura-6.18.64-custom1").write_bytes(b"only kernel")
+        (self.root / "var/lib/aura-kernel/known-good").unlink()
+        result = self.run_script(
+            PRERM,
+            ["remove"],
+            DPKG_MAINTSCRIPT_PACKAGE="aura-kernel-image-6.18.64-custom1",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("last installed Aura kernel", result.stderr)
+
     def test_last_installed_kernel_cannot_be_removed_without_override(self) -> None:
         only = self.root / "boot/vmlinuz-aura-6.18.64"
         (self.root / "boot/vmlinuz-aura-6.18.63").unlink()
