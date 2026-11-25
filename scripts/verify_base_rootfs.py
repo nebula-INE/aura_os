@@ -161,6 +161,15 @@ def validate_rootfs(
     if not apt_get.is_file() or not os.access(apt_get, os.X_OK):
         raise ValueError("root filesystem is missing executable /usr/bin/apt-get")
 
+    for relative in (
+        "usr/bin/grub-editenv",
+        "usr/sbin/grub-reboot",
+        "usr/sbin/grub-set-default",
+    ):
+        tool = root / relative
+        if not tool.is_file() or not os.access(tool, os.X_OK):
+            raise ValueError(f"root filesystem is missing executable /{relative}")
+
     diagnostics_tool = root / "usr/bin/aura-diagnose"
     if not diagnostics_tool.is_file() or not os.access(diagnostics_tool, os.X_OK):
         raise ValueError("root filesystem is missing executable /usr/bin/aura-diagnose")
