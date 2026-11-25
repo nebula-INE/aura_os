@@ -76,6 +76,7 @@ Version: $PACKAGE_VERSION
 Section: kernel
 Priority: optional
 Architecture: $DEB_ARCH
+Depends: kmod
 Maintainer: Aura OS
 Description: Versioned Aura OS kernel image for $TARGET_ARCH
  The kernel image and its matching persistent-root initramfs are installed
