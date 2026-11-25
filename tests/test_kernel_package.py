@@ -26,10 +26,10 @@ class KernelPackageBuildTests(unittest.TestCase):
         (self.modules_tree / "kernel/test-driver.ko").parent.mkdir(parents=True)
         (self.modules_tree / "kernel/test-driver.ko").write_bytes(b"test module")
         (self.modules_tree / "modules.dep").write_text(
-            "kernel/test-driver.ko:\\n", encoding="ascii"
+            "kernel/test-driver.ko:\n", encoding="ascii"
         )
         self.modules_enabled = self.root / "modules-enabled"
-        self.modules_enabled.write_text("1\\n", encoding="ascii")
+        self.modules_enabled.write_text("1\n", encoding="ascii")
         self.kernel.write_bytes(b"test kernel image")
         self.initramfs.write_bytes(b"test persistent root initramfs")
 
@@ -62,6 +62,25 @@ class KernelPackageBuildTests(unittest.TestCase):
             self.output / f"aura-kernel-image-{architecture}.deb",
             self.output / f"aura-kernel-{architecture}.deb",
         )
+
+    def test_package_omits_modules_when_kernel_config_disables_them(self) -> None:
+        self.modules_enabled.write_text("0\n", encoding="ascii")
+        image, _meta = self.build("x86_64")
+        extracted = self.root / "extract-no-modules"
+        extracted.mkdir()
+        subprocess.run(
+            ["dpkg-deb", "--extract", str(image), str(extracted)],
+            check=True,
+            capture_output=True,
+            timeout=15,
+        )
+        config = (
+            extracted
+            / "usr/share/aura-kernel"
+            / f"{KERNEL_VERSION}.conf"
+        ).read_text(encoding="utf-8")
+        self.assertIn("AURA_KERNEL_MODULES=0", config)
+        self.assertFalse((extracted / "lib/modules").exists())
 
     def field(self, package: Path, name: str) -> str:
         return subprocess.run(
