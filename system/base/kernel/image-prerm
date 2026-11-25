@@ -1,10 +1,12 @@
 #!/bin/sh
 set -eu
+ROOT="${AURA_ROOT:-}"
+path() { printf '%s%s' "$ROOT" "$1"; }
 case "${1:-}" in
   remove|purge)
     package="${DPKG_MAINTSCRIPT_PACKAGE:-}"
     version="${package#aura-kernel-image-}"
-    for state in /var/lib/aura-kernel/pending /var/lib/aura-kernel/known-good; do
+    for state in "$(path /var/lib/aura-kernel/pending)" "$(path /var/lib/aura-kernel/known-good)"; do
       if [ -s "$state" ] && [ "$(sed -n '1p' "$state")" = "$version" ] \
          && [ "${AURA_KERNEL_ALLOW_UNSAFE_REMOVE:-0}" != 1 ]; then
         echo "Refusing to remove Aura kernel $version: it is pending or marked known-good." >&2
@@ -13,7 +15,7 @@ case "${1:-}" in
       fi
     done
     remaining=0
-    for image in /boot/vmlinuz-aura-*; do
+    for image in "$(path /boot)"/vmlinuz-aura-*; do
       [ -s "$image" ] || continue
       [ "${image##*-}" = "$version" ] && continue
       remaining=1
