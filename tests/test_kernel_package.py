@@ -154,6 +154,8 @@ class KernelGrubMenuTests(unittest.TestCase):
             )
         config = self.run_generator()
         self.assertIn('set default="${saved_entry}"', config)
+        self.assertIn('if [ -n "$next_entry" ]', config)
+        self.assertIn("save_env next_entry", config)
         self.assertIn("root=UUID=01234567-89ab-cdef-0123-456789abcdef", config)
         self.assertIn("console=ttyS0,115200n8", config)
         self.assertIn("--id 'aura-6.18.64'", config)
