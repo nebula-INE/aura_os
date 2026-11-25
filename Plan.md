@@ -136,6 +136,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Add and validate an authenticated installed-system Recovery Mode target and GRUB menu entry that starts a minimal local console without the normal multi-user services (ADR 0012; QEMU validation passed on x86-64, AArch64, and RV64GC in PR #17).
 - [x] Add the first inspection-only offline rescue mode to installer media; it mounts Aura root and EFI filesystems read-only and is QEMU-tested on all three architectures (PR #18).
 - [x] Add the read-only `aura-diagnose` support archive with owner-only output, journal opt-in, and no-overwrite protection (ADR 0011; PR #16).
+- [x] Extend installer-media Offline Rescue with a separate offline diagnostics collector for selected read-only Aura roots; collect static system metadata without executing target binaries and keep journal capture opt-in (ADR 0015).
 - [ ] Add an explicit external backup wizard to Offline Rescue; retain the source read-only, require a separate ext4 destination and two confirmations, and record SHA-256/manifest data (PR in progress).
 - [ ] Add backup verification/restore workflows and explicit backup-first repair workflows for damaged filesystems, bootloader recreation, encryption recovery, and credential recovery.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
@@ -384,7 +385,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 5. [x] Pass the persistent-root QEMU integration workflow on all three architectures and validate first-user creation, console login, sudo, repeat boot, and shutdown (CI run 44646382671).
 6. Add the read-only `aura-diagnose` support archive to the shared Debian base and validate it on x86-64, AArch64, and RV64GC (ADR 0011; PR #16).
 7. Validate the installed-system Recovery Mode target, GRUB entry, and authenticated console on x86-64, AArch64, and RV64GC.
-8. Design and validate offline rescue workflows that inspect or back up an unbootable installed root without modifying the source filesystem.
+8. Extend Offline Rescue with read-only diagnostic reports for unbootable installed roots, while keeping backup, restore, and repair as separately guarded workflows (ADR 0015).
 9. Establish per-architecture kernel security-update and regression-test workflows.
 
 ## 12. Open design decisions
