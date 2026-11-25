@@ -148,8 +148,10 @@ builder records the exact output of make kernelrelease; the package builder
 uses that release to create an architecture-native
 aura-kernel-image-<release> package and the architecture-independent
 aura-kernel lifecycle package. The first package carries versioned /boot
-files and a matched external initramfs where applicable. RV64GC retains its
-embedded initramfs design.
+files and a matched external initramfs where applicable. If the kernel
+configuration enables loadable modules, the same package also carries the
+matching /lib/modules/<release> tree and generated modules.dep index. RV64GC
+retains its embedded initramfs design.
 
 The lifecycle package generates versioned GRUB normal and Recovery Mode
 entries, keeps the previous known-good kernel as the saved default during a
