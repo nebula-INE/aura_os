@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
     paths:
       - "kernel/configs/**"
       - "initramfs/**"
@@ -24,9 +26,12 @@ on:
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
+      - "tests/test_installer_signing.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
+      - "docs/decisions/0016-kernel-package-update-policy.md"
+      - "docs/decisions/0017-signed-installer-media.md"
       - ".github/workflows/installer-iso.yml"
   pull_request:
     paths:
@@ -49,9 +54,12 @@ on:
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
+      - "tests/test_installer_signing.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
+      - "docs/decisions/0016-kernel-package-update-policy.md"
+      - "docs/decisions/0017-signed-installer-media.md"
       - ".github/workflows/installer-iso.yml"
   workflow_dispatch:
 
@@ -155,8 +163,8 @@ jobs:
               echo "error: tagged release builds require AURA_RELEASE_PRIVATE_KEY_PEM (Secret) and AURA_RELEASE_PUBLIC_KEY_PEM (Variable)." >&2
               exit 1
             }
-            printf '%s\\n' "$AURA_RELEASE_PRIVATE_KEY_PEM" > "$private_key"
-            printf '%s\\n' "$AURA_RELEASE_PUBLIC_KEY_PEM" > "$public_key"
+            printf '%s\n' "$AURA_RELEASE_PRIVATE_KEY_PEM" > "$private_key"
+            printf '%s\n' "$AURA_RELEASE_PUBLIC_KEY_PEM" > "$public_key"
             mode="release-key"
           else
             # PR and branch CI uses an ephemeral key to exercise verification.
