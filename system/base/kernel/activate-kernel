@@ -31,12 +31,17 @@ fi
 printf '%s\n' "$VERSION" > "$PENDING.tmp"
 chmod 0600 "$PENDING.tmp"
 mv -f "$PENDING.tmp" "$PENDING"
-if command -v apt-mark >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
+if command -v apt-mark >/dev/null 2>&1 &&
+   command -v apt-cache >/dev/null 2>&1 &&
+   command -v dpkg-query >/dev/null 2>&1; then
     packages="$(dpkg-query -W -f='${binary:Package}\n' 'aura-kernel-image-*' 2>/dev/null || true)"
-    if [ -n "$packages" ]; then
-        # Debian package names contain no whitespace.
-        # shellcheck disable=SC2086
-        apt-mark manual $packages >/dev/null
-    fi
+    for package in $packages; do
+        # Packages installed offline with dpkg are manual by default. During
+        # APT upgrades, only mark packages that the current package indexes
+        # can resolve; apt-mark otherwise fails on a fresh, offline install.
+        if apt-cache show "$package" >/dev/null 2>&1; then
+            apt-mark manual "$package" >/dev/null
+        fi
+    done
 fi
 printf 'Aura kernel %s is staged for the next boot.\n' "$VERSION"
