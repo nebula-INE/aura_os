@@ -180,7 +180,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 ### Phase 5 — Security, updates, and release engineering
 
-- [x] Define Ed25519 signed installer payload manifests and detached ISO checksum signatures (ADR 0017); production key provisioning is required for releases.
+- [x] Define Ed25519 signed installer payload manifests and detached ISO checksum signatures (ADR 0017).
+- [ ] Provision the persistent release key through GitHub Secret/Variable and publish its fingerprint through an independent channel before trusted releases.
 - [ ] Define UEFI Secure Boot and hardware-rooted boot trust policy for each platform.
 - [ ] Harden default services, permissions, and network exposure.
 - [ ] Establish vulnerability tracking and kernel/userspace update cadence.
@@ -400,6 +401,7 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 - Exact reference hardware and minimum CPU/ISA baselines for all three targets.
 - Firmware and boot strategy per platform.
 - [x] Installable-media trust: Ed25519-signed payload manifest plus detached ISO checksum signature (ADR 0017); Secure Boot remains open.
+- UEFI Secure Boot and a firmware-rooted trust chain per supported platform.
 - Exact upstream Linux kernel line and update cadence for each Aura OS release.
 
 ## 13. Risk register
