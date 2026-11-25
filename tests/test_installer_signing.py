@@ -107,8 +107,11 @@ class InstallerSigningTests(unittest.TestCase):
         self.assertIn("SHA-256 verification", result.stderr)
 
     def test_modified_manifest_is_rejected_by_signature_verification(self) -> None:
-        with self.manifest.open("a", encoding="ascii") as stream:
-            stream.write("# modified\n")
+        lines = self.manifest.read_text(encoding="ascii").splitlines()
+        digest, filename = lines[0].split("  ", 1)
+        changed_digest = ("0" if digest[0] != "0" else "1") + digest[1:]
+        lines[0] = f"{changed_digest}  {filename}"
+        self.manifest.write_text("\n".join(lines) + "\n", encoding="ascii")
         result = self._verify()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("signature is invalid", result.stderr)
