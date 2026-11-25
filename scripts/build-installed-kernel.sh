@@ -120,6 +120,10 @@ echo "Building the GRUB-loaded EFI-stub kernel for $TARGET_ARCH..."
 ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   make -C "$SOURCE_DIR" O="$OUT_DIR" -j"$JOBS" "$IMAGE_TARGET"
 
+KERNEL_RELEASE="$(make -s -C "$SOURCE_DIR" O="$OUT_DIR" kernelrelease)"
+[[ -n "$KERNEL_RELEASE" ]] || { echo "error: could not determine installed kernel release." >&2; exit 1; }
+printf '%s\n' "$KERNEL_RELEASE" > "$OUTPUT_DIR/kernelrelease"
+
 KERNEL_IMAGE="$OUT_DIR/$IMAGE_RELATIVE_PATH"
 [[ -s "$KERNEL_IMAGE" ]] || {
   echo "error: installed kernel output is missing: $KERNEL_IMAGE" >&2
