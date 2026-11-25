@@ -5,6 +5,8 @@ systemd-sysv
 dbus
 systemd-resolved
 systemd-timesyncd
+apt
+dpkg
 udev
 kmod
 debian-archive-keyring
