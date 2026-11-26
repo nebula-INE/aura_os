@@ -5,8 +5,11 @@ systemd-sysv
 dbus
 systemd-resolved
 systemd-timesyncd
+apt
+dpkg
 udev
 kmod
+grub2-common
 debian-archive-keyring
 ca-certificates
 iproute2

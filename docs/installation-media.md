@@ -116,6 +116,29 @@ repair. A separate offline rescue environment remains a follow-up milestone.
 See [Recovery Mode](recovery-mode.md) and ADR 0012.
 
 
+## Versioned kernel packages and boot fallback
+
+The installable ISO includes two architecture-matched Debian packages in its
+Ed25519-signed payload manifest: the versioned kernel image package and the
+aura-kernel lifecycle package. The installer verifies the complete signed
+manifest before disk enumeration and installs both packages into the target
+root with dpkg. The packages create versioned files under /boot and generate
+GRUB entries for normal boot and Recovery Mode. The exact kernel release is
+taken from the built kernel's make kernelrelease output.
+
+On first boot, the confirmation service records the running release as the
+initial known-good kernel. Later package installs are designed to select the
+new kernel for one GRUB boot while keeping the previous known-good entry as
+the saved default. A candidate that restarts before confirmation therefore
+returns to the saved entry on the next boot. A kernel that hangs without
+rebooting is not automatically recovered by a watchdog in this version.
+
+This change does not yet publish a signed Aura APT repository. The kernel
+packages are installed from the signed ISO, but apt upgrade cannot yet
+download Aura kernel releases. Repository signing, publication, and a QEMU
+failure-injection test for candidate fallback remain follow-up work. See
+ADR 0016.
+
 ## Offline Rescue choice
 
 The installable ISO presents a boot-mode prompt after validating its media.

@@ -33,8 +33,8 @@ class InstallerSigningTests(unittest.TestCase):
         )
         self.expected = {
             "rootfs/aura-base-x86_64.tar.gz": b"rootfs payload",
-            "boot/vmlinuz-x86_64": b"kernel payload",
-            "boot/initramfs-x86_64.cpio.gz": b"initramfs payload",
+            "boot/aura-kernel-image-x86_64.deb": b"kernel image package",
+            "boot/aura-kernel-x86_64.deb": b"kernel lifecycle package",
             "boot/efi.img": b"EFI boot image",
         }
         for relative, data in self.expected.items():
@@ -101,7 +101,7 @@ class InstallerSigningTests(unittest.TestCase):
         self.assertIn("AURA_MEDIA_SIGNATURE_OK", result.stdout)
 
     def test_modified_payload_is_rejected_even_when_manifest_signature_is_valid(self) -> None:
-        (self.media / "boot/vmlinuz-x86_64").write_bytes(b"tampered kernel")
+        (self.media / "boot/aura-kernel-image-x86_64.deb").write_bytes(b"tampered kernel")
         result = self._verify()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("SHA-256 verification", result.stderr)

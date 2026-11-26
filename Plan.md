@@ -390,7 +390,9 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 6. Add the read-only `aura-diagnose` support archive to the shared Debian base and validate it on x86-64, AArch64, and RV64GC (ADR 0011; PR #16).
 7. Validate the installed-system Recovery Mode target, GRUB entry, and authenticated console on x86-64, AArch64, and RV64GC.
 8. Design and validate offline rescue workflows that inspect or back up an unbootable installed root without modifying the source filesystem.
-9. Implement the selected APT-managed kernel package lifecycle, signed repository, and last-known-good GRUB rollback path (ADR 0016).
+9. [x] Build architecture-native versioned kernel image/meta packages and install them through dpkg from the signed installer ISO (ADR 0016).
+10. [x] Generate per-version GRUB normal/Recovery entries, stage candidate kernels for one boot, retain known-good images, and confirm the first successful boot.
+11. Publish a separately signed APT repository and validate package updates plus failed-candidate fallback in QEMU; add watchdog-based recovery only if required by measured hardware behavior.
 
 ## 12. Open design decisions
 

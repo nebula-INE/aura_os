@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+ROOT="${AURA_ROOT:-}"
+path() { printf '%s%s' "$ROOT" "$1"; }
+VERSION_FILE="$(path /usr/share/aura-kernel/current-version)"
+KNOWN_GOOD="$(path /var/lib/aura-kernel/known-good)"
+PENDING="$(path /var/lib/aura-kernel/pending)"
+GRUB_ENV="$(path /boot/grub/grubenv)"
+GRUB_MENU="$(path /usr/lib/aura-kernel/update-grub-menu)"
+[ -s "$VERSION_FILE" ] || { echo "Aura kernel: current package version is missing." >&2; exit 1; }
+VERSION="$(sed -n '1p' "$VERSION_FILE")"
+[ -s "$(path "/boot/vmlinuz-aura-$VERSION")" ] || { echo "Aura kernel: package image is missing: $VERSION" >&2; exit 1; }
+[ -x "$GRUB_MENU" ] || { echo "Aura kernel: GRUB menu generator is missing." >&2; exit 1; }
+"$GRUB_MENU"
+command -v grub-editenv >/dev/null 2>&1 || { echo "Aura kernel: grub-editenv is unavailable." >&2; exit 1; }
+[ -e "$GRUB_ENV" ] || grub-editenv "$GRUB_ENV" create
+command -v grub-set-default >/dev/null 2>&1 || { echo "Aura kernel: grub-set-default is unavailable." >&2; exit 1; }
+command -v grub-reboot >/dev/null 2>&1 || { echo "Aura kernel: grub-reboot is unavailable." >&2; exit 1; }
+mkdir -p "$(path /var/lib/aura-kernel)"
+if [ -s "$KNOWN_GOOD" ]; then
+    PREVIOUS="$(sed -n '1p' "$KNOWN_GOOD")"
+    if [ "$PREVIOUS" != "$VERSION" ] && [ -s "$(path "/boot/vmlinuz-aura-$PREVIOUS")" ]; then
+        grub-set-default "aura-$PREVIOUS"
+        grub-reboot "aura-$VERSION"
+    else
+        grub-set-default "aura-$VERSION"
+    fi
+else
+    grub-set-default "aura-$VERSION"
+fi
+printf '%s\n' "$VERSION" > "$PENDING.tmp"
+chmod 0600 "$PENDING.tmp"
+mv -f "$PENDING.tmp" "$PENDING"
+if command -v apt-mark >/dev/null 2>&1 &&
+   command -v apt-cache >/dev/null 2>&1 &&
+   command -v dpkg-query >/dev/null 2>&1; then
+    packages="$(dpkg-query -W -f='${binary:Package}\n' 'aura-kernel-image-*' 2>/dev/null || true)"
+    for package in $packages; do
+        # Packages installed offline with dpkg are manual by default. During
+        # APT upgrades, only mark packages that the current package indexes
+        # can resolve; apt-mark otherwise fails on a fresh, offline install.
+        if apt-cache show "$package" 2>/dev/null | grep -q '^Package:'; then
+            if ! apt-mark manual "$package" >/dev/null; then
+                echo "Aura kernel: warning: could not mark $package as manually installed." >&2
+            fi
+        fi
+    done
+fi
+printf 'Aura kernel %s is staged for the next boot.\n' "$VERSION"

@@ -631,7 +631,7 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
     grub_initrd_check = (
         "! grep -Eq \"^[[:space:]]*initrd[[:space:]]\" /boot/grub/grub.cfg"
         if architecture == "riscv64"
-        else "grep -Eq \"^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs.cpio.gz$\" /boot/grub/grub.cfg"
+        else "grep -Eq \"^[[:space:]]*initrd[[:space:]]+/boot/aura-initramfs-[^ ]+\\.cpio\\.gz$\" /boot/grub/grub.cfg"
     )
 
     try:
@@ -686,9 +686,16 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
             "&& grep -Fxq \"UUID=$esp_uuid /boot/efi vfat umask=0077 0 2\" /etc/fstab "
             "&& loader=$(sed -n 's/^efi_loader=//p' /var/lib/aura/install-manifest) "
             "&& test -s \"/boot/efi/$loader\" "
-            "&& grep -Fq \"Aura OS (Recovery Mode)\" /boot/grub/grub.cfg "
+            "&& grep -Fq \"Recovery Mode)\" /boot/grub/grub.cfg "
             f'&& grep -Fxq "initramfs_mode={initramfs_mode}" /var/lib/aura/install-manifest '
             f"&& {grub_initrd_check} "
+            "&& current_kernel_version=$(cat /usr/share/aura-kernel/current-version) "
+            "&& dpkg-query -W aura-kernel >/dev/null "
+            "&& dpkg-query -W aura-kernel-image-$current_kernel_version >/dev/null "
+            "&& test -s /boot/vmlinuz-aura-$current_kernel_version "
+            "&& grep -Fxq \"$current_kernel_version\" /var/lib/aura-kernel/known-good "
+            "&& test ! -e /var/lib/aura-kernel/pending "
+            "&& { if grep -Fxq 'AURA_KERNEL_MODULES=1' /usr/share/aura-kernel/$current_kernel_version.conf; then test -s /lib/modules/$current_kernel_version/modules.dep; fi; } "
             "&& echo AURA_ROOT_UUID_FSTAB_ESP_OK "
             "&& cat /var/lib/aura/install-manifest "
             "&& cat /etc/fstab "

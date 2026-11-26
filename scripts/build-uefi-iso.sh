@@ -16,8 +16,8 @@ AURA_RELEASE_PUBLIC_KEY_FILE="${AURA_RELEASE_PUBLIC_KEY_FILE:-}"
 AURA_RELEASE_SIGNING_MODE="${AURA_RELEASE_SIGNING_MODE:-unconfigured}"
 ROOTFS_ARCHIVE="${ROOTFS_ARCHIVE:-$ROOT_DIR/build/base-userspace/$TARGET_ARCH/aura-base-$TARGET_ARCH.tar.gz}"
 ROOTFS_CHECKSUM="${ROOTFS_CHECKSUM:-$ROOTFS_ARCHIVE.sha256}"
-INSTALLED_KERNEL="${INSTALLED_KERNEL:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/vmlinuz-$TARGET_ARCH}"
-INSTALLED_INITRAMFS="${INSTALLED_INITRAMFS:-$ROOT_DIR/build/initramfs/aura-initramfs-$TARGET_ARCH.cpio.gz}"
+KERNEL_IMAGE_PACKAGE="${KERNEL_IMAGE_PACKAGE:-$ROOT_DIR/build/kernel-packages/$TARGET_ARCH/aura-kernel-image-$TARGET_ARCH.deb}"
+KERNEL_META_PACKAGE="${KERNEL_META_PACKAGE:-$ROOT_DIR/build/kernel-packages/$TARGET_ARCH/aura-kernel-$TARGET_ARCH.deb}"
 
 case "$TARGET_ARCH" in
   x86_64)
@@ -64,7 +64,7 @@ fi
 case "$AURA_INSTALLER_MODE" in
   0) ;;
   1)
-    for payload in "$ROOTFS_ARCHIVE" "$ROOTFS_CHECKSUM" "$INSTALLED_KERNEL" "$INSTALLED_INITRAMFS"; do
+    for payload in "$ROOTFS_ARCHIVE" "$ROOTFS_CHECKSUM" "$KERNEL_IMAGE_PACKAGE" "$KERNEL_META_PACKAGE"; do
       if [[ ! -s "$payload" ]]; then
         echo "error: installable ISO payload is missing or empty: $payload" >&2
         exit 1
@@ -102,13 +102,8 @@ if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
   mkdir -p "$STAGING_DIR/rootfs"
   cp "$ROOTFS_ARCHIVE" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz"
   cp "$ROOTFS_CHECKSUM" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz.sha256"
-  cp "$INSTALLED_KERNEL" "$STAGING_DIR/boot/vmlinuz-$TARGET_ARCH"
-  cp "$INSTALLED_INITRAMFS" "$STAGING_DIR/boot/initramfs-$TARGET_ARCH.cpio.gz"
-  (
-    cd "$STAGING_DIR/boot"
-    sha256sum "vmlinuz-$TARGET_ARCH" > "vmlinuz-$TARGET_ARCH.sha256"
-    sha256sum "initramfs-$TARGET_ARCH.cpio.gz" > "initramfs-$TARGET_ARCH.cpio.gz.sha256"
-  )
+  cp "$KERNEL_IMAGE_PACKAGE" "$STAGING_DIR/boot/aura-kernel-image-$TARGET_ARCH.deb"
+  cp "$KERNEL_META_PACKAGE" "$STAGING_DIR/boot/aura-kernel-$TARGET_ARCH.deb"
 fi
 ESP_IMAGE="$STAGING_DIR/boot/efi.img"
 VOLUME_ID="$ISO_LABEL"
@@ -129,8 +124,8 @@ if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
     cd "$STAGING_DIR"
     sha256sum \
       "rootfs/aura-base-$TARGET_ARCH.tar.gz" \
-      "boot/vmlinuz-$TARGET_ARCH" \
-      "boot/initramfs-$TARGET_ARCH.cpio.gz" \
+      "boot/aura-kernel-image-$TARGET_ARCH.deb" \
+      "boot/aura-kernel-$TARGET_ARCH.deb" \
       "boot/efi.img" > aura-payloads.sha256
   )
   openssl pkeyutl -sign -rawin \
@@ -143,10 +138,11 @@ Aura OS $TARGET_ARCH UEFI install media (Debian 13 trixie)
 Firmware profile: $FIRMWARE_PROFILE
 EFI removable-media loader: EFI/BOOT/$EFI_FILENAME
 The installer runs from a Debian 13 initramfs in memory.
-The ISO carries a separate Debian rootfs archive and the installed kernel/initramfs.
+The ISO carries a separate Debian rootfs archive and signed Debian kernel packages.
 
-The Ed25519-signed payload manifest covers the rootfs, installed kernel,
-persistent-root initramfs, and EFI boot image. Verify the detached ISO signature
+The Ed25519-signed payload manifest covers the rootfs archive, the
+versioned kernel image .deb, its lifecycle meta .deb, and the EFI boot image.
+Verify the detached ISO signature
 with the Aura release public key before booting.
 Signing mode: $AURA_RELEASE_SIGNING_MODE
 Ed25519 public-key DER SHA-256 fingerprint: ${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-unavailable}
@@ -249,8 +245,8 @@ record = {
 }
 if installer_ready:
     record["rootfs_archive"] = f"rootfs/aura-base-{architecture}.tar.gz"
-    record["installed_kernel"] = f"boot/vmlinuz-{architecture}"
-    record["installed_initramfs"] = f"boot/initramfs-{architecture}.cpio.gz"
+    record["kernel_image_package"] = f"boot/aura-kernel-image-{architecture}.deb"
+    record["kernel_meta_package"] = f"boot/aura-kernel-{architecture}.deb"
     record["signed_payload_manifest"] = "aura-payloads.sha256"
     record["signed_payload_manifest_signature"] = "aura-payloads.sha256.sig"
     record["payload_signature"] = "Ed25519"

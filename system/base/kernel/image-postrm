@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+ROOT="${AURA_ROOT:-}"
+MENU_GENERATOR="$ROOT/usr/lib/aura-kernel/update-grub-menu"
+case "${1:-}" in
+  remove|purge)
+    if [ -x "$MENU_GENERATOR" ]; then
+      "$MENU_GENERATOR"
+    fi
+    ;;
+esac
+exit 0

@@ -34,6 +34,11 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "sbin/init").symlink_to("../usr/lib/systemd/systemd")
     (root / "usr/bin/apt-get").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     (root / "usr/bin/apt-get").chmod(0o755)
+    for relative in ("usr/bin/grub-editenv", "usr/sbin/grub-reboot", "usr/sbin/grub-set-default"):
+        tool = root / relative
+        tool.parent.mkdir(parents=True, exist_ok=True)
+        tool.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        tool.chmod(0o755)
     (root / "usr/bin/aura-diagnose").write_text(
         "#!/bin/sh\nexit 0\n", encoding="utf-8"
     )
@@ -45,7 +50,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     (root / "var/lib/dpkg/status").write_text(
         "\n\n".join(
             f"Package: {name}\nStatus: install ok installed"
-            for name in sorted({"apt", "dbus", "debian-archive-keyring", "fdisk", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "tar", "udev"})
+            for name in sorted({"apt", "dbus", "debian-archive-keyring", "dpkg", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "tar", "udev"})
         ) + "\n",
         encoding="utf-8",
     )
@@ -230,7 +235,7 @@ class BaseRootfsTests(unittest.TestCase):
             root = Path(tmp) / "rootfs"
             make_rootfs(root)
             status = root / "var/lib/dpkg/status"
-            packages = {"apt", "dbus", "debian-archive-keyring", "fdisk", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "tar", "udev"}
+            packages = {"apt", "dbus", "debian-archive-keyring", "dpkg", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "tar", "udev"}
             status.write_text(
                 "\n\n".join(
                     f"Package: {name}\nStatus: install ok installed"

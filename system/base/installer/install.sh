@@ -11,8 +11,8 @@ MEDIA_ROOT=/run/aura-media
 MEDIA_DEVICE="${AURA_MEDIA_DEVICE:-}"
 ARCH="${AURA_TARGET_ARCH:-}"
 ROOTFS_ARCHIVE="$MEDIA_ROOT/rootfs/aura-base-$ARCH.tar.gz"
-BOOT_KERNEL="$MEDIA_ROOT/boot/vmlinuz-$ARCH"
-BOOT_INITRAMFS="$MEDIA_ROOT/boot/initramfs-$ARCH.cpio.gz"
+KERNEL_IMAGE_PACKAGE="$MEDIA_ROOT/boot/aura-kernel-image-$ARCH.deb"
+KERNEL_META_PACKAGE="$MEDIA_ROOT/boot/aura-kernel-$ARCH.deb"
 
 ROOT_MNT=/mnt/aura-root
 ESP_MNT="$ROOT_MNT/boot/efi"
@@ -43,8 +43,8 @@ esac
 [ -b "$MEDIA_DEVICE" ] || fail "installer media device is missing."
 # Verify the publisher signature and every payload hash before enumerating disks.
 [ -s "$ROOTFS_ARCHIVE" ] || fail "Debian root filesystem archive is missing."
-[ -s "$BOOT_KERNEL" ] || fail "installed kernel payload is missing."
-[ -s "$BOOT_INITRAMFS" ] || fail "persistent-root initramfs payload is missing."
+[ -s "$KERNEL_IMAGE_PACKAGE" ] || fail "versioned kernel image package is missing."
+[ -s "$KERNEL_META_PACKAGE" ] || fail "kernel lifecycle package is missing."
 /bin/sh /usr/lib/aura/installer/verify-media.sh "$MEDIA_ROOT" ||
     fail "installer media signature or signed payload verification failed."
 
@@ -52,28 +52,24 @@ case "$ARCH" in
     x86_64)
         GRUB_TARGET=x86_64-efi
         EFI_LOADER=BOOTX64.EFI
-        CONSOLE_ARGS="console=ttyS0,115200n8"
-        GRUB_INITRD_LINE="initrd /boot/aura-initramfs.cpio.gz"
+        KERNEL_CMDLINE="aura.rootfs=1 console=ttyS0,115200n8"
         ;;
     aarch64)
         GRUB_TARGET=arm64-efi
         EFI_LOADER=BOOTAA64.EFI
-        CONSOLE_ARGS="console=ttyAMA0,115200"
-        GRUB_INITRD_LINE="initrd /boot/aura-initramfs.cpio.gz"
+        KERNEL_CMDLINE="aura.rootfs=1 console=ttyAMA0,115200"
         ;;
     riscv64)
         GRUB_TARGET=riscv64-efi
         EFI_LOADER=BOOTRISCV64.EFI
-        CONSOLE_ARGS="console=ttyS0,115200"
+        KERNEL_CMDLINE="aura.rootfs=1 console=ttyS0,115200"
         # RV64GC embeds the persistent-root /init in its installed kernel.
-        # Avoid depending on the RISC-V UEFI external-initrd handoff.
-        GRUB_INITRD_LINE=""
         ;;
     *) fail "unsupported target architecture: $ARCH" ;;
 esac
 
 for command_name in lsblk sfdisk blockdev wipefs mkfs.fat mkfs.ext4 blkid \
-                    udevadm tar grub-install sha256sum openssl; do
+                    udevadm tar grub-install sha256sum openssl dpkg chroot; do
     command -v "$command_name" >/dev/null 2>&1 ||
         fail "required installer command is unavailable: $command_name"
 done
@@ -291,8 +287,6 @@ tar --numeric-owner --xattrs --acls --same-owner \
     -xzf "$ROOTFS_ARCHIVE" -C "$ROOT_MNT"
 
 mkdir -p "$ROOT_MNT/boot" "$ESP_MNT"
-install -m 0644 "$BOOT_KERNEL" "$ROOT_MNT/boot/vmlinuz-aura"
-install -m 0644 "$BOOT_INITRAMFS" "$ROOT_MNT/boot/aura-initramfs.cpio.gz"
 mount -t vfat -o umask=0077 "$ESP_PART" "$ESP_MNT"
 ESP_MOUNTED=1
 
@@ -303,7 +297,7 @@ UUID=$ESP_UUID /boot/efi vfat umask=0077 0 2
 EOF
 
 cat > "$ROOT_MNT/etc/default/grub" <<'EOF'
-GRUB_DEFAULT=0
+GRUB_DEFAULT=saved
 GRUB_TIMEOUT=5
 GRUB_DISTRIBUTOR="Aura OS"
 GRUB_CMDLINE_LINUX="aura.rootfs=1"
@@ -322,33 +316,26 @@ grub-install \
     --recheck \
     "$TARGET_DISK"
 
-cat > "$ROOT_MNT/boot/grub/grub.cfg" <<EOF
-set default=0
-set timeout=5
-insmod part_gpt
-insmod fat
-insmod ext2
-search --no-floppy --fs-uuid --set=root $ROOT_UUID
-
-menuentry 'Aura OS' {
-    search --no-floppy --fs-uuid --set=root $ROOT_UUID
-    linux /boot/vmlinuz-aura root=UUID=$ROOT_UUID aura.rootfs=1 $CONSOLE_ARGS
-    ${GRUB_INITRD_LINE}
-}
-
-menuentry 'Aura OS (Recovery Mode)' {
-    search --no-floppy --fs-uuid --set=root $ROOT_UUID
-    linux /boot/vmlinuz-aura root=UUID=$ROOT_UUID aura.rootfs=1 systemd.unit=aura-recovery.target $CONSOLE_ARGS
-    ${GRUB_INITRD_LINE}
-}
-EOF
+# Persist architecture and the exact GRUB command line before installing the
+# versioned packages. Their maintainer scripts own /boot/grub/grub.cfg.
+mkdir -p "$ROOT_MNT/etc/aura-kernel"
+printf '%s\n' "$ARCH" > "$ROOT_MNT/etc/aura-kernel/architecture"
+printf '%s\n' "$KERNEL_CMDLINE" > "$ROOT_MNT/etc/aura-kernel/cmdline"
+chmod 0644 "$ROOT_MNT/etc/aura-kernel/architecture" "$ROOT_MNT/etc/aura-kernel/cmdline"
 
 case "$ARCH" in
-    x86_64) EFI_DIR="$ESP_MNT/EFI/BOOT" ;;
-    aarch64) EFI_DIR="$ESP_MNT/EFI/BOOT" ;;
-    riscv64) EFI_DIR="$ESP_MNT/EFI/BOOT" ;;
+    x86_64|aarch64|riscv64) EFI_DIR="$ESP_MNT/EFI/BOOT" ;;
 esac
 [ -s "$EFI_DIR/$EFI_LOADER" ] || fail "GRUB did not create the UEFI fallback loader $EFI_LOADER."
+
+# Install the signed versioned image package and lifecycle meta package into
+# the matching target root. The post-install hook writes the initial GRUB menu.
+install -m 0644 "$KERNEL_IMAGE_PACKAGE" "$ROOT_MNT/tmp/aura-kernel-image-$ARCH.deb"
+install -m 0644 "$KERNEL_META_PACKAGE" "$ROOT_MNT/tmp/aura-kernel-$ARCH.deb"
+chroot "$ROOT_MNT" /usr/bin/dpkg -i \
+    "/tmp/aura-kernel-image-$ARCH.deb" "/tmp/aura-kernel-$ARCH.deb"
+rm -f "$ROOT_MNT/tmp/aura-kernel-image-$ARCH.deb" "$ROOT_MNT/tmp/aura-kernel-$ARCH.deb"
+
 
 mkdir -p "$ROOT_MNT/var/lib/aura"
 {
@@ -362,10 +349,38 @@ mkdir -p "$ROOT_MNT/var/lib/aura"
     printf 'efi_uuid=%s\n' "$ESP_UUID"
     printf 'efi_loader=EFI/BOOT/%s\n' "$EFI_LOADER"
     printf 'recovery_target=aura-recovery.target\n'
-    if [ -n "$GRUB_INITRD_LINE" ]; then
-        printf 'initramfs_mode=external\n'
-    else
+    printf 'kernel_package=aura-kernel\n'
+    kernel_version="$(cat "$ROOT_MNT/usr/share/aura-kernel/current-version")"
+    printf 'kernel_package_version=%s\n' "$kernel_version"
+    if grep -q '^AURA_INITRAMFS_MODE=embedded$' "$ROOT_MNT/usr/share/aura-kernel/$kernel_version.conf"; then
         printf 'initramfs_mode=embedded-in-kernel\n'
+    else
+        printf 'initramfs_mode=external\n'
+    fi
+} > "$ROOT_MNT/var/lib/aura/install-manifest"
+chmod 0600 "$ROOT_MNT/var/lib/aura/install-manifest"
+
+sync
+umount "$ESP_MNT"
+ESP_MOUNTED=0
+umount "$ROOT_MNT"
+ROOT_MOUNTED=0
+sync
+
+echo
+echo "AURA_INSTALL_COMPLETE"
+echo "[Aura OS] Installation completed successfully."
+echo "Power off, remove the installer media, then boot from the installed disk."
+printf 'Press Enter to power off: '
+IFS= read -r _
+sync
+poweroff --force --force
+echo "[Aura OS] ERROR: poweroff command returned unexpectedly."
+exec /bin/sh
+ "$ROOT_MNT/usr/share/aura-kernel/$kernel_version.conf"; then
+        printf 'initramfs_mode=embedded-in-kernel\n'
+    else
+        printf 'initramfs_mode=external\n'
     fi
 } > "$ROOT_MNT/var/lib/aura/install-manifest"
 chmod 0600 "$ROOT_MNT/var/lib/aura/install-manifest"
