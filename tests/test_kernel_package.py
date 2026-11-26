@@ -215,6 +215,23 @@ class KernelGrubMenuTests(unittest.TestCase):
         self.assertIn("initrd /boot/aura-initramfs-6.18.63.cpio.gz", config)
         self.assertIn("initrd /boot/aura-initramfs-6.18.64-custom1.cpio.gz", config)
 
+    def test_rejects_extra_kernel_metadata_without_executing_shell_content(self) -> None:
+        (self.root / "etc/aura-kernel/architecture").write_text("x86_64\\n", encoding="ascii")
+        version = "6.18.64"
+        (self.root / "boot" / f"vmlinuz-aura-{version}").write_bytes(b"kernel")
+        (self.root / "boot" / f"aura-initramfs-{version}.cpio.gz").write_bytes(b"initrd")
+        marker = self.root / "metadata-was-executed"
+        (self.root / "usr/share/aura-kernel" / f"{version}.conf").write_text(
+            "AURA_KERNEL_ARCH=x86_64\\n"
+            "AURA_INITRAMFS_MODE=external\\n"
+            "AURA_KERNEL_MODULES=0\\n"
+            f"touch {marker}\\n",
+            encoding="ascii",
+        )
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_generator()
+        self.assertFalse(marker.exists(), "kernel metadata must never be executed as shell code")
+
     def test_riscv_embedded_initramfs_does_not_emit_an_external_initrd(self) -> None:
         (self.root / "etc/aura-kernel/architecture").write_text("riscv64\n", encoding="ascii")
         (self.root / "boot/vmlinuz-aura-6.18.64").write_bytes(b"kernel")
