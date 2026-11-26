@@ -49,6 +49,8 @@ on:
       - "scripts/build-installer-initramfs.sh"
       - "scripts/build-installed-kernel.sh"
       - "scripts/build-kernel-package.sh"
+      - "scripts/build-kernel-apt-repository.sh"
+      - "scripts/prepare-apt-repository-key.sh"
       - "scripts/build-kernel-efi-iso.sh"
       - "scripts/build-uefi-iso.sh"
       - "scripts/build-base-rootfs.sh"
@@ -61,11 +63,13 @@ on:
       - "tests/test_installer_signing.py"
       - "tests/test_kernel_package.py"
       - "tests/test_kernel_lifecycle.py"
+      - "tests/test_kernel_apt_repository.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
       - "docs/decisions/0016-kernel-package-update-policy.md"
       - "docs/decisions/0017-signed-installer-media.md"
+      - "docs/kernel-apt-repository.md"
       - ".github/workflows/installer-iso.yml"
   workflow_dispatch:
 
