@@ -197,7 +197,7 @@ class KernelGrubMenuTests(unittest.TestCase):
             (self.root / "boot" / f"vmlinuz-aura-{version}").write_bytes(b"kernel")
             (self.root / "boot" / f"aura-initramfs-{version}.cpio.gz").write_bytes(b"initrd")
             (self.root / "usr/share/aura-kernel" / f"{version}.conf").write_text(
-                "AURA_KERNEL_ARCH=x86_64\nAURA_INITRAMFS_MODE=external\n",
+                "AURA_KERNEL_ARCH=x86_64\nAURA_INITRAMFS_MODE=external\nAURA_KERNEL_MODULES=0\n",
                 encoding="ascii",
             )
         config = self.run_generator()
@@ -219,7 +219,7 @@ class KernelGrubMenuTests(unittest.TestCase):
         (self.root / "etc/aura-kernel/architecture").write_text("riscv64\n", encoding="ascii")
         (self.root / "boot/vmlinuz-aura-6.18.64").write_bytes(b"kernel")
         (self.root / "usr/share/aura-kernel/6.18.64.conf").write_text(
-            "AURA_KERNEL_ARCH=riscv64\nAURA_INITRAMFS_MODE=embedded\n",
+            "AURA_KERNEL_ARCH=riscv64\nAURA_INITRAMFS_MODE=embedded\nAURA_KERNEL_MODULES=0\n",
             encoding="ascii",
         )
         config = self.run_generator()
