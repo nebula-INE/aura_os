@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TARGET_ARCH="${TARGET_ARCH:-}"
+AURA_RELEASE_PUBLIC_KEY_FILE="${AURA_RELEASE_PUBLIC_KEY_FILE:-}"
 BASE_DIR="$ROOT_DIR/build/base-userspace/$TARGET_ARCH"
 BASE_ARCHIVE="$BASE_DIR/aura-base-$TARGET_ARCH.tar.gz"
 OUT_DIR="$ROOT_DIR/build/installer-initramfs/$TARGET_ARCH"
@@ -53,6 +54,14 @@ done
   echo "error: offline rescue restore entry point is missing." >&2
   exit 1
 }
+[[ -s "$ROOT_DIR/system/base/installer/verify-media.sh" ]] || {
+  echo "error: signed media verifier source is missing." >&2
+  exit 1
+}
+[[ -n "$AURA_RELEASE_PUBLIC_KEY_FILE" && -s "$AURA_RELEASE_PUBLIC_KEY_FILE" ]] || {
+  echo "error: trusted Aura release public key is missing; set AURA_RELEASE_PUBLIC_KEY_FILE." >&2
+  exit 1
+}
 
 rm -rf -- "$OUT_DIR"
 mkdir -p "$ROOTFS_DIR"
@@ -69,13 +78,17 @@ install -D -m 0755 "$ROOT_DIR/system/base/installer/backup.sh" \
   "$ROOTFS_DIR/usr/lib/aura/installer/backup.sh"
 install -D -m 0755 "$ROOT_DIR/system/base/installer/restore.sh" \
   "$ROOTFS_DIR/usr/lib/aura/installer/restore.sh"
+install -D -m 0755 "$ROOT_DIR/system/base/installer/verify-media.sh" \
+  "$ROOTFS_DIR/usr/lib/aura/installer/verify-media.sh"
+install -D -m 0644 "$AURA_RELEASE_PUBLIC_KEY_FILE" \
+  "$ROOTFS_DIR/etc/aura/installer-release-key.pub"
 mkdir -p "$ROOTFS_DIR"/{dev,proc,sys,run,run/udev,run/aura-media,mnt,newroot}
 chmod 1777 "$ROOTFS_DIR/tmp"
 
 for command_name in lsblk sfdisk blockdev wipefs mkfs.fat mkfs.ext4 blkid \
                     udevadm tar grub-install mount umount swapon install basename sha256sum \
                     findmnt e2fsck sed awk grep poweroff du df date sync mktemp \
-                    mv rm tr id dirname find chmod; do
+                    mv rm tr id dirname find chmod openssl; do
   if ! chroot "$ROOTFS_DIR" /bin/sh -c "command -v '$command_name' >/dev/null 2>&1"; then
     echo "error: installer runtime is missing required command: $command_name" >&2
     exit 1
@@ -102,6 +115,8 @@ cat "$ARCHIVE.sha256"
   printf 'Installer userspace: validated Debian 13 (trixie) base rootfs\n'
   printf 'Installer entry point: /init\n'
   printf 'Installer program: /usr/lib/aura/installer/install.sh\n'
+  printf 'Media verification: Ed25519 signed manifest + SHA-256 payload hashes\n'
+  printf 'Trusted public key: /etc/aura/installer-release-key.pub\n'
   printf 'Target disk layout: GPT / 512 MiB FAT32 ESP / ext4 root\n'
   printf 'Disk selection: explicit console selection and destructive confirmation required\n'
   printf 'Root filesystem payload: %s\n' "$BASE_ARCHIVE"

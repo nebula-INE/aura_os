@@ -140,7 +140,10 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Add backup verification/restore workflows and explicit backup-first repair workflows for damaged filesystems, bootloader recreation, encryption recovery, and credential recovery.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
 - [x] Validate DHCPv4 addressing, default route, IPv6 link-local addressing, DNS resolution, and timesyncd service activation on x86-64, AArch64, and RV64GC (CI run 44646382671). Actual NTP synchronization accuracy/time offset is not yet asserted.
-- [ ] Define package installation, updates, and rollback.
+- [x] Choose APT/dpkg-managed, versioned Aura kernel packages as the installed-kernel update policy (ADR 0016); package builder, signed repository, and rollback implementation remain pending.
+- [ ] Build architecture-native `aura-kernel` Debian packages with matched kernel/initramfs payloads and GRUB maintainer hooks.
+- [ ] Publish the kernel packages through a signed APT repository.
+- [ ] Keep a previous known-good kernel/GRUB entry until the new version passes a post-update boot check; test rollback on all three architectures.
 - [ ] Add architecture-independent integration tests.
 
 **Exit criteria:** core system workflows behave consistently across all three targets.
@@ -177,10 +180,12 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 ### Phase 5 — Security, updates, and release engineering
 
-- [ ] Define secure boot and image-signing policy per platform.
+- [x] Define Ed25519 signed installer payload manifests and detached ISO checksum signatures (ADR 0017).
+- [ ] Provision the persistent release key through GitHub Secret/Variable and publish its fingerprint through an independent channel before trusted releases.
+- [ ] Define UEFI Secure Boot and hardware-rooted boot trust policy for each platform.
 - [ ] Harden default services, permissions, and network exposure.
 - [ ] Establish vulnerability tracking and kernel/userspace update cadence.
-- [ ] Verify update integrity, failure recovery, and rollback.
+- [ ] Validate `apt upgrade` of `aura-kernel`, matched initramfs deployment, GRUB regeneration, failed-candidate fallback, and previous-kernel rollback on x86-64, AArch64, and RV64GC.
 - [ ] Publish reproducible build instructions, component notices, and support matrix.
 - [ ] Run regression, compatibility, and performance tests on all targets.
 - [ ] Publish reproducible per-architecture performance comparisons against the defined Linux reference.
@@ -385,17 +390,18 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 6. Add the read-only `aura-diagnose` support archive to the shared Debian base and validate it on x86-64, AArch64, and RV64GC (ADR 0011; PR #16).
 7. Validate the installed-system Recovery Mode target, GRUB entry, and authenticated console on x86-64, AArch64, and RV64GC.
 8. Design and validate offline rescue workflows that inspect or back up an unbootable installed root without modifying the source filesystem.
-9. Establish per-architecture kernel security-update and regression-test workflows.
+9. Implement the selected APT-managed kernel package lifecycle, signed repository, and last-known-good GRUB rollback path (ADR 0016).
 
 ## 12. Open design decisions
 
 - Linux distribution/base userspace versus a minimal custom userspace.
 - [x] Initial init/service baseline: systemd with glibc; final default service set and desktop session remain open.
 - Desktop/compositor and graphics stack.
-- Package format, repositories, installation, and atomic update model.
+- [x] Installed-kernel update model: APT/dpkg versioned packages from a signed repository; no A/B rootfs for the initial update design (ADR 0016).
 - Exact reference hardware and minimum CPU/ISA baselines for all three targets.
 - Firmware and boot strategy per platform.
-- Secure boot, signing, and component update policy.
+- [x] Installable-media trust: Ed25519-signed payload manifest plus detached ISO checksum signature (ADR 0017); Secure Boot remains open.
+- UEFI Secure Boot and a firmware-rooted trust chain per supported platform.
 - Exact upstream Linux kernel line and update cadence for each Aura OS release.
 
 ## 13. Risk register

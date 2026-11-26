@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
     paths:
       - "kernel/configs/**"
       - "initramfs/**"
@@ -24,9 +26,12 @@ on:
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
+      - "tests/test_installer_signing.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
+      - "docs/decisions/0016-kernel-package-update-policy.md"
+      - "docs/decisions/0017-signed-installer-media.md"
       - ".github/workflows/installer-iso.yml"
   pull_request:
     paths:
@@ -49,9 +54,12 @@ on:
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_aarch64_efi_image.py"
       - "tests/test_installer_contract.py"
+      - "tests/test_installer_signing.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
+      - "docs/decisions/0016-kernel-package-update-policy.md"
+      - "docs/decisions/0017-signed-installer-media.md"
       - ".github/workflows/installer-iso.yml"
   workflow_dispatch:
 
@@ -96,10 +104,11 @@ jobs:
             scripts/ensure-ubuntu-apt-sources.sh
           sh -n system/base/installer/init system/base/installer/install.sh \
             system/base/installer/rescue.sh system/base/installer/backup.sh \
-            system/base/installer/restore.sh
+            system/base/installer/restore.sh system/base/installer/verify-media.sh
           sh -n system/base/recovery/aura-recovery-banner
           python3 -m py_compile scripts/test-installer-qemu.py
           python3 -m unittest discover -s tests -p 'test_installer_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_installer_signing.py' -v
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_ubuntu_apt_sources.py' -v
@@ -122,7 +131,7 @@ jobs:
             -o Acquire::Queue-Mode=access \
             install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-            git gnupg curl perl cpio gzip binutils file mtools xorriso \
+            git gnupg curl perl cpio gzip binutils file mtools xorriso openssl \
             mmdebstrap qemu-user-static binfmt-support e2fsprogs util-linux \
             dosfstools python3-pexpect \
             ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
@@ -138,6 +147,48 @@ jobs:
 
       - name: Prepare runner-owned build workspace
         run: mkdir -p "$GITHUB_WORKSPACE/build/base-userspace"
+
+      - name: Prepare signed-media test or release key
+        env:
+          AURA_RELEASE_PRIVATE_KEY_PEM: ${{ secrets.AURA_RELEASE_PRIVATE_KEY_PEM }}
+          AURA_RELEASE_PUBLIC_KEY_PEM: ${{ vars.AURA_RELEASE_PUBLIC_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          key_dir="$RUNNER_TEMP/aura-release-signing"
+          mkdir -p "$key_dir"
+          private_key="$key_dir/private.pem"
+          public_key="$key_dir/public.pem"
+          public_key_input="$key_dir/public-input.pem"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            [[ -n "$AURA_RELEASE_PRIVATE_KEY_PEM" && -n "$AURA_RELEASE_PUBLIC_KEY_PEM" ]] || {
+              echo "error: tagged release builds require AURA_RELEASE_PRIVATE_KEY_PEM (Secret) and AURA_RELEASE_PUBLIC_KEY_PEM (Variable)." >&2
+              exit 1
+            }
+            printf '%s\n' "$AURA_RELEASE_PRIVATE_KEY_PEM" > "$private_key"
+            printf '%s\n' "$AURA_RELEASE_PUBLIC_KEY_PEM" > "$public_key_input"
+            openssl pkey -pubin -in "$public_key_input" -pubout -out "$public_key"
+            mode="release-key"
+          else
+            # PR and branch CI uses an ephemeral key to exercise verification.
+            # Such artifacts are test outputs, not trusted release media.
+            openssl genpkey -algorithm ED25519 -out "$private_key"
+            openssl pkey -in "$private_key" -pubout -out "$public_key"
+            mode="ci-ephemeral"
+          fi
+          chmod 0600 "$private_key"
+          derived="$key_dir/derived-public.pem"
+          openssl pkey -in "$private_key" -pubout -out "$derived"
+          cmp -s "$derived" "$public_key" || {
+            echo "error: configured release private/public keys do not match." >&2
+            exit 1
+          }
+          fingerprint="$(openssl pkey -pubin -in "$public_key" -outform DER | sha256sum | awk '{print $1}')"
+          {
+            echo "AURA_RELEASE_PRIVATE_KEY_FILE=$private_key"
+            echo "AURA_RELEASE_PUBLIC_KEY_FILE=$public_key"
+            echo "AURA_RELEASE_PUBLIC_KEY_FINGERPRINT=$fingerprint"
+            echo "AURA_RELEASE_SIGNING_MODE=$mode"
+          } >> "$GITHUB_ENV"
 
       - name: Prepare verified Debian Trixie signing keyring
         run: |
@@ -165,7 +216,7 @@ jobs:
       - name: Build the Debian installer initramfs
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
-        run: sudo --preserve-env=TARGET_ARCH bash scripts/build-installer-initramfs.sh
+        run: sudo --preserve-env=TARGET_ARCH,AURA_RELEASE_PUBLIC_KEY_FILE bash scripts/build-installer-initramfs.sh
 
       - name: Build the EFI-stub kernel with installer userspace
         env:
@@ -186,6 +237,19 @@ jobs:
           AURA_INSTALLER_MODE: "1"
         run: bash scripts/build-uefi-iso.sh
 
+      - name: Verify detached ISO signature and release-key fingerprint
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: |
+          set -euo pipefail
+          iso="$GITHUB_WORKSPACE/build/iso/aura-os-${TARGET_ARCH}-uefi.iso"
+          openssl pkeyutl -verify -pubin -inkey "$AURA_RELEASE_PUBLIC_KEY_FILE" \
+            -rawin -in "$iso.sha256" -sigfile "$iso.sha256.sig"
+          (cd "$(dirname "$iso")" && sha256sum --check "$(basename "$iso").sha256")
+          expected_fingerprint="$(openssl pkey -pubin -in "$AURA_RELEASE_PUBLIC_KEY_FILE" -outform DER | sha256sum | awk '{print $1}')"
+          actual_fingerprint="$(awk '{print $1}' "$iso.pub.fingerprint")"
+          [[ "$actual_fingerprint" == "$expected_fingerprint" ]]
+
       - name: Install to a second QEMU disk and boot without the ISO
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
@@ -203,6 +267,9 @@ jobs:
           path: |
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.sha256
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.sha256.sig
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.pub
+            build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.pub.fingerprint
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.provenance.json
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.eltorito.txt
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz

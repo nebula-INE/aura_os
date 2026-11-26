@@ -11,6 +11,9 @@ else
   ESP_SIZE="${ESP_SIZE:-128M}"
 fi
 AURA_INSTALLER_MODE="${AURA_INSTALLER_MODE:-0}"
+AURA_RELEASE_PRIVATE_KEY_FILE="${AURA_RELEASE_PRIVATE_KEY_FILE:-}"
+AURA_RELEASE_PUBLIC_KEY_FILE="${AURA_RELEASE_PUBLIC_KEY_FILE:-}"
+AURA_RELEASE_SIGNING_MODE="${AURA_RELEASE_SIGNING_MODE:-unconfigured}"
 ROOTFS_ARCHIVE="${ROOTFS_ARCHIVE:-$ROOT_DIR/build/base-userspace/$TARGET_ARCH/aura-base-$TARGET_ARCH.tar.gz}"
 ROOTFS_CHECKSUM="${ROOTFS_CHECKSUM:-$ROOTFS_ARCHIVE.sha256}"
 INSTALLED_KERNEL="${INSTALLED_KERNEL:-$ROOT_DIR/build/kernel-installed/$TARGET_ARCH/vmlinuz-$TARGET_ARCH}"
@@ -51,7 +54,7 @@ require_command() {
   }
 }
 
-for cmd in truncate mformat mmd mcopy mdir xorriso sha256sum python3; do
+for cmd in truncate mformat mmd mcopy mdir xorriso sha256sum python3 openssl cmp; do
   require_command "$cmd"
 done
 if [[ ! -s "$KERNEL_IMAGE" ]]; then
@@ -67,6 +70,24 @@ case "$AURA_INSTALLER_MODE" in
         exit 1
       fi
     done
+    for key_file in "$AURA_RELEASE_PRIVATE_KEY_FILE" "$AURA_RELEASE_PUBLIC_KEY_FILE"; do
+      if [[ -z "$key_file" || ! -s "$key_file" ]]; then
+        echo "error: installable ISO signing key is missing: $key_file" >&2
+        exit 1
+      fi
+    done
+    derived_public_key="$(mktemp)"
+    if ! openssl pkey -in "$AURA_RELEASE_PRIVATE_KEY_FILE" -pubout -out "$derived_public_key"; then
+      rm -f "$derived_public_key"
+      echo "error: could not derive the release public key." >&2
+      exit 1
+    fi
+    if ! cmp -s "$derived_public_key" "$AURA_RELEASE_PUBLIC_KEY_FILE"; then
+      rm -f "$derived_public_key"
+      echo "error: release private and public keys do not match." >&2
+      exit 1
+    fi
+    rm -f "$derived_public_key"
     ;;
   *)
     echo "error: AURA_INSTALLER_MODE must be 0 or 1." >&2
@@ -103,6 +124,19 @@ mdir -i "$ESP_IMAGE" ::/
 mdir -i "$ESP_IMAGE" ::/EFI/BOOT
 
 if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
+  cp "$AURA_RELEASE_PUBLIC_KEY_FILE" "$STAGING_DIR/aura-release-signing.pub"
+  (
+    cd "$STAGING_DIR"
+    sha256sum \
+      "rootfs/aura-base-$TARGET_ARCH.tar.gz" \
+      "boot/vmlinuz-$TARGET_ARCH" \
+      "boot/initramfs-$TARGET_ARCH.cpio.gz" \
+      "boot/efi.img" > aura-payloads.sha256
+  )
+  openssl pkeyutl -sign -rawin \
+    -inkey "$AURA_RELEASE_PRIVATE_KEY_FILE" \
+    -in "$STAGING_DIR/aura-payloads.sha256" \
+    -out "$STAGING_DIR/aura-payloads.sha256.sig"
   cat > "$STAGING_DIR/README.txt" <<README
 Aura OS $TARGET_ARCH UEFI install media (Debian 13 trixie)
 
@@ -110,6 +144,12 @@ Firmware profile: $FIRMWARE_PROFILE
 EFI removable-media loader: EFI/BOOT/$EFI_FILENAME
 The installer runs from a Debian 13 initramfs in memory.
 The ISO carries a separate Debian rootfs archive and the installed kernel/initramfs.
+
+The Ed25519-signed payload manifest covers the rootfs, installed kernel,
+persistent-root initramfs, and EFI boot image. Verify the detached ISO signature
+with the Aura release public key before booting.
+Signing mode: $AURA_RELEASE_SIGNING_MODE
+Ed25519 public-key DER SHA-256 fingerprint: ${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-unavailable}
 
 The installer lists eligible disks and requires the operator to type:
   ERASE /dev/<target>
@@ -172,14 +212,27 @@ rm -f "$VERIFY_ESP"
   cd "$OUTPUT_DIR"
   sha256sum "$(basename "$OUTPUT_ISO")" > "$(basename "$OUTPUT_ISO").sha256"
 )
+if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
+  openssl pkeyutl -sign -rawin \
+    -inkey "$AURA_RELEASE_PRIVATE_KEY_FILE" \
+    -in "$OUTPUT_ISO.sha256" \
+    -out "$OUTPUT_ISO.sha256.sig"
+  cp "$AURA_RELEASE_PUBLIC_KEY_FILE" "$OUTPUT_ISO.pub"
+  actual_fingerprint="$(openssl pkey -pubin -in "$AURA_RELEASE_PUBLIC_KEY_FILE" -outform DER | sha256sum | awk '{print $1}')"
+  if [[ -n "${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-}" && "$actual_fingerprint" != "$AURA_RELEASE_PUBLIC_KEY_FINGERPRINT" ]]; then
+    echo "error: release public-key fingerprint changed during the build." >&2
+    exit 1
+  fi
+  printf '%s  Ed25519 public key DER SHA-256\n' "$actual_fingerprint" > "$OUTPUT_ISO.pub.fingerprint"
+fi
 
-python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" \
+python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" "$AURA_RELEASE_SIGNING_MODE" \
   > "$OUTPUT_ISO.provenance.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-image, architecture, loader, firmware, installer_mode = sys.argv[1:]
+image, architecture, loader, firmware, installer_mode, signing_mode = sys.argv[1:]
 path = Path(image)
 installer_ready = installer_mode == "1"
 record = {
@@ -198,6 +251,13 @@ if installer_ready:
     record["rootfs_archive"] = f"rootfs/aura-base-{architecture}.tar.gz"
     record["installed_kernel"] = f"boot/vmlinuz-{architecture}"
     record["installed_initramfs"] = f"boot/initramfs-{architecture}.cpio.gz"
+    record["signed_payload_manifest"] = "aura-payloads.sha256"
+    record["signed_payload_manifest_signature"] = "aura-payloads.sha256.sig"
+    record["payload_signature"] = "Ed25519"
+    record["iso_signature"] = f"{path.name}.sha256.sig"
+    record["release_public_key"] = f"{path.name}.pub"
+    record["release_public_key_fingerprint"] = f"{path.name}.pub.fingerprint"
+    record["signing_mode"] = signing_mode
 print(json.dumps(record, sort_keys=True, indent=2))
 PY
 

@@ -24,6 +24,7 @@ REQUIRED_PACKAGES = {
     "gzip",
     "kmod",
     "libc6",
+    "openssl",
     "passwd",
     "sudo",
     "systemd",
