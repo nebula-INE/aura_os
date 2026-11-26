@@ -50,9 +50,27 @@ for kernel in "$BOOT_DIR"/vmlinuz-aura-*; do
     [ -s "$kernel" ] || continue
     kernel_name="${kernel##*/}"
     version="${kernel_name#vmlinuz-aura-}"
+    case "$version" in
+      ''|*[!A-Za-z0-9.+~-]*)
+        echo "Aura kernel: unsafe versioned kernel filename: $version" >&2
+        exit 1
+        ;;
+    esac
     config="$(path "/usr/share/aura-kernel/$version.conf")"
     [ -s "$config" ] || continue
-    . "$config"
+    if [ "$(wc -l < "$config")" -ne 3 ] ||
+       [ "$(grep -c '^AURA_KERNEL_ARCH=' "$config")" -ne 1 ] ||
+       [ "$(grep -c '^AURA_INITRAMFS_MODE=' "$config")" -ne 1 ] ||
+       [ "$(grep -c '^AURA_KERNEL_MODULES=' "$config")" -ne 1 ] ||
+       ! grep -Eq '^AURA_KERNEL_ARCH=(x86_64|aarch64|riscv64)$' "$config" ||
+       ! grep -Eq '^AURA_INITRAMFS_MODE=(external|embedded)$' "$config" ||
+       ! grep -Eq '^AURA_KERNEL_MODULES=(0|1)$' "$config"; then
+        echo "Aura kernel: invalid version metadata for $version." >&2
+        exit 1
+    fi
+    AURA_KERNEL_ARCH="$(sed -n 's/^AURA_KERNEL_ARCH=//p' "$config")"
+    AURA_INITRAMFS_MODE="$(sed -n 's/^AURA_INITRAMFS_MODE=//p' "$config")"
+    AURA_KERNEL_MODULES="$(sed -n 's/^AURA_KERNEL_MODULES=//p' "$config")"
     [ "$AURA_KERNEL_ARCH" = "$ARCH" ] || continue
     case "$AURA_INITRAMFS_MODE" in
       external)
