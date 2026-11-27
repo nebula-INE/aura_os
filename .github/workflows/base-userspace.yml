@@ -63,6 +63,7 @@ jobs:
         run: |
           bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh
           sh -n system/desktop/session system/desktop/defaults/labwc/autostart
+          sh -n system/desktop/bin/aura-launcher system/desktop/bin/aura-settings system/desktop/bin/aura-wallpaper
           python3 -m py_compile scripts/install_desktop_profile.py scripts/test-desktop-headless.py
           bash -n system/base/firstboot/aura-firstboot
           sh -n system/base/diagnostics/aura-diagnose
