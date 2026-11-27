@@ -63,7 +63,13 @@ class DesktopProfileTests(unittest.TestCase):
             self.assertTrue((root / "usr/lib/aura/desktop/session").stat().st_mode & 0o111)
             self.assertTrue((root / "etc/xdg/labwc/autostart").stat().st_mode & 0o111)
 
-            ET.parse(root / "etc/xdg/labwc/rc.xml")
+            rc_root = ET.parse(root / "etc/xdg/labwc/rc.xml").getroot()
+            keybinds = {
+                node.attrib.get("key")
+                for node in rc_root.findall("./keyboard/keybind")
+            }
+            self.assertIn("W-S-q", keybinds)
+            self.assertNotIn("W-Shift-q", keybinds)
             waybar = json.loads((root / "etc/xdg/waybar/config").read_text())
             self.assertIn("clock", waybar["modules-center"])
             self.assertIn("network", waybar["modules-right"])
