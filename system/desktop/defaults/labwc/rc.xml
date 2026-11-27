@@ -9,7 +9,10 @@
       <action name="Execute" command="foot" />
     </keybind>
     <keybind key="W-d">
-      <action name="Execute" command="wofi --show drun" />
+      <action name="Execute" command="aura-launcher" />
+    </keybind>
+    <keybind key="W-F10">
+      <action name="Execute" command="aura-settings" />
     </keybind>
     <keybind key="W-e">
       <action name="Execute" command="pcmanfm-qt" />

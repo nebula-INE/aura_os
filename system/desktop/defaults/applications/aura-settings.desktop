@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Aura Settings
+GenericName=Desktop Settings
+Comment=Configure Aura appearance, display, sound, and power
+Exec=aura-settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=false

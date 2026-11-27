@@ -63,12 +63,30 @@ class DesktopProfileTests(unittest.TestCase):
             self.assertTrue((root / "usr/lib/aura/desktop/session").stat().st_mode & 0o111)
             self.assertTrue((root / "etc/xdg/labwc/autostart").stat().st_mode & 0o111)
 
+            for relative in (
+                "usr/bin/aura-launcher",
+                "usr/bin/aura-settings",
+                "usr/lib/aura/desktop/aura-wallpaper",
+            ):
+                program = root / relative
+                self.assertTrue(program.is_file(), relative)
+                self.assertTrue(program.stat().st_mode & 0o111, relative)
+                subprocess.run(["sh", "-n", str(program)], check=True)
+
+            settings_entry = root / "usr/share/applications/aura-settings.desktop"
+            settings_text = settings_entry.read_text(encoding="utf-8")
+            self.assertIn("Name=Aura Settings", settings_text)
+            self.assertIn("Exec=aura-settings", settings_text)
+            self.assertIn("Terminal=false", settings_text)
+
             rc_root = ET.parse(root / "etc/xdg/labwc/rc.xml").getroot()
             keybinds = {
                 node.attrib.get("key")
                 for node in rc_root.findall("./keyboard/keybind")
             }
             self.assertIn("W-S-q", keybinds)
+            self.assertIn("W-d", keybinds)
+            self.assertIn("W-F10", keybinds)
             self.assertNotIn("W-Shift-q", keybinds)
             waybar = json.loads((root / "etc/xdg/waybar/config").read_text())
             self.assertIn("clock", waybar["modules-center"])

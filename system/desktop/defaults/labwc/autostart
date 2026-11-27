@@ -5,7 +5,7 @@ dbus-update-activation-environment --systemd \
   WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP \
   >/dev/null 2>&1 || true
 
-swaybg --color '#101827' >/dev/null 2>&1 &
+/usr/lib/aura/desktop/aura-wallpaper >/dev/null 2>&1 &
 waybar >/dev/null 2>&1 &
 lxqt-policykit-agent >/dev/null 2>&1 &
 

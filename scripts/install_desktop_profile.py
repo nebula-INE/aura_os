@@ -13,13 +13,17 @@ from pathlib import Path
 DESKTOP_PACKAGES = {
     "dbus-user-session", "foot", "fonts-dejavu-core", "fonts-noto-cjk",
     "greetd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
-    "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
-    "tuigreet", "waybar", "wireplumber", "wofi", "xwayland",
+    "pipewire-bin", "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
+    "tuigreet", "waybar", "wlr-randr", "wireplumber", "wofi", "xwayland",
     "xdg-desktop-portal", "xdg-desktop-portal-gtk",
     "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils",
 }
 
 FILE_MAP = {
+    "bin/aura-launcher": "/usr/bin/aura-launcher",
+    "bin/aura-settings": "/usr/bin/aura-settings",
+    "bin/aura-wallpaper": "/usr/lib/aura/desktop/aura-wallpaper",
+    "defaults/applications/aura-settings.desktop": "/usr/share/applications/aura-settings.desktop",
     "defaults/greetd/config.toml": "/etc/greetd/config.toml",
     "defaults/wayland-sessions/aura.desktop": "/usr/share/wayland-sessions/aura.desktop",
     "defaults/labwc/rc.xml": "/etc/xdg/labwc/rc.xml",
@@ -34,6 +38,8 @@ FILE_MAP = {
     "defaults/xdg-user-dirs.defaults": "/etc/xdg/user-dirs.defaults",
 }
 EXECUTABLE_DESTINATIONS = {
+    "/usr/bin/aura-launcher", "/usr/bin/aura-settings",
+    "/usr/lib/aura/desktop/aura-wallpaper",
     "/etc/xdg/labwc/autostart", "/usr/lib/aura/desktop/session",
 }
 
@@ -132,6 +138,8 @@ def install_desktop_profile(
         "packages": sorted(DESKTOP_PACKAGES),
         "default_target": "graphical.target",
         "session": "/usr/share/wayland-sessions/aura.desktop",
+        "launcher": "/usr/bin/aura-launcher",
+        "settings": "/usr/bin/aura-settings",
     }
 
 
