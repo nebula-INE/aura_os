@@ -19,8 +19,8 @@ ARCHITECTURES = {
 DESKTOP_REQUIRED_PACKAGES = {
     "dbus-user-session", "foot", "fonts-dejavu-core", "fonts-noto-cjk",
     "greetd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
-    "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
-    "tuigreet", "waybar", "wireplumber", "wofi", "xwayland",
+    "pipewire-bin", "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
+    "tuigreet", "waybar", "wlr-randr", "wireplumber", "wofi", "xwayland",
     "xdg-desktop-portal", "xdg-desktop-portal-gtk",
     "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils",
 }
@@ -130,6 +130,28 @@ def _validate_desktop_profile(root: Path, installed: set[str]) -> None:
         raise ValueError("desktop profile is missing executable Aura Wayland session")
     if session.read_text(encoding="utf-8").splitlines()[:1] != ["#!/bin/sh"]:
         raise ValueError("Aura session must use the portable /bin/sh interpreter")
+    for relative in (
+        "usr/bin/aura-launcher",
+        "usr/bin/aura-settings",
+        "usr/lib/aura/desktop/aura-wallpaper",
+    ):
+        program = root / relative
+        if not program.is_file() or not os.access(program, os.X_OK):
+            raise ValueError(f"desktop profile is missing executable /{relative}")
+        if program.read_text(encoding="utf-8").splitlines()[:1] != ["#!/bin/sh"]:
+            raise ValueError(f"/{relative} must use the portable /bin/sh interpreter")
+    settings_entry = root / "usr/share/applications/aura-settings.desktop"
+    if not settings_entry.is_file():
+        raise ValueError("desktop profile is missing the Aura Settings application entry")
+    settings_text = settings_entry.read_text(encoding="utf-8")
+    for setting in ("Name=Aura Settings", "Exec=aura-settings", "Terminal=false"):
+        if setting not in settings_text:
+            raise ValueError(f"Aura Settings entry is missing {setting}")
+    launcher_keys = root / "etc/xdg/labwc/rc.xml"
+    launcher_text = launcher_keys.read_text(encoding="utf-8")
+    for setting in ('command="aura-launcher"', 'command="aura-settings"'):
+        if setting not in launcher_text:
+            raise ValueError(f"labwc key bindings are missing {setting}")
     desktop_entry = root / "usr/share/wayland-sessions/aura.desktop"
     if not desktop_entry.is_file():
         raise ValueError("desktop profile is missing the Aura Wayland session entry")
@@ -159,7 +181,7 @@ def _validate_desktop_profile(root: Path, installed: set[str]) -> None:
     if not os.access(autostart, os.X_OK):
         raise ValueError("labwc autostart file must be executable")
     autostart_text = autostart.read_text(encoding="utf-8")
-    for command in ("swaybg", "waybar", "lxqt-policykit-agent"):
+    for command in ("aura-wallpaper", "waybar", "lxqt-policykit-agent"):
         if command not in autostart_text:
             raise ValueError(f"labwc autostart is missing {command}")
     default_target = root / "etc/systemd/system/default.target"
