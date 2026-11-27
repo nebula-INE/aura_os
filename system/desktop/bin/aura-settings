@@ -1,0 +1,190 @@
+#!/bin/sh
+set -eu
+
+menu() {
+  prompt=$1
+  shift
+  printf '%s\n' "$@" | wofi --dmenu --prompt "$prompt" --insensitive --matching fuzzy --width 560 --height 360
+}
+
+menu_text() {
+  prompt=$1
+  entries=$2
+  printf '%s\n' "$entries" | wofi --dmenu --prompt "$prompt" --insensitive --matching fuzzy --width 560 --height 420
+}
+
+show_message() {
+  prompt=$1
+  shift
+  printf '%s\n' "$@" | wofi --dmenu --prompt "$prompt" --width 680 --height 420 >/dev/null 2>&1 || true
+}
+
+open_terminal() {
+  title=$1
+  command_text=$2
+  foot -T "$title" sh -c "$command_text"
+}
+
+set_background() {
+  color=$1
+  config_dir="$HOME/.config/aura"
+  mkdir -p "$config_dir"
+  umask 077
+  temporary_file="$config_dir/desktop.conf.tmp.$$"
+  printf 'background=%s\n' "$color" > "$temporary_file"
+  mv -f "$temporary_file" "$config_dir/desktop.conf"
+  /usr/lib/aura/desktop/aura-wallpaper >/dev/null 2>&1 &
+}
+
+appearance_settings() {
+  while choice=$(menu "Appearance" "Midnight" "Ocean" "Graphite" "Warm" "Back"); do
+    case "$choice" in
+      "Midnight") set_background "#101827" ;;
+      "Ocean") set_background "#102b3f" ;;
+      "Graphite") set_background "#24272e" ;;
+      "Warm") set_background "#35251f" ;;
+      "Back") return 0 ;;
+    esac
+  done
+}
+
+display_settings() {
+  if ! command -v wlr-randr >/dev/null 2>&1; then
+    show_message "Display" "wlr-randr is not installed in this desktop profile."
+    return 0
+  fi
+
+  outputs=$(wlr-randr 2>/dev/null | awk 'NF && !/^[[:space:]]/ { print $1 }')
+  if [ -z "$outputs" ]; then
+    show_message "Display" "No configurable Wayland outputs were reported."
+    return 0
+  fi
+
+  while output=$(printf '%s\n' "$outputs" | menu "Display output"); do
+    [ -n "$output" ] || continue
+    while choice=$(menu "Display: $output" "Resolution" "Scale" "Orientation" "Back"); do
+      case "$choice" in
+        "Resolution")
+          modes=$(wlr-randr 2>/dev/null | awk -v target="$output" '
+            $1 == target && !/^[[:space:]]/ { active=1; next }
+            !/^[[:space:]]/ { active=0 }
+            active && $1 ~ /^[0-9]+x[0-9]+$/ {
+              rate=$3
+              gsub(/,/, "", rate)
+              print $1 "@" rate "Hz"
+            }')
+          if [ -z "$modes" ]; then
+            show_message "Display" "No modes were reported for $output."
+          elif mode=$(menu_text "Resolution: $output" "$(printf 'Preferred\n%s' "$modes")"); then
+            if [ "$mode" = "Preferred" ]; then
+              wlr-randr --output "$output" --preferred
+            else
+              wlr-randr --output "$output" --mode "$mode"
+            fi
+          fi
+          ;;
+        "Scale")
+          if scale_choice=$(menu "Display scale" "100%" "125%" "150%" "175%" "200%"); then
+            case "$scale_choice" in
+              "100%") scale=1 ;;
+              "125%") scale=1.25 ;;
+              "150%") scale=1.5 ;;
+              "175%") scale=1.75 ;;
+              "200%") scale=2 ;;
+              *) continue ;;
+            esac
+            wlr-randr --output "$output" --scale "$scale"
+          fi
+          ;;
+        "Orientation")
+          if orientation=$(menu "Display orientation" "Normal" "Rotate left" "Rotate right" "Upside down"); then
+            case "$orientation" in
+              "Normal") transform=normal ;;
+              "Rotate left") transform=270 ;;
+              "Rotate right") transform=90 ;;
+              "Upside down") transform=180 ;;
+              *) continue ;;
+            esac
+            wlr-randr --output "$output" --transform "$transform"
+          fi
+          ;;
+        "Back") break ;;
+      esac
+    done
+  done
+}
+
+sound_settings() {
+  if ! command -v wpctl >/dev/null 2>&1; then
+    show_message "Sound" "PipeWire volume control (wpctl) is not available."
+    return 0
+  fi
+  while true; do
+    status=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>&1 || printf '%s' "Default audio output unavailable")
+    if ! choice=$(menu "Sound · $status" "Volume up (+5%)" "Volume down (-5%)" "Mute / unmute" "Audio devices" "Back"); then
+      return 0
+    fi
+    case "$choice" in
+      "Volume up (+5%)") wpctl set-volume --limit 1.0 @DEFAULT_AUDIO_SINK@ 5%+ ;;
+      "Volume down (-5%)") wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- ;;
+      "Mute / unmute") wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle ;;
+      "Audio devices")
+        open_terminal "Aura Audio" 'wpctl status; printf "\nPress Enter to close..."; read -r _'
+        ;;
+      "Back") return 0 ;;
+    esac
+  done
+}
+
+network_settings() {
+  open_terminal "Aura Network" 'printf "Aura wired network status\n\n"; networkctl status --no-pager 2>&1; printf "\nDNS resolver status\n\n"; resolvectl status 2>&1; printf "\nPress Enter to close..."; read -r _'
+}
+
+about_aura() {
+  release=$(cat /etc/aura-release 2>/dev/null || printf '%s' "Aura OS development build")
+  show_message "About Aura" "$release" "Architecture: $(uname -m)" "Kernel: $(uname -r)" "Session: ${XDG_SESSION_TYPE:-unknown} / ${XDG_CURRENT_DESKTOP:-unknown}"
+}
+
+power_settings() {
+  while choice=$(menu "Power" "Lock screen" "Suspend" "Restart" "Shut down" "Back"); do
+    case "$choice" in
+      "Lock screen") swaylock -f ;;
+      "Suspend")
+        if answer=$(menu "Confirm suspend" "Cancel" "Suspend now") && [ "$answer" = "Suspend now" ]; then
+          systemctl suspend
+        fi
+        ;;
+      "Restart")
+        if answer=$(menu "Confirm restart" "Cancel" "Restart now") && [ "$answer" = "Restart now" ]; then
+          systemctl reboot
+        fi
+        ;;
+      "Shut down")
+        if answer=$(menu "Confirm shutdown" "Cancel" "Shut down now") && [ "$answer" = "Shut down now" ]; then
+          systemctl poweroff
+        fi
+        ;;
+      "Back") return 0 ;;
+    esac
+  done
+}
+
+if ! command -v wofi >/dev/null 2>&1; then
+  echo "Aura Settings requires Wofi." >&2
+  exit 1
+fi
+
+while choice=$(menu "Aura Settings" "Appearance" "Display" "Sound" "Network" "About Aura" "Lock screen" "Power" "Quit"); do
+  case "$choice" in
+    "Appearance") appearance_settings ;;
+    "Display") display_settings ;;
+    "Sound") sound_settings ;;
+    "Network") network_settings ;;
+    "About Aura") about_aura ;;
+    "Lock screen") swaylock -f ;;
+    "Power") power_settings ;;
+    "Quit") exit 0 ;;
+  esac
+done
+
+exit 0
