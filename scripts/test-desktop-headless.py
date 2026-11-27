@@ -27,6 +27,23 @@ def run_smoke(rootfs: Path, timeout: float = 25.0) -> None:
     if not chroot:
         raise RuntimeError("host chroot utility is missing")
 
+    # The test does not boot systemd, so tmpfiles never mounts or creates the
+    # normal /dev/shm runtime directory. wlroots needs it to allocate keyboard
+    # keymap shared-memory files even with the headless/pixman backend.
+    dev = root / "dev"
+    if dev.is_symlink():
+        raise ValueError(f"refusing to use symlink device directory: {dev}")
+    dev.mkdir(exist_ok=True)
+    if not dev.is_dir():
+        raise ValueError(f"rootfs device path is not a directory: {dev}")
+    shm = dev / "shm"
+    if shm.is_symlink():
+        raise ValueError(f"refusing to use symlink shared-memory path: {shm}")
+    shm.mkdir(mode=0o1777, exist_ok=True)
+    if not shm.is_dir():
+        raise ValueError(f"rootfs shared-memory path is not a directory: {shm}")
+    os.chmod(shm, 0o1777)
+
     runtime = root / "run/user/65534"
     if runtime.is_symlink():
         raise ValueError(f"refusing to use symlink runtime path: {runtime}")
