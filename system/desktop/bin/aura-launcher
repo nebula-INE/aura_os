@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+if ! command -v wofi >/dev/null 2>&1; then
+  printf '%s\n' "Aura Launcher requires Wofi." >&2
+  exit 1
+fi
+
+exec wofi --show drun --prompt "Search Aura" --insensitive --matching fuzzy "$@"
