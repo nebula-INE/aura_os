@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - "system/base/**"
+      - "system/desktop/**"
+      - "scripts/install_desktop_profile.py"
+      - "scripts/test-desktop-headless.py"
+      - "tests/test_desktop_profile.py"
       - "scripts/build-base-rootfs.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
@@ -15,6 +19,10 @@ on:
   pull_request:
     paths:
       - "system/base/**"
+      - "system/desktop/**"
+      - "scripts/install_desktop_profile.py"
+      - "scripts/test-desktop-headless.py"
+      - "tests/test_desktop_profile.py"
       - "scripts/build-base-rootfs.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
@@ -54,6 +62,8 @@ jobs:
       - name: Check base bootstrap shell syntax
         run: |
           bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh
+          sh -n system/desktop/session system/desktop/defaults/labwc/autostart
+          python3 -m py_compile scripts/install_desktop_profile.py scripts/test-desktop-headless.py
           bash -n system/base/firstboot/aura-firstboot
           sh -n system/base/diagnostics/aura-diagnose
 
@@ -62,6 +72,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
           python3 -m unittest discover -s tests -p 'test_aura_diagnose.py' -v
+          python3 -m unittest discover -s tests -p 'test_desktop_profile.py' -v
 
       - name: Install Debian bootstrap and foreign architecture emulation tools
         run: |
@@ -85,6 +96,17 @@ jobs:
           DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
         run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
 
+      - name: Build optional Wayland desktop root filesystem
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/desktop
+          DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
+          AURA_DESKTOP_PROFILE: "1"
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING,AURA_DESKTOP_PROFILE bash scripts/build-base-rootfs.sh
+
+      - name: Start the target labwc compositor with the headless backend
+        run: sudo python3 scripts/test-desktop-headless.py --rootfs "build/base-userspace/${{ matrix.target_arch }}/desktop/rootfs"
+
       - name: Upload root filesystem, package manifest, and provenance
         uses: actions/upload-artifact@v4
         with:
@@ -94,5 +116,9 @@ jobs:
             build/base-userspace/${{ matrix.target_arch }}/aura-base-${{ matrix.target_arch }}.tar.gz.sha256
             build/base-userspace/${{ matrix.target_arch }}/packages.tsv
             build/base-userspace/${{ matrix.target_arch }}/build-provenance.txt
+            build/base-userspace/${{ matrix.target_arch }}/desktop/aura-base-${{ matrix.target_arch }}.tar.gz
+            build/base-userspace/${{ matrix.target_arch }}/desktop/aura-base-${{ matrix.target_arch }}.tar.gz.sha256
+            build/base-userspace/${{ matrix.target_arch }}/desktop/packages.tsv
+            build/base-userspace/${{ matrix.target_arch }}/desktop/build-provenance.txt
           if-no-files-found: error
           retention-days: 7

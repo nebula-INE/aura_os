@@ -1,0 +1,45 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 38,
+  "spacing": 8,
+  "margin-top": 8,
+  "margin-left": 10,
+  "margin-right": 10,
+  "modules-left": ["custom/aura"],
+  "modules-center": ["clock"],
+  "modules-right": ["network", "cpu", "memory", "battery", "tray"],
+  "custom/aura": {
+    "format": "Aura",
+    "tooltip": false,
+    "on-click": "wofi --show drun"
+  },
+  "clock": {
+    "format": "{:%Y-%m-%d  %H:%M}",
+    "tooltip": false
+  },
+  "network": {
+    "format-wifi": "Wi-Fi {essid}",
+    "format-ethernet": "LAN {ifname}",
+    "format-disconnected": "Offline",
+    "tooltip-format": "{ifname}: {ipaddr}"
+  },
+  "cpu": {
+    "format": "CPU {usage}%",
+    "interval": 3,
+    "tooltip": false
+  },
+  "memory": {
+    "format": "RAM {percentage}%",
+    "interval": 5,
+    "tooltip": false
+  },
+  "battery": {
+    "format": "BAT {capacity}%",
+    "format-charging": "CHG {capacity}%",
+    "states": {"warning": 30, "critical": 15},
+    "hide-if-empty": true,
+    "tooltip": false
+  },
+  "tray": {"spacing": 8}
+}

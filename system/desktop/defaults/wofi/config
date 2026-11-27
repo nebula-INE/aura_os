@@ -1,0 +1,8 @@
+show=drun
+prompt=Aura
+width=520
+height=420
+location=center
+insensitive=true
+matching=fuzzy
+allow_images=true

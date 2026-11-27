@@ -16,6 +16,14 @@ ARCHITECTURES = {
     "aarch64": {"debian": "arm64", "elf_machine": 183},
     "riscv64": {"debian": "riscv64", "elf_machine": 243},
 }
+DESKTOP_REQUIRED_PACKAGES = {
+    "dbus-user-session", "foot", "fonts-dejavu-core", "fonts-noto-cjk",
+    "greetd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
+    "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
+    "tuigreet", "waybar", "wireplumber", "wofi", "xwayland",
+    "xdg-desktop-portal", "xdg-desktop-portal-gtk",
+    "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils",
+}
 REQUIRED_PACKAGES = {
     "apt",
     "dbus",
@@ -113,8 +121,58 @@ def _validate_enabled_systemd_unit(
         raise ValueError(f"{unit_name} enablement link points to the wrong unit")
 
 
+def _validate_desktop_profile(root: Path, installed: set[str]) -> None:
+    missing = sorted(DESKTOP_REQUIRED_PACKAGES - installed)
+    if missing:
+        raise ValueError("desktop profile packages are missing: " + ", ".join(missing))
+    session = root / "usr/lib/aura/desktop/session"
+    if not session.is_file() or not os.access(session, os.X_OK):
+        raise ValueError("desktop profile is missing executable Aura Wayland session")
+    if session.read_text(encoding="utf-8").splitlines()[:1] != ["#!/bin/sh"]:
+        raise ValueError("Aura session must use the portable /bin/sh interpreter")
+    desktop_entry = root / "usr/share/wayland-sessions/aura.desktop"
+    if not desktop_entry.is_file():
+        raise ValueError("desktop profile is missing the Aura Wayland session entry")
+    desktop_text = desktop_entry.read_text(encoding="utf-8")
+    for setting in ("Name=Aura OS", "Exec=/usr/lib/aura/desktop/session"):
+        if setting not in desktop_text:
+            raise ValueError(f"Aura session entry is missing {setting}")
+    greetd_config = root / "etc/greetd/config.toml"
+    if not greetd_config.is_file():
+        raise ValueError("desktop profile is missing /etc/greetd/config.toml")
+    greetd_text = greetd_config.read_text(encoding="utf-8")
+    for setting in ("tuigreet", "/usr/share/wayland-sessions",
+                    "/usr/lib/aura/desktop/session", 'user = "greeter"'):
+        if setting not in greetd_text:
+            raise ValueError(f"greetd configuration is missing {setting}")
+    for relative in (
+        "etc/xdg/labwc/rc.xml", "etc/xdg/labwc/autostart",
+        "etc/xdg/waybar/config", "etc/xdg/waybar/style.css",
+        "etc/xdg/wofi/config", "etc/xdg/wofi/style.css",
+        "etc/xdg/foot/foot.ini",
+        "usr/share/xdg-desktop-portal/labwc-portals.conf",
+        "etc/xdg/user-dirs.defaults",
+    ):
+        if not (root / relative).is_file():
+            raise ValueError(f"desktop profile is missing /{relative}")
+    autostart = root / "etc/xdg/labwc/autostart"
+    if not os.access(autostart, os.X_OK):
+        raise ValueError("labwc autostart file must be executable")
+    autostart_text = autostart.read_text(encoding="utf-8")
+    for command in ("swaybg", "waybar", "lxqt-policykit-agent"):
+        if command not in autostart_text:
+            raise ValueError(f"labwc autostart is missing {command}")
+    default_target = root / "etc/systemd/system/default.target"
+    if not default_target.is_symlink() or os.readlink(default_target) != (
+        "/usr/lib/systemd/system/graphical.target"
+    ):
+        raise ValueError("desktop profile must select graphical.target as default")
+    _validate_enabled_systemd_unit(root, "greetd.service", "graphical.target")
+
+
 def validate_rootfs(
-    rootfs: str | Path, target_arch: str, suite: str = "trixie"
+    rootfs: str | Path, target_arch: str, suite: str = "trixie",
+    desktop_profile: bool = False,
 ) -> dict[str, Any]:
     root = Path(rootfs)
     if not root.is_dir():
@@ -273,6 +331,9 @@ def validate_rootfs(
     if "FallbackNTP=0.debian.pool.ntp.org" not in timesyncd_config.read_text(encoding="utf-8"):
         raise ValueError("timesyncd fallback configuration must use the Debian NTP pool")
 
+    if desktop_profile:
+        _validate_desktop_profile(root, installed)
+
     resolv_conf = root / "etc/resolv.conf"
     if not resolv_conf.is_symlink():
         raise ValueError("/etc/resolv.conf must point to the systemd-resolved stub resolver")
@@ -309,7 +370,8 @@ def validate_rootfs(
         "dns": "systemd-resolved",
         "time_sync": "systemd-timesyncd",
         "root_account_locked": True,
-        "desktop_installed": False,
+        "desktop_installed": desktop_profile,
+        "desktop_profile": "labwc-wayland" if desktop_profile else None,
     }
 
 
@@ -320,11 +382,14 @@ def main() -> int:
     parser.add_argument("--rootfs", required=True, type=Path)
     parser.add_argument("--target-arch", required=True, choices=sorted(ARCHITECTURES))
     parser.add_argument("--suite", default="trixie")
+    parser.add_argument("--desktop-profile", action="store_true",
+                        help="also validate the optional labwc/Wayland desktop profile")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     try:
-        result = validate_rootfs(args.rootfs, args.target_arch, args.suite)
+        result = validate_rootfs(args.rootfs, args.target_arch, args.suite,
+                                  desktop_profile=args.desktop_profile)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

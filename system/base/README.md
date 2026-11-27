@@ -73,7 +73,7 @@ The initramfs selects the root ext4 filesystem by UUID from the standard kernel 
 
 The image is a build artifact, not an installer or a complete bootable disk. A normal boot can create one local console administrator and bring up supported wired Ethernet; Wi-Fi, a desktop session, display manager, firmware bundle, bootloader, and application set are not included. The test-only `aura.firstboot.skip` argument bypasses this prompt. Do not install it over a host filesystem.
 
-The package manifest is intentionally small. Add components only with a reason and validate their availability on all three Debian architectures. The 512 MiB idle desktop RAM target is a stretch goal, not a current measurement or promise; systemd and glibc memory costs must be measured on representative hardware before the service and desktop set is finalized.
+The package manifest is intentionally small. The default base remains desktop-free. An optional labwc/Wayland profile is available under `system/desktop`; build it with `AURA_DESKTOP_PROFILE=1` and a separate `OUTPUT_DIR`. Its package set is validated on all three Debian architectures. See [the desktop profile guide](../desktop/README.md). The 512 MiB idle desktop RAM target is a stretch goal, not a current measurement or promise; measure it on representative hardware before making performance claims.
 
 
 ## Installed-system Recovery Mode

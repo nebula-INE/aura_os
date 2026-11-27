@@ -2,7 +2,7 @@
 
 > Status: Active bring-up
 > Project: aura_os
-> Last updated: 2026-11-25
+> Last updated: 2026-11-27
 
 ## 1. Vision
 
@@ -170,11 +170,12 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 #### Desktop implementation
 
-- [ ] Select the desktop/compositor and graphics stack.
-- [ ] Establish consistent windowing, settings, input, and accessibility.
-- [ ] Integrate launcher, file manager, terminal, and system settings.
-- [ ] Verify desktop behavior on all three architectures.
-- [ ] Define startup, memory, graphics, and responsiveness budgets.
+- [x] Select the initial optional Wayland stack: labwc, Waybar, Wofi, foot, PCManFM-Qt, greetd/tuigreet, Xwayland, portals, and PipeWire (ADR 0018).
+- [x] Add an opt-in desktop rootfs profile and build it for amd64, arm64, and riscv64; start labwc with wlroots' headless backend in CI.
+- [ ] Validate graphics, input, application, and session-recovery workflows on physical reference hardware for each architecture.
+- [ ] Establish consistent settings, accessibility, and a fully graphical login experience.
+- [ ] Build the Aura-specific launcher/search and system-management shell.
+- [ ] Define and measure startup, memory, graphics, and responsiveness budgets against Linux Mint.
 
 **Exit criteria:** users can boot into the Aura desktop, use basic applications, and shut down or reboot cleanly on each reference target.
 
@@ -393,12 +394,13 @@ Adjust this structure to the selected kernel and build system. Do not create emp
 9. [x] Build architecture-native versioned kernel image/meta packages and install them through dpkg from the signed installer ISO (ADR 0016).
 10. [x] Generate per-version GRUB normal/Recovery entries, stage candidate kernels for one boot, retain known-good images, and confirm the first successful boot.
 11. Publish a separately signed APT repository and validate package updates plus failed-candidate fallback in QEMU; add watchdog-based recovery only if required by measured hardware behavior.
+12. [x] Establish the optional three-architecture labwc/Wayland desktop profile and headless compositor smoke test (ADR 0018); next validate real graphics hardware and develop Aura's own shell.
 
 ## 12. Open design decisions
 
 - Linux distribution/base userspace versus a minimal custom userspace.
 - [x] Initial init/service baseline: systemd with glibc; final default service set and desktop session remain open.
-- Desktop/compositor and graphics stack.
+- [x] Initial desktop/compositor selection: optional labwc/Wayland foundation (ADR 0018); physical GPU/input validation and the final Aura shell remain open.
 - [x] Installed-kernel update model: APT/dpkg versioned packages from a signed repository; no A/B rootfs for the initial update design (ADR 0016).
 - Exact reference hardware and minimum CPU/ISA baselines for all three targets.
 - Firmware and boot strategy per platform.

@@ -1,0 +1,29 @@
+* {
+  border: none;
+  border-radius: 0;
+  font-family: "DejaVu Sans", "Noto Sans CJK JP", sans-serif;
+  font-size: 12px;
+  min-height: 0;
+}
+window#waybar {
+  background: transparent;
+  color: #e7edf5;
+}
+.modules-left, .modules-center, .modules-right {
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  border-radius: 12px;
+  padding: 0 10px;
+}
+#custom-aura {
+  color: #f8fafc;
+  font-weight: 700;
+  padding: 0 12px;
+}
+#clock, #network, #cpu, #memory, #battery, #tray {
+  color: #dbe5f0;
+  padding: 0 7px;
+}
+#network.disconnected, #battery.critical {
+  color: #fca5a5;
+}

@@ -9,6 +9,8 @@ TARGET_ARCH="${TARGET_ARCH:-}"
 DEBIAN_SUITE="${DEBIAN_SUITE:-trixie}"
 DEBIAN_MIRROR="${DEBIAN_MIRROR:-https://deb.debian.org/debian}"
 PACKAGES_FILE="$ROOT_DIR/system/base/packages.txt"
+DESKTOP_PACKAGES_FILE="$ROOT_DIR/system/desktop/packages.txt"
+AURA_DESKTOP_PROFILE="${AURA_DESKTOP_PROFILE:-0}"
 BASE_OUTPUT_DIR="$ROOT_DIR/build/base-userspace"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
 DEBIAN_KEYRING="${DEBIAN_KEYRING:-$BASE_OUTPUT_DIR/debian-trixie-keyring.gpg}"
@@ -91,7 +93,17 @@ CHECKSUM_FILE="$ARCHIVE.sha256"
 MANIFEST_FILE="$OUTPUT_DIR/packages.tsv"
 PROVENANCE_FILE="$OUTPUT_DIR/build-provenance.txt"
 
+case "$AURA_DESKTOP_PROFILE" in
+  0|1) ;;
+  *) echo "error: AURA_DESKTOP_PROFILE must be 0 or 1." >&2; exit 2 ;;
+esac
+
 mapfile -t PACKAGES < <(sed -E 's/[[:space:]]*#.*$//; /^[[:space:]]*$/d' "$PACKAGES_FILE")
+if [[ "$AURA_DESKTOP_PROFILE" == "1" ]]; then
+  [[ -s "$DESKTOP_PACKAGES_FILE" ]] || { echo "error: desktop package manifest is missing: $DESKTOP_PACKAGES_FILE" >&2; exit 1; }
+  mapfile -t DESKTOP_PACKAGES < <(sed -E 's/[[:space:]]*#.*$//; /^[[:space:]]*$/d' "$DESKTOP_PACKAGES_FILE")
+  PACKAGES+=("${DESKTOP_PACKAGES[@]}")
+fi
 # These target-native packages provide the offline installer with FAT32
 # formatting and architecture-matched UEFI GRUB modules.
 PACKAGES+=(dosfstools fdisk grub2-common "$GRUB_PACKAGE")
@@ -207,11 +219,15 @@ done
 rm -f "$ROOTFS_DIR/etc/resolv.conf"
 ln -s ../run/systemd/resolve/stub-resolv.conf "$ROOTFS_DIR/etc/resolv.conf"
 
+if [[ "$AURA_DESKTOP_PROFILE" == "1" ]]; then
+  echo "Installing the optional Aura Wayland desktop profile..."
+  python3 "$ROOT_DIR/scripts/install_desktop_profile.py" --rootfs "$ROOTFS_DIR"
+fi
+
 echo "Verifying the generated root filesystem..."
-python3 "$ROOT_DIR/scripts/verify_base_rootfs.py" \
-  --rootfs "$ROOTFS_DIR" \
-  --target-arch "$TARGET_ARCH" \
-  --suite "$DEBIAN_SUITE"
+VERIFY_ARGS=(--rootfs "$ROOTFS_DIR" --target-arch "$TARGET_ARCH" --suite "$DEBIAN_SUITE")
+if [[ "$AURA_DESKTOP_PROFILE" == "1" ]]; then VERIFY_ARGS+=(--desktop-profile); fi
+python3 "$ROOT_DIR/scripts/verify_base_rootfs.py" "${VERIFY_ARGS[@]}"
 
 echo "Writing installed package manifest..."
 dpkg-query \
@@ -252,7 +268,11 @@ cat "$CHECKSUM_FILE"
   printf 'DNS: systemd-resolved stub resolver\n'
   printf 'Time synchronization: systemd-timesyncd with DHCP NTP and Debian fallback\n'
   printf 'Root account: locked; no default password configured\n'
-  printf 'Desktop: not installed\n'
+  if [[ "$AURA_DESKTOP_PROFILE" == "1" ]]; then
+    printf 'Desktop: optional labwc/Wayland profile (greetd + tuigreet)\n'
+  else
+    printf 'Desktop: not installed\n'
+  fi
   printf 'Archive: %s\n' "$ARCHIVE"
   printf 'Installed package manifest: %s\n' "$MANIFEST_FILE"
   printf 'Debian keyring SHA-256: '

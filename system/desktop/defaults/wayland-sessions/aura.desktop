@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Aura OS
+Comment=Aura OS Wayland desktop session
+Exec=/usr/lib/aura/desktop/session
+Type=Application
+DesktopNames=Aura:labwc
