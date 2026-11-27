@@ -174,7 +174,8 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [x] Add an opt-in desktop rootfs profile and build it for amd64, arm64, and riscv64; start labwc with wlroots' headless backend in CI.
 - [ ] Validate graphics, input, application, and session-recovery workflows on physical reference hardware for each architecture.
 - [ ] Establish consistent settings, accessibility, and a fully graphical login experience.
-- [ ] Build the Aura-specific launcher/search and system-management shell.
+- [x] Add the first Aura application launcher and keyboard-driven Settings app for wallpaper, display mode/scale/orientation, PipeWire volume, wired-network status, and session power actions. Display settings currently apply to the active session; broader system management remains follow-up work.
+- [ ] Validate launcher/settings workflows and display persistence on physical reference hardware for each architecture.
 - [ ] Define and measure startup, memory, graphics, and responsiveness budgets against Linux Mint.
 
 **Exit criteria:** users can boot into the Aura desktop, use basic applications, and shut down or reboot cleanly on each reference target.
