@@ -12,7 +12,7 @@
   "custom/aura": {
     "format": "Aura",
     "tooltip": false,
-    "on-click": "wofi --show drun"
+    "on-click": "aura-launcher"
   },
   "clock": {
     "format": "{:%Y-%m-%d  %H:%M}",
