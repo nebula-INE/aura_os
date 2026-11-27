@@ -9,6 +9,7 @@ labwc
 lxqt-policykit
 pcmanfm-qt
 pipewire
+pipewire-bin
 pipewire-pulse
 polkitd
 swaybg
@@ -16,6 +17,7 @@ swayidle
 swaylock
 tuigreet
 waybar
+wlr-randr
 wireplumber
 wofi
 xwayland
