@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" -eq 0 ]; then
+  echo "Aura desktop sessions must not run as root." >&2
+  exit 1
+fi
+if [ -z "${XDG_RUNTIME_DIR:-}" ] || [ ! -d "$XDG_RUNTIME_DIR" ]; then
+  echo "Aura desktop session requires a valid XDG_RUNTIME_DIR." >&2
+  exit 1
+fi
+
+export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP=aura
+export XDG_CURRENT_DESKTOP=Aura:labwc
+
+dbus-update-activation-environment --systemd \
+  WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP \
+  >/dev/null 2>&1 || true
+
+exec labwc --config-dir /etc/xdg/labwc

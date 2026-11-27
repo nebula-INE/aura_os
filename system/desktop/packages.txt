@@ -1,0 +1,26 @@
+# Optional Aura OS Wayland desktop profile (Debian 13 / trixie).
+# Keep this separate from the small headless and rescue-capable base.
+dbus-user-session
+foot
+fonts-dejavu-core
+fonts-noto-cjk
+greetd
+labwc
+lxqt-policykit
+pcmanfm-qt
+pipewire
+pipewire-pulse
+polkitd
+swaybg
+swayidle
+swaylock
+tuigreet
+waybar
+wireplumber
+wofi
+xwayland
+xdg-desktop-portal
+xdg-desktop-portal-gtk
+xdg-desktop-portal-wlr
+xdg-user-dirs
+xdg-utils
