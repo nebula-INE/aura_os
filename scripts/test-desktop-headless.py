@@ -51,6 +51,7 @@ def run_smoke(rootfs: Path, timeout: float = 25.0) -> None:
         "XDG_CURRENT_DESKTOP": "Aura:labwc",
         "XDG_SESSION_TYPE": "wayland",
         "WLR_BACKENDS": "headless",
+        "LIBSEAT_BACKEND": "noop",
         "WLR_RENDERER": "pixman",
         "WLR_HEADLESS_OUTPUTS": "1",
         "WLR_LIBINPUT_NO_DEVICES": "1",
