@@ -77,9 +77,9 @@ display_settings() {
             show_message "Display" "No modes were reported for $output."
           elif mode=$(menu_text "Resolution: $output" "$(printf 'Preferred\n%s' "$modes")"); then
             if [ "$mode" = "Preferred" ]; then
-              wlr-randr --output "$output" --preferred
+              if ! wlr-randr --output "$output" --preferred; then show_message "Display" "Could not apply the preferred display mode."; fi
             else
-              wlr-randr --output "$output" --mode "$mode"
+              if ! wlr-randr --output "$output" --mode "$mode"; then show_message "Display" "Could not apply the selected display mode."; fi
             fi
           fi
           ;;
@@ -93,7 +93,7 @@ display_settings() {
               "200%") scale=2 ;;
               *) continue ;;
             esac
-            wlr-randr --output "$output" --scale "$scale"
+            if ! wlr-randr --output "$output" --scale "$scale"; then show_message "Display" "Could not apply the selected display scale."; fi
           fi
           ;;
         "Orientation")
@@ -105,10 +105,10 @@ display_settings() {
               "Upside down") transform=180 ;;
               *) continue ;;
             esac
-            wlr-randr --output "$output" --transform "$transform"
+            if ! wlr-randr --output "$output" --transform "$transform"; then show_message "Display" "Could not apply the selected orientation."; fi
           fi
           ;;
-        "Back") break ;;
+        "Back") return 0 ;;
       esac
     done
   done
@@ -125,9 +125,12 @@ sound_settings() {
       return 0
     fi
     case "$choice" in
-      "Volume up (+5%)") wpctl set-volume --limit 1.0 @DEFAULT_AUDIO_SINK@ 5%+ ;;
-      "Volume down (-5%)") wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- ;;
-      "Mute / unmute") wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle ;;
+      "Volume up (+5%)")
+        if ! wpctl set-volume --limit 1.0 @DEFAULT_AUDIO_SINK@ 5%+; then show_message "Sound" "Could not change the default output volume."; fi ;;
+      "Volume down (-5%)")
+        if ! wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-; then show_message "Sound" "Could not change the default output volume."; fi ;;
+      "Mute / unmute")
+        if ! wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; then show_message "Sound" "Could not change the default output mute state."; fi ;;
       "Audio devices")
         open_terminal "Aura Audio" 'wpctl status; printf "\nPress Enter to close..."; read -r _'
         ;;
@@ -151,17 +154,17 @@ power_settings() {
       "Lock screen") swaylock -f ;;
       "Suspend")
         if answer=$(menu "Confirm suspend" "Cancel" "Suspend now") && [ "$answer" = "Suspend now" ]; then
-          systemctl suspend
+          if ! systemctl suspend; then show_message "Power" "Suspend was not accepted by the system."; fi
         fi
         ;;
       "Restart")
         if answer=$(menu "Confirm restart" "Cancel" "Restart now") && [ "$answer" = "Restart now" ]; then
-          systemctl reboot
+          if ! systemctl reboot; then show_message "Power" "Restart was not accepted by the system."; fi
         fi
         ;;
       "Shut down")
         if answer=$(menu "Confirm shutdown" "Cancel" "Shut down now") && [ "$answer" = "Shut down now" ]; then
-          systemctl poweroff
+          if ! systemctl poweroff; then show_message "Power" "Shutdown was not accepted by the system."; fi
         fi
         ;;
       "Back") return 0 ;;
