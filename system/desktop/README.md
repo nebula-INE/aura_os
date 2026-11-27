@@ -58,3 +58,27 @@ Wi-Fi, Bluetooth, or touchscreen support.
 The 512 MiB idle-memory goal remains an unmeasured stretch target. Measure the
 complete desktop session on representative hardware before making performance
 claims or enabling this profile by default.
+
+
+## Aura launcher and Settings
+
+- `Super+D` opens the Aura application search. It uses XDG desktop entries
+  and Wofi's fuzzy matching.
+- The Waybar **Aura** entry opens the same application search.
+- `Super+F10` opens Aura Settings. The Settings app is also available from
+  the application search as **Aura Settings**.
+- Appearance offers built-in solid-color backgrounds and saves the selection
+  in `~/.config/aura/desktop.conf`.
+- Display offers connected-output selection, the modes exposed by the active
+  compositor, output scaling, and orientation. Changes apply immediately to
+  the current session; saved per-monitor profiles are a follow-up.
+- Sound provides default-output volume and mute controls through PipeWire.
+- Network opens the current systemd-networkd and resolver status. It is
+  intentionally read-only; Wi-Fi connection management is not implemented.
+- Power provides lock, suspend, restart, and shutdown actions with a second
+  confirmation for power operations.
+
+The controls use the existing Wofi, labwc, swaybg, PipeWire, and wlr-randr
+components rather than adding a large desktop toolkit. The Settings app runs
+as the logged-in user and does not invoke sudo or edit system networking
+configuration.
