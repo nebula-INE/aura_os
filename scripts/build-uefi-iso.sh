@@ -47,6 +47,26 @@ case "$TARGET_ARCH" in
     ;;
 esac
 
+AURA_SECURE_BOOT="${AURA_SECURE_BOOT:-0}"
+case "$AURA_SECURE_BOOT" in
+  0) ;;
+  1)
+    KERNEL_IMAGE="$ROOT_DIR/build/kernel-efi-iso/$TARGET_ARCH/$EFI_FILENAME.signed"
+    SECURE_BOOT_CERT_FILE="$ROOT_DIR/build/kernel-efi-iso/$TARGET_ARCH/aura-uefi-db.cer"
+    SECURE_BOOT_FINGERPRINT_FILE="$ROOT_DIR/build/kernel-efi-iso/$TARGET_ARCH/aura-uefi-db.fingerprint"
+    for secure_boot_input in "$KERNEL_IMAGE" "$SECURE_BOOT_CERT_FILE" "$SECURE_BOOT_FINGERPRINT_FILE"; do
+      [[ -s "$secure_boot_input" ]] || {
+        echo "error: Secure Boot media input is missing: $secure_boot_input" >&2
+        exit 1
+      }
+    done
+    ;;
+  *)
+    echo "error: AURA_SECURE_BOOT must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
+
 require_command() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "error: required command not found: $1" >&2
@@ -98,6 +118,11 @@ esac
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR/boot" "$STAGING_DIR/EFI/BOOT"
+if [[ "$AURA_SECURE_BOOT" == "1" ]]; then
+  mkdir -p "$STAGING_DIR/secureboot"
+  cp "$SECURE_BOOT_CERT_FILE" "$STAGING_DIR/secureboot/aura-uefi-db.cer"
+  cp "$SECURE_BOOT_FINGERPRINT_FILE" "$STAGING_DIR/secureboot/aura-uefi-db.fingerprint"
+fi
 if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
   mkdir -p "$STAGING_DIR/rootfs"
   cp "$ROOTFS_ARCHIVE" "$STAGING_DIR/rootfs/aura-base-$TARGET_ARCH.tar.gz"
@@ -128,6 +153,9 @@ if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
       "boot/aura-kernel-$TARGET_ARCH.deb" \
       "boot/efi.img" > aura-payloads.sha256
   )
+  if [[ "$AURA_SECURE_BOOT" == "1" ]]; then
+    (cd "$STAGING_DIR" && sha256sum "secureboot/aura-uefi-db.cer" "secureboot/aura-uefi-db.fingerprint" >> aura-payloads.sha256)
+  fi
   openssl pkeyutl -sign -rawin \
     -inkey "$AURA_RELEASE_PRIVATE_KEY_FILE" \
     -in "$STAGING_DIR/aura-payloads.sha256" \
@@ -146,6 +174,7 @@ Verify the detached ISO signature
 with the Aura release public key before booting.
 Signing mode: $AURA_RELEASE_SIGNING_MODE
 Ed25519 public-key DER SHA-256 fingerprint: ${AURA_RELEASE_PUBLIC_KEY_FINGERPRINT:-unavailable}
+Secure Boot EFI image signing: $AURA_SECURE_BOOT
 
 The installer lists eligible disks and requires the operator to type:
   ERASE /dev/<target>
@@ -156,6 +185,17 @@ It creates GPT, a 512 MiB FAT32 EFI System Partition, and an ext4 root
 filesystem. Do not select a disk containing data you want to keep.
 The installer never selects a target automatically.
 README
+  if [[ "$AURA_SECURE_BOOT" == "1" ]]; then
+    cat >> "$STAGING_DIR/README.txt" <<SECUREBOOT
+
+Secure Boot preview:
+The EFI-stub installer image is Authenticode-signed. The authorized
+certificate is at secureboot/aura-uefi-db.cer; compare its SHA-256 fingerprint
+with an independently trusted release channel before enrolling it into UEFI db.
+This does not yet secure the installed GRUB/kernel chain. Disable Secure Boot
+before the first installed-system boot until full-chain support is available.
+SECUREBOOT
+  fi
 else
   cat > "$STAGING_DIR/README.txt" <<README
 Aura OS $TARGET_ARCH UEFI boot media (bring-up prototype)
@@ -222,13 +262,13 @@ if [[ "$AURA_INSTALLER_MODE" == "1" ]]; then
   printf '%s  Ed25519 public key DER SHA-256\n' "$actual_fingerprint" > "$OUTPUT_ISO.pub.fingerprint"
 fi
 
-python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" "$AURA_RELEASE_SIGNING_MODE" \
+python3 - "$OUTPUT_ISO" "$TARGET_ARCH" "$EFI_FILENAME" "$FIRMWARE_PROFILE" "$AURA_INSTALLER_MODE" "$AURA_RELEASE_SIGNING_MODE" "$AURA_SECURE_BOOT" "${AURA_UEFI_SECURE_BOOT_CERT_SHA256:-}" \
   > "$OUTPUT_ISO.provenance.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-image, architecture, loader, firmware, installer_mode, signing_mode = sys.argv[1:]
+image, architecture, loader, firmware, installer_mode, signing_mode, secure_boot, secure_boot_fingerprint = sys.argv[1:]
 path = Path(image)
 installer_ready = installer_mode == "1"
 record = {
@@ -242,6 +282,12 @@ record = {
     "image_size_bytes": path.stat().st_size,
     "installer_ready": installer_ready,
     "purpose": "Debian 13 installer with GPT/ESP/rootfs deployment" if installer_ready else "interactive serial-console boot-validation prototype",
+    "secure_boot": {
+        "efi_stub_image_signed": secure_boot == "1",
+        "signature_format": "UEFI Authenticode / PKCS#7" if secure_boot == "1" else None,
+        "certificate_der_sha256": secure_boot_fingerprint or None,
+        "installed_system_chain_supported": False,
+    },
 }
 if installer_ready:
     record["rootfs_archive"] = f"rootfs/aura-base-{architecture}.tar.gz"

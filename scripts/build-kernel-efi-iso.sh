@@ -9,6 +9,7 @@ BASE_OUT_DIR="${ROOT_DIR}/build/kernel"
 OUT_DIR="${ROOT_DIR}/build/kernel-efi-iso/${TARGET_ARCH}"
 INITRAMFS_ROOTFS="${INITRAMFS_ROOTFS:-${ROOT_DIR}/build/initramfs/rootfs}"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
+AURA_SECURE_BOOT="${AURA_SECURE_BOOT:-0}"
 
 case "${TARGET_ARCH}" in
   x86_64)
@@ -118,6 +119,30 @@ if [[ "$TARGET_ARCH" == aarch64 ]]; then
   python3 "$ROOT_DIR/scripts/verify_aarch64_efi_image.py" "$KERNEL_IMAGE"
 fi
 
+EFI_IMAGE_TO_BOOT="$KERNEL_IMAGE"
+case "$AURA_SECURE_BOOT" in
+  0) ;;
+  1)
+    : "${AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_FILE:?UEFI Secure Boot private key is not prepared}"
+    : "${AURA_UEFI_SECURE_BOOT_CERT_FILE:?UEFI Secure Boot certificate is not prepared}"
+    : "${AURA_UEFI_SECURE_BOOT_CERT_DER_FILE:?UEFI Secure Boot DER certificate is not prepared}"
+    : "${AURA_UEFI_SECURE_BOOT_CERT_SHA256:?UEFI Secure Boot certificate fingerprint is not prepared}"
+    [[ -s "$AURA_UEFI_SECURE_BOOT_CERT_DER_FILE" ]] || {
+      echo "error: UEFI Secure Boot DER certificate is missing." >&2
+      exit 1
+    }
+    SIGNED_EFI_IMAGE="$OUT_DIR/$EFI_FILENAME.signed"
+    bash "$ROOT_DIR/scripts/sign-efi-image.sh" "$KERNEL_IMAGE" "$SIGNED_EFI_IMAGE"
+    cp "$AURA_UEFI_SECURE_BOOT_CERT_DER_FILE" "$OUT_DIR/aura-uefi-db.cer"
+    printf '%s  SHA256(aura-uefi-db.cer)\n' "$AURA_UEFI_SECURE_BOOT_CERT_SHA256" > "$OUT_DIR/aura-uefi-db.fingerprint"
+    EFI_IMAGE_TO_BOOT="$SIGNED_EFI_IMAGE"
+    ;;
+  *)
+    echo "error: AURA_SECURE_BOOT must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
+
 cp "$BASE_OUT_DIR/source-verification.txt" "$OUT_DIR/source-verification.txt"
 sha256sum "$KERNEL_IMAGE" | tee "$OUT_DIR/kernel-image.sha256"
 {
@@ -129,6 +154,12 @@ sha256sum "$KERNEL_IMAGE" | tee "$OUT_DIR/kernel-image.sha256"
   printf 'Embedded initramfs source: %s\n' "$INITRAMFS_ROOTFS"
   printf 'Kernel SHA-256:\n'
   sha256sum "$KERNEL_IMAGE"
+  printf 'Secure Boot signing: %s\n' "$AURA_SECURE_BOOT"
+  printf 'EFI image used on media: %s\n' "$EFI_IMAGE_TO_BOOT"
+  if [[ "$AURA_SECURE_BOOT" == "1" ]]; then
+    printf 'Secure Boot certificate SHA-256: %s\n' "$AURA_UEFI_SECURE_BOOT_CERT_SHA256"
+    sha256sum "$EFI_IMAGE_TO_BOOT"
+  fi
 } | tee "$OUT_DIR/efi-kernel-provenance.txt"
 
 printf 'Built %s EFI ISO kernel: %s\n' "$TARGET_ARCH" "$KERNEL_IMAGE"
