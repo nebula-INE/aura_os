@@ -10,6 +10,11 @@ on:
       - "scripts/build-kernel.sh"
       - "scripts/build-initramfs-target.sh"
       - "scripts/build-kernel-efi-iso.sh"
+      - "scripts/prepare-uefi-secureboot-key.sh"
+      - "scripts/sign-efi-image.sh"
+      - "tests/test_secure_boot.py"
+      - "docs/secure-boot.md"
+      - "docs/decisions/0021-uefi-secure-boot-signing.md"
       - "scripts/build-uefi-iso.sh"
       - "scripts/test-uefi-iso-qemu.sh"
       - "scripts/ensure-ubuntu-apt-sources.sh"
@@ -25,6 +30,11 @@ on:
       - "scripts/build-kernel.sh"
       - "scripts/build-initramfs-target.sh"
       - "scripts/build-kernel-efi-iso.sh"
+      - "scripts/prepare-uefi-secureboot-key.sh"
+      - "scripts/sign-efi-image.sh"
+      - "tests/test_secure_boot.py"
+      - "docs/secure-boot.md"
+      - "docs/decisions/0021-uefi-secure-boot-signing.md"
       - "scripts/build-uefi-iso.sh"
       - "scripts/test-uefi-iso-qemu.sh"
       - "scripts/ensure-ubuntu-apt-sources.sh"
@@ -75,8 +85,9 @@ jobs:
           FIRMWARE_PACKAGES: ${{ matrix.firmware_packages }}
         run: |
           bash -n scripts/build-kernel.sh scripts/build-initramfs-target.sh \
-            scripts/build-kernel-efi-iso.sh scripts/build-uefi-iso.sh \
+            scripts/build-kernel-efi-iso.sh scripts/build-uefi-iso.sh scripts/prepare-uefi-secureboot-key.sh scripts/sign-efi-image.sh \
             scripts/test-uefi-iso-qemu.sh
+          python3 -m unittest discover -s tests -p "test_secure_boot.py" -v
           sudo bash scripts/ensure-ubuntu-apt-sources.sh
           sudo apt-get \
             -o Acquire::Retries=5 \
@@ -84,8 +95,15 @@ jobs:
             -o Acquire::https::Timeout=60 \
             install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-            git gnupg curl cpio gzip binutils file mtools xorriso \
+            git gnupg curl cpio gzip binutils file mtools xorriso openssl sbsigntool \
             ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
+
+      - name: Prepare UEFI Secure Boot signing identity
+        env:
+          AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_PEM: ${{ secrets.AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_PEM }}
+          AURA_UEFI_SECURE_BOOT_CERT_PEM: ${{ vars.AURA_UEFI_SECURE_BOOT_CERT_PEM }}
+          AURA_UEFI_SECURE_BOOT_CERT_SHA256: ${{ vars.AURA_UEFI_SECURE_BOOT_CERT_SHA256 }}
+        run: bash scripts/prepare-uefi-secureboot-key.sh "$RUNNER_TEMP/aura-uefi-secureboot"
 
       - name: Build and verify upstream Linux kernel
         env:
@@ -102,11 +120,13 @@ jobs:
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
           JOBS: "2"
+          AURA_SECURE_BOOT: "1"
         run: bash scripts/build-kernel-efi-iso.sh
 
       - name: Build UEFI El Torito ISO
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
+          AURA_SECURE_BOOT: "1"
         run: bash scripts/build-uefi-iso.sh
 
       - name: Boot ISO as virtual CD-ROM through UEFI
@@ -127,8 +147,15 @@ jobs:
             build/iso/aura-os-${{ matrix.target_arch }}-uefi.iso.eltorito.txt
             build/kernel-efi-iso/${{ matrix.target_arch }}/kernel-image.sha256
             build/kernel-efi-iso/${{ matrix.target_arch }}/efi-kernel-provenance.txt
+            build/kernel-efi-iso/${{ matrix.target_arch }}/*.signed
+            build/kernel-efi-iso/${{ matrix.target_arch }}/*.secureboot.txt
+            build/kernel-efi-iso/${{ matrix.target_arch }}/aura-uefi-db.*
             build/qemu-iso/aura-${{ matrix.target_arch }}-uefi-iso-boot.log
             build/qemu-iso/${{ matrix.target_arch }}-uefi-iso-qemu-provenance.txt
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Remove transient UEFI Secure Boot private key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/aura-uefi-secureboot"

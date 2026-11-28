@@ -19,6 +19,11 @@ on:
       - "scripts/build-installed-kernel.sh"
       - "scripts/build-kernel-package.sh"
       - "scripts/build-kernel-efi-iso.sh"
+      - "docs/decisions/0021-uefi-secure-boot-signing.md"
+      - "docs/secure-boot.md"
+      - "tests/test_secure_boot.py"
+      - "scripts/sign-efi-image.sh"
+      - "scripts/prepare-uefi-secureboot-key.sh"
       - "scripts/build-uefi-iso.sh"
       - "scripts/build-base-rootfs.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
@@ -52,6 +57,11 @@ on:
       - "scripts/build-kernel-apt-repository.sh"
       - "scripts/prepare-apt-repository-key.sh"
       - "scripts/build-kernel-efi-iso.sh"
+      - "docs/decisions/0021-uefi-secure-boot-signing.md"
+      - "docs/secure-boot.md"
+      - "tests/test_secure_boot.py"
+      - "scripts/sign-efi-image.sh"
+      - "scripts/prepare-uefi-secureboot-key.sh"
       - "scripts/build-uefi-iso.sh"
       - "scripts/build-base-rootfs.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
@@ -111,6 +121,7 @@ jobs:
           bash -n scripts/build-base-rootfs.sh scripts/build-initramfs-target.sh \
             scripts/build-installer-initramfs.sh scripts/build-installed-kernel.sh \
             scripts/build-kernel-efi-iso.sh scripts/build-kernel-package.sh scripts/build-uefi-iso.sh \
+            scripts/prepare-uefi-secureboot-key.sh scripts/sign-efi-image.sh \
             scripts/ensure-ubuntu-apt-sources.sh
           sh -n system/base/installer/init system/base/installer/install.sh \
             system/base/installer/rescue.sh system/base/installer/backup.sh \
@@ -122,6 +133,7 @@ jobs:
           python3 -m py_compile scripts/test-installer-qemu.py
           python3 -m unittest discover -s tests -p 'test_installer_contract.py' -v
           python3 -m unittest discover -s tests -p 'test_installer_signing.py' -v
+          python3 -m unittest discover -s tests -p 'test_secure_boot.py' -v
           python3 -m unittest discover -s tests -p 'test_kernel_package.py' -v
           python3 -m unittest discover -s tests -p 'test_kernel_lifecycle.py' -v
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
@@ -146,7 +158,7 @@ jobs:
             -o Acquire::Queue-Mode=access \
             install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-            git gnupg curl perl cpio gzip binutils file mtools xorriso openssl \
+            git gnupg curl perl cpio gzip binutils file mtools xorriso openssl sbsigntool \
             mmdebstrap qemu-user-static binfmt-support e2fsprogs kmod util-linux \
             dosfstools python3-pexpect \
             ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
@@ -205,6 +217,13 @@ jobs:
             echo "AURA_RELEASE_SIGNING_MODE=$mode"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare UEFI Secure Boot signing identity
+        env:
+          AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_PEM: ${{ secrets.AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_PEM }}
+          AURA_UEFI_SECURE_BOOT_CERT_PEM: ${{ vars.AURA_UEFI_SECURE_BOOT_CERT_PEM }}
+          AURA_UEFI_SECURE_BOOT_CERT_SHA256: ${{ vars.AURA_UEFI_SECURE_BOOT_CERT_SHA256 }}
+        run: bash scripts/prepare-uefi-secureboot-key.sh "$RUNNER_TEMP/aura-uefi-secureboot"
+
       - name: Prepare verified Debian Trixie signing keyring
         run: |
           sudo bash scripts/prepare-debian-trixie-keyring.sh \
@@ -238,7 +257,25 @@ jobs:
           TARGET_ARCH: ${{ matrix.target_arch }}
           INITRAMFS_ROOTFS: ${{ github.workspace }}/build/installer-initramfs/${{ matrix.target_arch }}/rootfs
           JOBS: "2"
-        run: sudo --preserve-env=TARGET_ARCH,INITRAMFS_ROOTFS,JOBS bash scripts/build-kernel-efi-iso.sh
+          AURA_SECURE_BOOT: "1"
+        run: sudo --preserve-env=TARGET_ARCH,INITRAMFS_ROOTFS,JOBS,AURA_SECURE_BOOT,AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_FILE,AURA_UEFI_SECURE_BOOT_CERT_FILE,AURA_UEFI_SECURE_BOOT_CERT_DER_FILE,AURA_UEFI_SECURE_BOOT_CERT_SHA256,AURA_UEFI_SECURE_BOOT_MODE bash scripts/build-kernel-efi-iso.sh
+
+      - name: Verify EFI-stub Secure Boot signature
+        env:
+          TARGET_ARCH: ${{ matrix.target_arch }}
+        run: |
+          set -euo pipefail
+          case "$TARGET_ARCH" in
+            x86_64) loader=BOOTX64.EFI ;;
+            aarch64) loader=BOOTAA64.EFI ;;
+            riscv64) loader=BOOTRISCV64.EFI ;;
+            *) exit 2 ;;
+          esac
+          signed="build/kernel-efi-iso/$TARGET_ARCH/$loader.signed"
+          sbverify --cert "$AURA_UEFI_SECURE_BOOT_CERT_FILE" "$signed"
+          actual="$(openssl x509 -in "$AURA_UEFI_SECURE_BOOT_CERT_FILE" -outform DER | sha256sum | awk '{print toupper($1)}')"
+          [[ "$actual" == "$AURA_UEFI_SECURE_BOOT_CERT_SHA256" ]]
+          grep -Fq "Certificate DER SHA-256: $actual" "$signed.secureboot.txt"
 
       - name: Build the GRUB-loaded kernel for the installed system
         env:
@@ -256,6 +293,7 @@ jobs:
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
           AURA_INSTALLER_MODE: "1"
+          AURA_SECURE_BOOT: "1"
         run: bash scripts/build-uefi-iso.sh
 
       - name: Verify detached ISO signature and release-key fingerprint
@@ -300,6 +338,9 @@ jobs:
             build/installer-initramfs/${{ matrix.target_arch }}/aura-installer-initramfs-${{ matrix.target_arch }}.cpio.gz*
             build/installer-initramfs/${{ matrix.target_arch }}/build-provenance.txt
             build/kernel-efi-iso/${{ matrix.target_arch }}/efi-kernel-provenance.txt
+            build/kernel-efi-iso/${{ matrix.target_arch }}/*.signed
+            build/kernel-efi-iso/${{ matrix.target_arch }}/*.secureboot.txt
+            build/kernel-efi-iso/${{ matrix.target_arch }}/aura-uefi-db.*
             build/kernel/source-verification.txt
             build/kernel-installed/${{ matrix.target_arch }}/*
             build/kernel-packages/${{ matrix.target_arch }}/*.deb
@@ -308,3 +349,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Remove transient UEFI Secure Boot private key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/aura-uefi-secureboot"
