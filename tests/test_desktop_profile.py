@@ -37,6 +37,9 @@ class DesktopProfileTests(unittest.TestCase):
         (systemd / "greetd.service").write_text(
             "[Service]\nExecStart=/usr/sbin/greetd\n", encoding="utf-8"
         )
+        (systemd / "iwd.service").write_text(
+            "[Service]\nExecStart=/usr/libexec/iwd\n", encoding="utf-8"
+        )
 
     def test_package_manifest_matches_profile(self) -> None:
         manifest = ROOT / "system/desktop/packages.txt"
@@ -59,6 +62,9 @@ class DesktopProfileTests(unittest.TestCase):
             greetd_link = root / "etc/systemd/system/graphical.target.wants/greetd.service"
             self.assertEqual(greetd_link.readlink().as_posix(),
                              "/usr/lib/systemd/system/greetd.service")
+            iwd_link = root / "etc/systemd/system/multi-user.target.wants/iwd.service"
+            self.assertEqual(iwd_link.readlink().as_posix(),
+                             "/usr/lib/systemd/system/iwd.service")
             self.assertTrue((root / "usr/share/wayland-sessions/aura.desktop").is_file())
             self.assertTrue((root / "usr/lib/aura/desktop/session").stat().st_mode & 0o111)
             self.assertTrue((root / "etc/xdg/labwc/autostart").stat().st_mode & 0o111)
@@ -73,11 +79,22 @@ class DesktopProfileTests(unittest.TestCase):
                 self.assertTrue(program.stat().st_mode & 0o111, relative)
                 subprocess.run(["sh", "-n", str(program)], check=True)
 
+            iwd_config = (root / "etc/iwd/main.conf").read_text(encoding="utf-8")
+            self.assertIn("EnableNetworkConfiguration=false", iwd_config)
+            wireless_config = (root / "etc/systemd/network/30-wireless.network").read_text(encoding="utf-8")
+            for setting in ("Type=wlan", "WLANInterfaceType=station", "DHCP=yes",
+                            "IPv6AcceptRA=yes", "LinkLocalAddressing=ipv6"):
+                self.assertIn(setting, wireless_config)
+
             settings_entry = root / "usr/share/applications/aura-settings.desktop"
             settings_text = settings_entry.read_text(encoding="utf-8")
             self.assertIn("Name=Aura Settings", settings_text)
             self.assertIn("Exec=aura-settings", settings_text)
             self.assertIn("Terminal=false", settings_text)
+            settings_script = (ROOT / "system/desktop/bin/aura-settings").read_text(encoding="utf-8")
+            self.assertIn("Manage Wi-Fi", settings_script)
+            self.assertIn("iwctl", settings_script)
+            subprocess.run(["sh", "-n", str(ROOT / "system/desktop/bin/aura-settings")], check=True)
 
             rc_root = ET.parse(root / "etc/xdg/labwc/rc.xml").getroot()
             keybinds = {

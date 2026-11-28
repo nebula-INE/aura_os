@@ -73,8 +73,11 @@ claims or enabling this profile by default.
   compositor, output scaling, and orientation. Changes apply immediately to
   the current session; saved per-monitor profiles are a follow-up.
 - Sound provides default-output volume and mute controls through PipeWire.
-- Network opens the current systemd-networkd and resolver status. It is
-  intentionally read-only; Wi-Fi connection management is not implemented.
+- Network provides an interactive Wi-Fi setup entry backed by iwd/iwctl, plus
+  Wi-Fi device, wired-interface, and DNS status. `iwctl` scans and connects to
+  networks and asks for protected-network credentials in its own terminal prompt.
+  systemd-networkd remains responsible for DHCP/IP configuration and
+  systemd-resolved remains the DNS service.
 - Power provides lock, suspend, restart, and shutdown actions with a second
   confirmation for power operations.
 
@@ -82,3 +85,11 @@ The controls use the existing Wofi, labwc, swaybg, PipeWire, and wlr-randr
 components rather than adding a large desktop toolkit. The Settings app runs
 as the logged-in user and does not invoke sudo or edit system networking
 configuration.
+
+
+Wi-Fi is optional and is installed only with this desktop profile. The profile
+ships the regulatory database, but does not bundle proprietary or
+device-specific firmware. A Wi-Fi device still needs a supported upstream
+Linux driver and any firmware required by that hardware; this must be checked
+on physical reference devices. QEMU's headless desktop tests do not validate
+radio, antenna, regulatory-domain, or real access-point behavior.
