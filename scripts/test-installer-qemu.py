@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -733,6 +734,225 @@ def run_installed_boot(architecture: str, disk: Path) -> None:
 
 
 
+
+def run_failed_kernel_candidate_rollback(architecture: str, disk: Path) -> None:
+    """Prove a failed one-shot kernel candidate falls back to the known-good image."""
+    if architecture == "x86_64":
+        vars_template = Path(
+            os.environ.get("OVMF_VARS", "/usr/share/OVMF/OVMF_VARS_4M.fd")
+        )
+    elif architecture == "aarch64":
+        vars_template = Path(
+            os.environ.get("AAVMF_VARS", "/usr/share/AAVMF/AAVMF_VARS.fd")
+        )
+    else:
+        vars_template = Path(
+            os.environ.get(
+                "RISCV_EFI_VARS", "/usr/share/qemu-efi-riscv64/RISCV_VIRT_VARS.fd"
+            )
+        )
+    require_file(vars_template, "UEFI variables template")
+
+    username = "auraci"
+    password = "Aura-CI-Only-2026!"
+    stage_log = LOG_DIR / f"aura-{architecture}-kernel-rollback-stage.log"
+    child = spawn_qemu(
+        architecture,
+        disk,
+        vars_template,
+        iso=None,
+        log_path=stage_log,
+        timeout=480,
+    )
+    try:
+        child.expect("AURA_ROOT_DEVICE_MATCHED", timeout=360)
+        child.expect("login:", timeout=120)
+        child.sendline(username)
+        child.expect("Password:", timeout=60)
+        child.sendline(password)
+        child.expect(r"[$#] ", timeout=90)
+
+        stage_script = r"""set -eu
+previous="$(cat /usr/share/aura-kernel/current-version)"
+test -n "$previous"
+test "$(cat /var/lib/aura-kernel/known-good)" = "$previous"
+test "$(uname -r)" = "$previous"
+candidate="$previous-rollback-test"
+config="/usr/share/aura-kernel/$previous.conf"
+test -s "$config"
+arch="$(sed -n 's/^AURA_KERNEL_ARCH=//p' "$config")"
+mode="$(sed -n 's/^AURA_INITRAMFS_MODE=//p' "$config")"
+modules="$(sed -n 's/^AURA_KERNEL_MODULES=//p' "$config")"
+test -n "$arch" && test -n "$mode" && test -n "$modules"
+cp "/boot/vmlinuz-aura-$previous" "/boot/vmlinuz-aura-$candidate"
+if test "$mode" = external; then
+  cp "/boot/aura-initramfs-$previous.cpio.gz" "/boot/aura-initramfs-$candidate.cpio.gz"
+fi
+printf 'AURA_KERNEL_ARCH=%s\nAURA_INITRAMFS_MODE=%s\nAURA_KERNEL_MODULES=%s\n' \
+  "$arch" "$mode" "$modules" > "/usr/share/aura-kernel/$candidate.conf"
+printf '%s\n' "$candidate" > /usr/share/aura-kernel/current-version
+/usr/lib/aura-kernel/activate-kernel
+root_uuid="$(findmnt -n -o UUID /)"
+bad_uuid="00000000-0000-4000-8000-000000000000"
+test "$root_uuid" != "$bad_uuid"
+sed -i "/menuentry 'Aura OS ($candidate)' --id 'aura-$candidate' {/,/^}/ s/root=UUID=$root_uuid/root=UUID=$bad_uuid/" /boot/grub/grub.cfg
+grep -A 6 -F "menuentry 'Aura OS ($candidate)' --id 'aura-$candidate' {" /boot/grub/grub.cfg \
+  | grep -F "root=UUID=$bad_uuid" >/dev/null
+grub_state="$(grub-editenv /boot/grub/grubenv list)"
+printf '%s\n' "$grub_state" | grep -Fx "saved_entry=aura-$previous" >/dev/null
+printf '%s\n' "$grub_state" | grep -Fx "next_entry=aura-$candidate" >/dev/null
+printf 'AURA_ROLLBACK_PREVIOUS=%s\nAURA_ROLLBACK_CANDIDATE=%s\n' "$previous" "$candidate"
+echo AURA_KERNEL_ROLLBACK_CANDIDATE_STAGED
+"""
+        child.sendline(
+            "sudo -S -p 'AURA_ROLLBACK_STAGE_SUDO_PASSWORD:' sh -eu -c "
+            + shlex.quote(stage_script)
+        )
+        child.expect("AURA_ROLLBACK_STAGE_SUDO_PASSWORD:", timeout=30)
+        child.sendline(password)
+        child.expect("AURA_KERNEL_ROLLBACK_CANDIDATE_STAGED", timeout=90)
+        child.expect(r"[$#] ", timeout=30)
+        child.sendline(
+            "sudo -S -p 'AURA_ROLLBACK_REBOOT_PASSWORD:' systemctl reboot"
+        )
+        child.expect("AURA_ROLLBACK_REBOOT_PASSWORD:", timeout=30)
+        child.sendline(password)
+        child.expect(pexpect.EOF, timeout=120)
+        child.close()
+        if child.exitstatus not in (0, None):
+            raise RuntimeError(
+                f"{architecture} QEMU did not power-cycle into the staged kernel candidate; "
+                f"see {stage_log}"
+            )
+    except Exception:
+        if child.logfile:
+            child.logfile.flush()
+        child.close(force=True)
+        report_serial_log_tail(stage_log)
+        raise
+    finally:
+        if child.logfile:
+            child.logfile.close()
+
+    failed_log = LOG_DIR / f"aura-{architecture}-kernel-rollback-failed-candidate.log"
+    failed_child = spawn_qemu(
+        architecture,
+        disk,
+        vars_template,
+        iso=None,
+        log_path=failed_log,
+        timeout=240,
+    )
+    try:
+        failed_result = failed_child.expect(
+            [
+                "ERROR: no ext4 block device matched root=UUID after 10 seconds",
+                "AURA_ROOT_DEVICE_MATCHED",
+                "Kernel panic",
+                pexpect.EOF,
+            ],
+            timeout=220,
+        )
+        if failed_result != 0:
+            raise RuntimeError(
+                f"{architecture} deliberately broken kernel candidate did not fail "
+                f"through the expected root-UUID path (result {failed_result}); "
+                f"see {failed_log}"
+            )
+        failed_child.close(force=True)
+    except Exception:
+        if failed_child.logfile:
+            failed_child.logfile.flush()
+        failed_child.close(force=True)
+        report_serial_log_tail(failed_log)
+        raise
+    finally:
+        if failed_child.logfile:
+            failed_child.logfile.close()
+
+    fallback_log = LOG_DIR / f"aura-{architecture}-kernel-rollback-fallback.log"
+    fallback_child = spawn_qemu(
+        architecture,
+        disk,
+        vars_template,
+        iso=None,
+        log_path=fallback_log,
+        timeout=480,
+    )
+    try:
+        fallback_child.expect("AURA_ROOT_DEVICE_MATCHED", timeout=360)
+        fallback_child.expect("login:", timeout=120)
+        fallback_child.sendline(username)
+        fallback_child.expect("Password:", timeout=60)
+        fallback_child.sendline(password)
+        fallback_child.expect(r"[$#] ", timeout=90)
+        cleanup_script = r"""set -eu
+previous="$(cat /var/lib/aura-kernel/known-good)"
+candidate="$(cat /var/lib/aura-kernel/pending)"
+test -n "$previous" && test -n "$candidate"
+test "$(uname -r)" = "$previous"
+test "$candidate" = "$previous-rollback-test"
+grub_state="$(grub-editenv /boot/grub/grubenv list)"
+printf '%s\n' "$grub_state" | grep -Fx "saved_entry=aura-$previous" >/dev/null
+if printf '%s\n' "$grub_state" | grep -q '^next_entry='; then
+  echo "GRUB did not consume the one-shot failed candidate entry" >&2
+  exit 1
+fi
+rm -f "/boot/vmlinuz-aura-$candidate" \
+  "/boot/aura-initramfs-$candidate.cpio.gz" \
+  "/usr/share/aura-kernel/$candidate.conf"
+printf '%s\n' "$previous" > /usr/share/aura-kernel/current-version
+rm -f /var/lib/aura-kernel/pending
+grub-set-default "aura-$previous"
+/usr/lib/aura-kernel/update-grub-menu
+grub_state="$(grub-editenv /boot/grub/grubenv list)"
+printf '%s\n' "$grub_state" | grep -Fx "saved_entry=aura-$previous" >/dev/null
+if printf '%s\n' "$grub_state" | grep -q '^next_entry='; then
+  echo "unexpected GRUB one-shot entry remained after rollback cleanup" >&2
+  exit 1
+fi
+test ! -e "/boot/vmlinuz-aura-$candidate"
+test ! -e /var/lib/aura-kernel/pending
+echo AURA_KERNEL_ROLLBACK_CONFIRMED
+"""
+        fallback_child.sendline(
+            "sudo -S -p 'AURA_ROLLBACK_VERIFY_SUDO_PASSWORD:' sh -eu -c "
+            + shlex.quote(cleanup_script)
+        )
+        fallback_child.expect("AURA_ROLLBACK_VERIFY_SUDO_PASSWORD:", timeout=30)
+        fallback_child.sendline(password)
+        fallback_child.expect("AURA_KERNEL_ROLLBACK_CONFIRMED", timeout=90)
+        fallback_child.expect(r"[$#] ", timeout=30)
+        fallback_child.sendline("sudo systemctl poweroff")
+        fallback_child.expect(pexpect.EOF, timeout=120)
+        fallback_child.close()
+        if fallback_child.exitstatus not in (0, None):
+            raise RuntimeError(
+                f"{architecture} fallback validation QEMU exited with status "
+                f"{fallback_child.exitstatus}; see {fallback_log}"
+            )
+    except Exception:
+        if fallback_child.logfile:
+            fallback_child.logfile.flush()
+        fallback_child.close(force=True)
+        report_serial_log_tail(fallback_log)
+        raise
+    finally:
+        if fallback_child.logfile:
+            fallback_child.logfile.close()
+
+    failed_text = failed_log.read_text(encoding="utf-8", errors="replace")
+    fallback_text = fallback_log.read_text(encoding="utf-8", errors="replace")
+    if "AURA_ROOT_UUID_REQUESTED" not in failed_text:
+        raise RuntimeError("failed-candidate QEMU did not reach the initramfs root lookup")
+    if "AURA_KERNEL_ROLLBACK_CONFIRMED" not in fallback_text:
+        raise RuntimeError("known-good kernel fallback was not confirmed")
+    print(
+        f"{architecture}: failed candidate was rejected and the next boot returned "
+        "to the previously confirmed kernel."
+    )
+
+
 def installed_root_uuid(architecture: str) -> str:
     log_path = LOG_DIR / f"aura-{architecture}-installed-boot.log"
     try:
@@ -1016,6 +1236,8 @@ def main() -> int:
     run_installed_boot(args.arch, disk)
     print("Normal boot passed; validating the authenticated minimal Recovery Mode.")
     run_recovery_boot(args.arch, disk)
+    print("Testing one-shot kernel failure and known-good GRUB fallback.")
+    run_failed_kernel_candidate_rollback(args.arch, disk)
     metadata = write_disk_metadata(args.arch, disk, iso)
     print(f"Installed-disk partition metadata: {metadata}")
     print(f"Aura OS {args.arch}: install, UUID root boot, first user, login, network and shutdown passed.")

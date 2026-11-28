@@ -109,7 +109,7 @@ require_command() {
     exit 1
   }
 }
-for cmd in "$QEMU_BIN" timeout tee grep sha256sum head tr blkid; do
+for cmd in "$QEMU_BIN" timeout tee grep sha256sum head tr blkid python3; do
   require_command "$cmd"
 done
 for path in "$KERNEL_IMAGE" "$INITRAMFS" "$ROOTFS_IMAGE"; do
@@ -161,9 +161,10 @@ if grep -qi "Kernel panic" "$LOG_FILE"; then
   exit 1
 fi
 
-# The serial console emits CRLF; normalize it before exact marker checks so
-# failure messages containing a marker name cannot masquerade as success.
-normalized_log="$(tr -d '\r' < "$LOG_FILE")"
+# QEMU serial output may contain ANSI terminal reset/cursor sequences around
+# guest console markers (notably when systemd-timedated starts). Strip those
+# control sequences before exact marker checks.
+normalized_log="$(python3 "$ROOT_DIR/scripts/normalize_qemu_console_log.py" "$LOG_FILE")"
 if grep -Eq '^AURA_NETWORK_FAIL:' <<<"$normalized_log"; then
   grep -E '^AURA_NETWORK_FAIL:' <<<"$normalized_log" >&2
   echo "error: network/time smoke service reported a failure." >&2

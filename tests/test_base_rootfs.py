@@ -16,6 +16,7 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
     expected = ARCHITECTURES[target_arch]["elf_machine"]
     for directory in (
         "etc", "usr/lib/systemd", "usr/lib/systemd/system", "usr/lib/systemd/system/sysinit.target.wants",
+        "usr/share/keyrings", "etc/apt/sources.list.d",
         "usr/lib/aura", "usr/bin", "usr/sbin", "sbin", "var/lib/dpkg",
         "etc/systemd/system/multi-user.target.wants", "etc/systemd/system/aura-recovery.target.wants", "usr/lib/aura/recovery", "etc/systemd/network", "etc/systemd/timesyncd.conf.d"
     ):
@@ -52,6 +53,18 @@ def make_rootfs(root: Path, target_arch: str = "x86_64") -> None:
             f"Package: {name}\nStatus: install ok installed"
             for name in sorted({"apt", "dbus", "debian-archive-keyring", "dpkg", "fdisk", "grub2-common", "gzip", "kmod", "libc6", "openssl", "passwd", "sudo", "systemd", "systemd-resolved", "systemd-sysv", "systemd-timesyncd", "tar", "udev"})
         ) + "\n",
+        encoding="utf-8",
+    )
+    (root / "usr/share/keyrings/aura-kernel-archive-keyring.gpg").write_bytes(
+        b"test fixture only; repository-signature verification is tested separately"
+    )
+    (root / "etc/apt/sources.list.d/aura-kernel.sources").write_text(
+        "Types: deb\n"
+        "URIs: https://nebula-INE.github.io/aura_os/apt\n"
+        "Suites: stable\n"
+        "Components: main\n"
+        f"Architectures: {ARCHITECTURES[target_arch]['debian']}\n"
+        "Signed-By: /usr/share/keyrings/aura-kernel-archive-keyring.gpg\n",
         encoding="utf-8",
     )
     (root / "usr/lib/aura/aura-firstboot").write_text(
@@ -244,6 +257,49 @@ class BaseRootfsTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "systemd-timesyncd"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_missing_apt_repository_keyring(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            (root / "usr/share/keyrings/aura-kernel-archive-keyring.gpg").unlink()
+            with self.assertRaisesRegex(ValueError, "APT signing keyring"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_unpinned_or_architecture_mismatched_apt_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            source = root / "etc/apt/sources.list.d/aura-kernel.sources"
+            source.write_text(
+                "Types: deb\n"
+                "URIs: https://nebula-INE.github.io/aura_os/apt\n"
+                "Suites: stable\n"
+                "Components: main\n"
+                "Architectures: arm64\n"
+                "Signed-By: /usr/share/keyrings/aura-kernel-archive-keyring.gpg\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "architecture"):
+                validate_rootfs(root, "x86_64")
+
+    def test_rejects_apt_source_with_signature_checks_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "rootfs"
+            make_rootfs(root)
+            source = root / "etc/apt/sources.list.d/aura-kernel.sources"
+            source.write_text(
+                "Types: deb\n"
+                "URIs: https://nebula-INE.github.io/aura_os/apt\n"
+                "Suites: stable\n"
+                "Components: main\n"
+                "Architectures: amd64\n"
+                "Trusted: yes\n"
+                "Signed-By: /usr/share/keyrings/aura-kernel-archive-keyring.gpg\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "bypass repository signature"):
                 validate_rootfs(root, "x86_64")
 
     def test_qemu_user_network_explicitly_enables_dual_stack_dhcp(self) -> None:

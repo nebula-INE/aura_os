@@ -1,6 +1,6 @@
 # ADR 0016: APT-managed kernel packages and boot update policy
 
-- **Status:** Initial versioned package and GRUB trial-boot implementation added; signed APT publication and failure-injection validation pending
+- **Status:** Versioned packages, signed APT repository publishing workflow, and QEMU failed-candidate fallback test implemented; release publication awaits repository trust configuration and CI validation
 - **Date:** 2026-11-25
 - **Scope:** Installed kernel delivery, security updates, and rollback across x86-64, AArch64, and RV64GC
 
@@ -70,11 +70,10 @@ Implemented in the versioned-kernel package change:
 
 Not yet implemented or proven:
 
-- A published signed APT repository, its separate signing key, repository
-  metadata generation, and release/update publication workflow. Therefore
-  apt upgrade does not yet receive Aura kernel updates from a repository.
-- A QEMU failure-injection test that boots a deliberately bad candidate and
-  observes the previous default on the next reboot.
+- The first published release repository is not active until the dedicated
+  Actions key settings and GitHub Pages deployment source are configured.
+- The QEMU failure-injection test is implemented but still needs a green
+  end-to-end run on all three target architectures.
 - A firmware watchdog or automatic recovery from a kernel that hangs without
   rebooting. The current one-shot selection falls back when the candidate
   boot returns/restarts; a hard hang still requires a reset or manual

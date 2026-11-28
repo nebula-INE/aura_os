@@ -14,6 +14,8 @@ AURA_DESKTOP_PROFILE="${AURA_DESKTOP_PROFILE:-0}"
 BASE_OUTPUT_DIR="$ROOT_DIR/build/base-userspace"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
 DEBIAN_KEYRING="${DEBIAN_KEYRING:-$BASE_OUTPUT_DIR/debian-trixie-keyring.gpg}"
+AURA_APT_REPOSITORY_PUBLIC_KEY_FILE="${AURA_APT_REPOSITORY_PUBLIC_KEY_FILE:-}"
+AURA_APT_REPOSITORY_URL="${AURA_APT_REPOSITORY_URL:-https://nebula-INE.github.io/aura_os/apt}"
 
 case "$TARGET_ARCH" in
   x86_64)
@@ -64,6 +66,16 @@ if [[ ! -s "$DEBIAN_KEYRING" ]]; then
   echo "hint: run scripts/prepare-debian-trixie-keyring.sh first." >&2
   exit 1
 fi
+
+if [[ ! -s "$AURA_APT_REPOSITORY_PUBLIC_KEY_FILE" ]]; then
+  echo "error: trusted Aura APT repository public key is missing: $AURA_APT_REPOSITORY_PUBLIC_KEY_FILE" >&2
+  exit 1
+fi
+if [[ ! "$AURA_APT_REPOSITORY_URL" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]]; then
+  echo "error: Aura APT repository URL must be a plain HTTPS URL." >&2
+  exit 2
+fi
+require_command gpg
 
 if [[ -z "$OUTPUT_DIR" ]]; then
   OUTPUT_DIR="$BASE_OUTPUT_DIR/$TARGET_ARCH"
@@ -132,6 +144,23 @@ DEBIAN_FRONTEND=noninteractive mmdebstrap \
   --aptopt='APT::Install-Recommends "false";' \
   --aptopt='Acquire::Retries "3";' \
   "$DEBIAN_SUITE" "$ROOTFS_DIR" "$DEBIAN_MIRROR"
+
+echo "Installing the pinned Aura kernel APT repository key and source..."
+APT_KEYRING="$ROOTFS_DIR/usr/share/keyrings/aura-kernel-archive-keyring.gpg"
+mkdir -p "$(dirname "$APT_KEYRING")" "$ROOTFS_DIR/etc/apt/sources.list.d"
+gpg --batch --yes --dearmor --output "$APT_KEYRING" "$AURA_APT_REPOSITORY_PUBLIC_KEY_FILE"
+chmod 0644 "$APT_KEYRING"
+cat > "$ROOTFS_DIR/etc/apt/sources.list.d/aura-kernel.sources" <<EOF
+Types: deb
+URIs: $AURA_APT_REPOSITORY_URL
+Suites: stable
+Components: main
+Architectures: $DEBIAN_ARCH
+Signed-By: /usr/share/keyrings/aura-kernel-archive-keyring.gpg
+EOF
+chmod 0644 "$ROOTFS_DIR/etc/apt/sources.list.d/aura-kernel.sources"
+
+
 
 mkdir -p "$ROOTFS_DIR/etc"
 printf 'aura-os\n' > "$ROOTFS_DIR/etc/hostname"
@@ -263,7 +292,9 @@ cat "$CHECKSUM_FILE"
   printf 'Debian architecture: %s\n' "$DEBIAN_ARCH"
   printf 'Bootstrap tool: mmdebstrap --variant=minbase\n'
   printf 'Init/service manager: systemd (systemd-sysv)\n'
-  printf 'Package manager: apt/dpkg\n'
+  printf 'Package manager: apt/dpkg with a pinned Aura signed APT source\n'
+  printf 'Aura APT repository: %s\n' "$AURA_APT_REPOSITORY_URL"
+  printf 'Aura APT signing-key fingerprint: %s\n' "$(gpg --batch --show-keys --with-colons "$AURA_APT_REPOSITORY_PUBLIC_KEY_FILE" | awk -F: '$1 == "fpr" { print $10; exit }')"
   printf 'Wired networking: systemd-networkd with DHCPv4/DHCPv6 and IPv6 RA\n'
   printf 'DNS: systemd-resolved stub resolver\n'
   printf 'Time synchronization: systemd-timesyncd with DHCP NTP and Debian fallback\n'

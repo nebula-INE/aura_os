@@ -140,11 +140,12 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Add backup verification/restore workflows and explicit backup-first repair workflows for damaged filesystems, bootloader recreation, encryption recovery, and credential recovery.
 - [x] Add the initial wired network/time baseline: systemd-networkd DHCP and IPv6 RA, systemd-resolved DNS stub, and systemd-timesyncd with DHCP NTP plus Debian fallback.
 - [x] Validate DHCPv4 addressing, default route, IPv6 link-local addressing, DNS resolution, and timesyncd service activation on x86-64, AArch64, and RV64GC (CI run 44646382671). Actual NTP synchronization accuracy/time offset is not yet asserted.
-- [x] Choose APT/dpkg-managed, versioned Aura kernel packages as the installed-kernel update policy (ADR 0016); package builder, signed repository, and rollback implementation remain pending.
-- [ ] Build architecture-native `aura-kernel` Debian packages with matched kernel/initramfs payloads and GRUB maintainer hooks.
-- [ ] Publish the kernel packages through a signed APT repository.
-- [ ] Keep a previous known-good kernel/GRUB entry until the new version passes a post-update boot check; test rollback on all three architectures.
-- [ ] Add architecture-independent integration tests.
+- [x] Choose APT/dpkg-managed, versioned Aura kernel packages as the installed-kernel update policy (ADR 0016).
+- [x] Build architecture-native `aura-kernel` Debian image/meta packages with matched kernel/initramfs payloads, optional module trees, and GRUB maintainer hooks (PR #23).
+- [x] Implement the signed APT repository builder, architecture-filtered indexes, dedicated `Signed-By` client configuration, and version-tagged GitHub Pages publishing workflow (PR #24). First production publication remains gated on the dedicated repository signing Secret/Variables and GitHub Pages setup.
+- [x] Implement one-shot candidate activation, post-boot confirmation, known-good retention, and failed-candidate GRUB fallback (ADR 0016; PRs #23–#24).
+- [x] Add architecture-independent kernel package, lifecycle, signed repository, and APT dependency-resolution regression tests.
+- [ ] Complete the installer QEMU failure-injection rollback matrix on x86-64, AArch64, and RV64GC, then verify a real signed-repository kernel update before enabling the first production release.
 
 **Exit criteria:** core system workflows behave consistently across all three targets.
 
