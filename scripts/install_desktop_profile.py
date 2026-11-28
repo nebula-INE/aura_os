@@ -12,11 +12,11 @@ from pathlib import Path
 
 DESKTOP_PACKAGES = {
     "dbus-user-session", "foot", "fonts-dejavu-core", "fonts-noto-cjk",
-    "greetd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
+    "greetd", "iwd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
     "pipewire-bin", "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
     "tuigreet", "waybar", "wlr-randr", "wireplumber", "wofi", "xwayland",
     "xdg-desktop-portal", "xdg-desktop-portal-gtk",
-    "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils",
+    "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils", "wireless-regdb",
 }
 
 FILE_MAP = {
@@ -24,6 +24,8 @@ FILE_MAP = {
     "bin/aura-settings": "/usr/bin/aura-settings",
     "bin/aura-wallpaper": "/usr/lib/aura/desktop/aura-wallpaper",
     "defaults/applications/aura-settings.desktop": "/usr/share/applications/aura-settings.desktop",
+    "defaults/iwd/main.conf": "/etc/iwd/main.conf",
+    "defaults/network/30-wireless.network": "/etc/systemd/network/30-wireless.network",
     "defaults/greetd/config.toml": "/etc/greetd/config.toml",
     "defaults/wayland-sessions/aura.desktop": "/usr/share/wayland-sessions/aura.desktop",
     "defaults/labwc/rc.xml": "/etc/xdg/labwc/rc.xml",
@@ -110,6 +112,9 @@ def install_desktop_profile(
         raise ValueError("target rootfs is missing greetd.service")
     if not graphical_target.is_file():
         raise ValueError("target rootfs is missing graphical.target")
+    iwd_unit = root / "usr/lib/systemd/system/iwd.service"
+    if not iwd_unit.is_file():
+        raise ValueError("target rootfs is missing iwd.service")
 
     sources = {source_directory / name: destination
                for name, destination in FILE_MAP.items()}
@@ -129,6 +134,10 @@ def install_desktop_profile(
         "/usr/lib/systemd/system/greetd.service",
     )
     replace_symlink(
+        root, "/etc/systemd/system/multi-user.target.wants/iwd.service",
+        "/usr/lib/systemd/system/iwd.service",
+    )
+    replace_symlink(
         root, "/etc/systemd/system/default.target",
         "/usr/lib/systemd/system/graphical.target",
     )
@@ -140,6 +149,7 @@ def install_desktop_profile(
         "session": "/usr/share/wayland-sessions/aura.desktop",
         "launcher": "/usr/bin/aura-launcher",
         "settings": "/usr/bin/aura-settings",
+        "wifi_backend": "iwd + systemd-networkd + systemd-resolved",
     }
 
 

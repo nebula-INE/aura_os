@@ -1,0 +1,10 @@
+# iwd associates with the access point; networkd configures the IP layer.
+[Match]
+Type=wlan
+WLANInterfaceType=station
+
+[Network]
+DHCP=yes
+IPv6AcceptRA=yes
+LinkLocalAddressing=ipv6
+IPv6PrivacyExtensions=yes

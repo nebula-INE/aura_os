@@ -140,7 +140,50 @@ sound_settings() {
 }
 
 network_settings() {
-  open_terminal "Aura Network" 'printf "Aura wired network status\n\n"; networkctl status --no-pager 2>&1; printf "\nDNS resolver status\n\n"; resolvectl status 2>&1; printf "\nPress Enter to close..."; read -r _'
+  while choice=$(menu "Network" "Manage Wi-Fi" "Network status" "Back"); do
+    case "$choice" in
+      "Manage Wi-Fi")
+        if ! command -v iwctl >/dev/null 2>&1; then
+          show_message "Wi-Fi" "iwd is not installed in this desktop profile."
+        elif ! systemctl is-active --quiet iwd; then
+          show_message "Wi-Fi" "The iwd service is not running. Check systemctl status iwd."
+        else
+          if ! open_terminal "Aura Wi-Fi" '
+printf "Aura Wi-Fi setup\n\n"
+printf "Inside iwctl, use these commands:\n"
+printf "  device list\n"
+printf "  station DEVICE scan\n"
+printf "  station DEVICE get-networks\n"
+printf "  station DEVICE connect \"SSID\"\n\n"
+printf "iwctl asks for a passphrase when required. Use help for more commands.\n"
+printf "Close iwctl with exit when finished.\n\n"
+iwctl
+printf "\nPress Enter to close..."
+read -r _
+'; then
+            show_message "Wi-Fi" "Could not open the Wi-Fi setup terminal."
+          fi
+        fi
+        ;;
+      "Network status")
+        if ! open_terminal "Aura Network" '
+printf "Wi-Fi devices\n\n"
+iwctl device list 2>&1 || true
+printf "\nWi-Fi stations\n\n"
+iwctl station list 2>&1 || true
+printf "\nNetwork interfaces\n\n"
+networkctl status --no-pager 2>&1 || true
+printf "\nDNS resolver status\n\n"
+resolvectl status 2>&1 || true
+printf "\nPress Enter to close..."
+read -r _
+'; then
+          show_message "Network" "Could not open the network status terminal."
+        fi
+        ;;
+      "Back") return 0 ;;
+    esac
+  done
 }
 
 about_aura() {

@@ -152,6 +152,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 
 - [ ] Maintain a hardware compatibility matrix per architecture.
 - [ ] Validate storage, USB/input, display, networking, audio, and power by priority.
+- [x] Add optional desktop Wi-Fi management with iwd/iwctl, regulatory data, and systemd-networkd DHCP on x86-64, AArch64, and RV64GC build profiles; physical radio/firmware validation remains pending.
 - [ ] Prefer upstream Linux drivers when using Linux.
 - [ ] Track firmware licensing and redistribution constraints.
 - [ ] Add real-hardware smoke tests in addition to emulator coverage.
@@ -175,6 +176,7 @@ A custom kernel is out of initial scope. Reconsidering that decision would requi
 - [ ] Validate graphics, input, application, and session-recovery workflows on physical reference hardware for each architecture.
 - [ ] Establish consistent settings, accessibility, and a fully graphical login experience.
 - [x] Add the first Aura application launcher and keyboard-driven Settings app for wallpaper, display mode/scale/orientation, PipeWire volume, wired-network status, and session power actions. Display settings currently apply to the active session; broader system management remains follow-up work.
+- [x] Add the desktop Wi-Fi setup entry backed by iwd/iwctl, with DHCP/IP configuration kept in systemd-networkd and DNS in systemd-resolved. Wi-Fi credentials are entered in the iwctl prompt; graphical password entry and physical-hardware validation remain follow-up work.
 - [ ] Validate launcher/settings workflows and display persistence on physical reference hardware for each architecture.
 - [ ] Define and measure startup, memory, graphics, and responsiveness budgets against Linux Mint.
 

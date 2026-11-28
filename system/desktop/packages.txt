@@ -5,6 +5,7 @@ foot
 fonts-dejavu-core
 fonts-noto-cjk
 greetd
+iwd
 labwc
 lxqt-policykit
 pcmanfm-qt
@@ -17,6 +18,7 @@ swayidle
 swaylock
 tuigreet
 waybar
+wireless-regdb
 wlr-randr
 wireplumber
 wofi

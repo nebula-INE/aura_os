@@ -18,11 +18,11 @@ ARCHITECTURES = {
 }
 DESKTOP_REQUIRED_PACKAGES = {
     "dbus-user-session", "foot", "fonts-dejavu-core", "fonts-noto-cjk",
-    "greetd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
+    "greetd", "iwd", "labwc", "lxqt-policykit", "pcmanfm-qt", "pipewire",
     "pipewire-bin", "pipewire-pulse", "polkitd", "swaybg", "swayidle", "swaylock",
     "tuigreet", "waybar", "wlr-randr", "wireplumber", "wofi", "xwayland",
     "xdg-desktop-portal", "xdg-desktop-portal-gtk",
-    "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils",
+    "xdg-desktop-portal-wlr", "xdg-user-dirs", "xdg-utils", "wireless-regdb",
 }
 REQUIRED_PACKAGES = {
     "apt",
@@ -190,6 +190,24 @@ def _validate_desktop_profile(root: Path, installed: set[str]) -> None:
     ):
         raise ValueError("desktop profile must select graphical.target as default")
     _validate_enabled_systemd_unit(root, "greetd.service", "graphical.target")
+    _validate_enabled_systemd_unit(root, "iwd.service")
+
+    iwd_config = root / "etc/iwd/main.conf"
+    if not iwd_config.is_file():
+        raise ValueError("desktop profile is missing /etc/iwd/main.conf")
+    iwd_text = iwd_config.read_text(encoding="utf-8")
+    for setting in ("[General]", "EnableNetworkConfiguration=false"):
+        if setting not in iwd_text:
+            raise ValueError(f"iwd configuration is missing {setting}")
+
+    wireless_config = root / "etc/systemd/network/30-wireless.network"
+    if not wireless_config.is_file():
+        raise ValueError("desktop profile is missing /etc/systemd/network/30-wireless.network")
+    wireless_text = wireless_config.read_text(encoding="utf-8")
+    for setting in ("Type=wlan", "WLANInterfaceType=station", "DHCP=yes",
+                    "IPv6AcceptRA=yes", "LinkLocalAddressing=ipv6"):
+        if setting not in wireless_text:
+            raise ValueError(f"wireless network configuration is missing {setting}")
 
 
 def validate_rootfs(
@@ -389,6 +407,7 @@ def validate_rootfs(
         "device_management": "udev",
         "kernel_module_loader": "kmod",
         "wired_network": "systemd-networkd DHCP and IPv6 RA",
+        "wifi": "iwd association + systemd-networkd DHCP + systemd-resolved DNS",
         "dns": "systemd-resolved",
         "time_sync": "systemd-timesyncd",
         "root_account_locked": True,
