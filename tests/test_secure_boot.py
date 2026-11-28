@@ -76,18 +76,27 @@ class UefiSecureBootKeyTests(unittest.TestCase):
         )
         sbsign = binary_dir / "sbsign"
         sbsign.write_text(
-            "#!/usr/bin/env python3\\n"
-            "import shutil, sys\\n"
-            "args=sys.argv[1:]\\n"
-            "out=args[args.index('--output')+1]\\n"
-            "shutil.copyfile(args[-1], out)\\n",
+            """#!/bin/sh
+output=
+input=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output) shift; output="$1" ;;
+    *) input="$1" ;;
+  esac
+  shift
+done
+cp "$input" "$output"
+""",
             encoding="utf-8",
         )
         sbverify = binary_dir / "sbverify"
         sbverify.write_text(
-            "#!/usr/bin/env python3\\n"
-            "import sys\\n"
-            "if '--list' in sys.argv: print('signature 1')\\n",
+            """#!/bin/sh
+case " $* " in
+  *" --list "*) printf '%s\\n' 'signature 1' ;;
+esac
+""",
             encoding="utf-8",
         )
         sbsign.chmod(0o755)
