@@ -60,6 +60,50 @@ class UefiSecureBootKeyTests(unittest.TestCase):
         self.assertIn("AURA_UEFI_SECURE_BOOT_MODE=ci-ephemeral", env_text)
         self.assertIn("Prepared UEFI Secure Boot signing identity (ci-ephemeral", result.stdout)
 
+    def test_signed_image_and_report_are_readable_by_later_unprivileged_steps(self) -> None:
+        output = self.root / "signed"
+        binary_dir = self.root / "bin"
+        binary_dir.mkdir()
+        input_image = self.root / "BOOTX64.EFI"
+        input_image.write_bytes(b"MZ\\x00mock EFI PE image")
+        private_key = self.root / "private.pem"
+        certificate = self.root / "certificate.pem"
+        subprocess.run(
+            ["openssl", "req", "-new", "-x509", "-newkey", "rsa:2048", "-nodes",
+             "-sha256", "-days", "30", "-keyout", str(private_key),
+             "-out", str(certificate), "-subj", "/CN=Aura test signing/"],
+            check=True, capture_output=True, timeout=30,
+        )
+        sbsign = binary_dir / "sbsign"
+        sbsign.write_text(
+            "#!/usr/bin/env python3\\n"
+            "import shutil, sys\\n"
+            "args=sys.argv[1:]\\n"
+            "out=args[args.index('--output')+1]\\n"
+            "shutil.copyfile(args[-1], out)\\n",
+            encoding="utf-8",
+        )
+        sbverify = binary_dir / "sbverify"
+        sbverify.write_text(
+            "#!/usr/bin/env python3\\n"
+            "import sys\\n"
+            "if '--list' in sys.argv: print('signature 1')\\n",
+            encoding="utf-8",
+        )
+        sbsign.chmod(0o755)
+        sbverify.chmod(0o755)
+        env = os.environ.copy()
+        env["PATH"] = f"{binary_dir}:{env['PATH']}"
+        env["AURA_UEFI_SECURE_BOOT_PRIVATE_KEY_FILE"] = str(private_key)
+        env["AURA_UEFI_SECURE_BOOT_CERT_FILE"] = str(certificate)
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts/sign-efi-image.sh"), str(input_image), str(output)],
+            cwd=ROOT, env=env, check=False, capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(output.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(Path(str(output) + ".secureboot.txt").stat().st_mode & 0o777, 0o644)
+
     def test_release_fails_closed_without_configured_signing_identity(self) -> None:
         output = self.root / "release"
         result = self.run_prepare(output, GITHUB_REF="refs/tags/v0.1.0")

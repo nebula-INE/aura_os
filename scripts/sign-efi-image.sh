@@ -54,4 +54,6 @@ CERT_SHA256="$(openssl x509 -in "$CERT_FILE" -outform DER | sha256sum | awk '{pr
   printf 'Signed image SHA-256: %s\n' "$(sha256sum "$OUTPUT_IMAGE" | awk '{print $1}')"
   printf '%s\n' 'Verification: sbverify --cert passed'
 } > "$OUTPUT_IMAGE.secureboot.txt"
+# The image and report are public build outputs. The private key remains 0600.
+chmod 0644 "$OUTPUT_IMAGE" "$OUTPUT_IMAGE.secureboot.txt"
 printf 'Signed and verified EFI image: %s\n' "$OUTPUT_IMAGE"
