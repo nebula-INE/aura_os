@@ -180,15 +180,19 @@ class KernelGrubMenuTests(unittest.TestCase):
     def run_generator(self) -> str:
         env = os.environ.copy()
         env["AURA_ROOT"] = str(self.root)
-        subprocess.run(
+        result = subprocess.run(
             ["/bin/sh", str(GRUB_GENERATOR)],
             cwd=ROOT,
             env=env,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
             timeout=15,
         )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"GRUB menu generator failed with status {result.returncode}: {result.stderr}"
+            )
         return (self.root / "boot/grub/grub.cfg").read_text(encoding="utf-8")
 
     def test_external_kernel_versions_keep_normal_and_recovery_entries(self) -> None:
@@ -230,7 +234,7 @@ class KernelGrubMenuTests(unittest.TestCase):
         (self.root / "usr/share/aura-kernel" / f"{version}.conf").write_text(
             "\n".join(metadata) + "\n", encoding="ascii"
         )
-        with self.assertRaises(subprocess.CalledProcessError):
+        with self.assertRaisesRegex(AssertionError, "invalid version metadata"):
             self.run_generator()
         self.assertFalse(marker.exists(), "kernel metadata must never be executed as shell code")
 

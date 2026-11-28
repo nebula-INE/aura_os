@@ -57,6 +57,23 @@ def _read_os_release(path: Path) -> dict[str, str]:
     return values
 
 
+def _read_deb822_fields(path: Path) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    current_key: str | None = None
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        if raw_line[0].isspace() and current_key:
+            fields[current_key] += " " + raw_line.strip()
+            continue
+        if ":" not in raw_line:
+            raise ValueError(f"invalid Deb822 line in {path}: {raw_line!r}")
+        key, value = raw_line.split(":", 1)
+        current_key = key
+        fields[key] = value.strip()
+    return fields
+
+
 def _installed_packages(status_path: Path) -> set[str]:
     installed: set[str] = set()
     if not status_path.is_file():
@@ -268,6 +285,29 @@ def validate_rootfs(
         tool = root / relative
         if not tool.is_file() or not os.access(tool, os.X_OK):
             raise ValueError(f"root filesystem is missing executable /{relative}")
+
+    apt_keyring = root / "usr/share/keyrings/aura-kernel-archive-keyring.gpg"
+    if not apt_keyring.is_file() or apt_keyring.stat().st_size == 0:
+        raise ValueError("root filesystem is missing the Aura kernel APT signing keyring")
+    apt_source = root / "etc/apt/sources.list.d/aura-kernel.sources"
+    if not apt_source.is_file():
+        raise ValueError("root filesystem is missing the signed Aura kernel APT source")
+    try:
+        apt_fields = _read_deb822_fields(apt_source)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        raise ValueError(f"cannot read the Aura kernel APT source: {exc}") from exc
+    if apt_fields.get("Types") != "deb":
+        raise ValueError("Aura kernel APT source must use Types: deb")
+    if not apt_fields.get("URIs", "").startswith("https://"):
+        raise ValueError("Aura kernel APT source must use an HTTPS URI")
+    if apt_fields.get("Suites") != "stable" or apt_fields.get("Components") != "main":
+        raise ValueError("Aura kernel APT source must target stable/main")
+    if apt_fields.get("Architectures") != expected["debian"]:
+        raise ValueError("Aura kernel APT source architecture does not match the root filesystem")
+    if apt_fields.get("Signed-By") != "/usr/share/keyrings/aura-kernel-archive-keyring.gpg":
+        raise ValueError("Aura kernel APT source must use its dedicated Signed-By keyring")
+    if apt_fields.get("Trusted", "").lower() in ("yes", "true") or "trusted=yes" in apt_source.read_text(encoding="utf-8").lower():
+        raise ValueError("Aura kernel APT source must not bypass repository signature verification")
 
     diagnostics_tool = root / "usr/bin/aura-diagnose"
     if not diagnostics_tool.is_file() or not os.access(diagnostics_tool, os.X_OK):

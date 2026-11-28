@@ -50,14 +50,14 @@ for kernel in "$BOOT_DIR"/vmlinuz-aura-*; do
     [ -s "$kernel" ] || continue
     kernel_name="${kernel##*/}"
     version="${kernel_name#vmlinuz-aura-}"
+    config="$(path "/usr/share/aura-kernel/$version.conf")"
+    [ -s "$config" ] || continue
     case "$version" in
       ''|*[!A-Za-z0-9.+~-]*)
         echo "Aura kernel: unsafe versioned kernel filename: $version" >&2
         exit 1
         ;;
     esac
-    config="$(path "/usr/share/aura-kernel/$version.conf")"
-    [ -s "$config" ] || continue
     if [ "$(wc -l < "$config")" -ne 3 ] ||
        [ "$(grep -c '^AURA_KERNEL_ARCH=' "$config")" -ne 1 ] ||
        [ "$(grep -c '^AURA_INITRAMFS_MODE=' "$config")" -ne 1 ] ||

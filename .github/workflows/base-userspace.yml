@@ -9,6 +9,7 @@ on:
       - "scripts/test-desktop-headless.py"
       - "tests/test_desktop_profile.py"
       - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-apt-repository-key.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
@@ -24,6 +25,7 @@ on:
       - "scripts/test-desktop-headless.py"
       - "tests/test_desktop_profile.py"
       - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-apt-repository-key.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/verify_base_rootfs.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
@@ -61,7 +63,7 @@ jobs:
 
       - name: Check base bootstrap shell syntax
         run: |
-          bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh
+          bash -n scripts/build-base-rootfs.sh scripts/prepare-debian-trixie-keyring.sh scripts/prepare-apt-repository-key.sh
           sh -n system/desktop/session system/desktop/defaults/labwc/autostart
           sh -n system/desktop/bin/aura-launcher system/desktop/bin/aura-settings system/desktop/bin/aura-wallpaper
           python3 -m py_compile scripts/install_desktop_profile.py scripts/test-desktop-headless.py
@@ -90,12 +92,18 @@ jobs:
           done
           sudo bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
 
+      - name: Prepare pinned APT repository trust key
+        env:
+          AURA_APT_REPOSITORY_PUBLIC_KEY_ASC: ${{ vars.AURA_APT_REPOSITORY_PUBLIC_KEY_ASC }}
+          AURA_APT_REPOSITORY_FINGERPRINT: ${{ vars.AURA_APT_REPOSITORY_FINGERPRINT }}
+        run: bash scripts/prepare-apt-repository-key.sh
+
       - name: Build target-native Debian root filesystem
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
           OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
           DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
-        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING,AURA_APT_REPOSITORY_PUBLIC_KEY_FILE,AURA_APT_REPOSITORY_URL bash scripts/build-base-rootfs.sh
 
       - name: Build optional Wayland desktop root filesystem
         env:
@@ -103,7 +111,7 @@ jobs:
           OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}/desktop
           DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
           AURA_DESKTOP_PROFILE: "1"
-        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING,AURA_DESKTOP_PROFILE bash scripts/build-base-rootfs.sh
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING,AURA_APT_REPOSITORY_PUBLIC_KEY_FILE,AURA_APT_REPOSITORY_URL,AURA_DESKTOP_PROFILE bash scripts/build-base-rootfs.sh
 
       - name: Start the target labwc compositor with the headless backend
         run: sudo python3 scripts/test-desktop-headless.py --rootfs "build/base-userspace/${{ matrix.target_arch }}/desktop/rootfs"

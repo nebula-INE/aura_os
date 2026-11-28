@@ -11,16 +11,19 @@ on:
       - "scripts/build-kernel.sh"
       - "scripts/build-initramfs-target.sh"
       - "scripts/build-base-rootfs.sh"
+      - "scripts/prepare-apt-repository-key.sh"
       - "scripts/build-base-rootfs-disk.sh"
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
       - "scripts/qemu-network-smoke.sh"
+      - "scripts/normalize_qemu_console_log.py"
       - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_storage_image.py"
       - "tests/test_storage_image.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_aura_firstboot.py"
+      - "tests/test_qemu_console_log.py"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   pull_request:
@@ -37,12 +40,14 @@ on:
       - "scripts/prepare-debian-trixie-keyring.sh"
       - "scripts/test-base-rootfs-qemu.sh"
       - "scripts/qemu-network-smoke.sh"
+      - "scripts/normalize_qemu_console_log.py"
       - "scripts/test-firstboot-login-qemu.py"
       - "scripts/verify_base_rootfs.py"
       - "scripts/verify_storage_image.py"
       - "tests/test_storage_image.py"
       - "scripts/ensure-ubuntu-apt-sources.sh"
       - "tests/test_aura_firstboot.py"
+      - "tests/test_qemu_console_log.py"
       - "system/base/**"
       - ".github/workflows/base-rootfs-qemu.yml"
   workflow_dispatch:
@@ -80,14 +85,16 @@ jobs:
         run: |
           bash -n scripts/ensure-ubuntu-apt-sources.sh scripts/build-kernel.sh scripts/build-initramfs-target.sh \
             scripts/build-base-rootfs.sh scripts/build-base-rootfs-disk.sh \
-            scripts/prepare-debian-trixie-keyring.sh scripts/test-base-rootfs-qemu.sh scripts/qemu-network-smoke.sh
+            scripts/prepare-debian-trixie-keyring.sh scripts/prepare-apt-repository-key.sh scripts/test-base-rootfs-qemu.sh scripts/qemu-network-smoke.sh
           bash -n system/base/firstboot/aura-firstboot
           python3 -m unittest discover -s tests -p 'test_base_rootfs.py' -v
           python3 -m unittest discover -s tests -p 'test_storage_image.py' -v
           python3 -m py_compile scripts/verify_storage_image.py
+          python3 -m py_compile scripts/normalize_qemu_console_log.py
           cc -std=c11 -Wall -Wextra -Werror -pedantic -I initramfs tests/test_initramfs_root_uuid.c -o "$RUNNER_TEMP/test-initramfs-root-uuid"
           "$RUNNER_TEMP/test-initramfs-root-uuid"
           python3 -m unittest discover -s tests -p 'test_aura_firstboot.py' -v
+          python3 -m unittest discover -s tests -p 'test_qemu_console_log.py' -v
           python3 -m unittest discover -s tests -p 'test_aarch64_efi_image.py' -v
           python3 -m py_compile scripts/test-firstboot-login-qemu.py
 
@@ -118,6 +125,12 @@ jobs:
       - name: Prepare verified Debian Trixie signing keyring
         run: bash scripts/prepare-debian-trixie-keyring.sh "$GITHUB_WORKSPACE/build/base-userspace/debian-trixie-keyring.gpg"
 
+      - name: Prepare pinned APT repository trust key
+        env:
+          AURA_APT_REPOSITORY_PUBLIC_KEY_ASC: ${{ vars.AURA_APT_REPOSITORY_PUBLIC_KEY_ASC }}
+          AURA_APT_REPOSITORY_FINGERPRINT: ${{ vars.AURA_APT_REPOSITORY_FINGERPRINT }}
+        run: bash scripts/prepare-apt-repository-key.sh
+
       - name: Build and verify upstream Linux kernel
         env:
           TARGET_ARCH: ${{ matrix.target_arch }}
@@ -134,7 +147,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.target_arch }}
           OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
           DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
-        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING,AURA_APT_REPOSITORY_PUBLIC_KEY_FILE,AURA_APT_REPOSITORY_URL bash scripts/build-base-rootfs.sh
 
       - name: Build ext4 persistent-root disk image
         env:

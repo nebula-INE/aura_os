@@ -18,6 +18,8 @@ on:
       - "scripts/build-installer-initramfs.sh"
       - "scripts/build-installed-kernel.sh"
       - "scripts/build-kernel-package.sh"
+      - "scripts/build-kernel-apt-repository.sh"
+      - "scripts/prepare-apt-repository-key.sh"
       - "scripts/build-kernel-efi-iso.sh"
       - "scripts/build-uefi-iso.sh"
       - "scripts/build-base-rootfs.sh"
@@ -30,11 +32,13 @@ on:
       - "tests/test_installer_signing.py"
       - "tests/test_kernel_package.py"
       - "tests/test_kernel_lifecycle.py"
+      - "tests/test_kernel_apt_repository.py"
       - "tests/test_ubuntu_apt_sources.py"
       - "docs/installation-media.md"
       - "docs/decisions/0010-debian-installer-layout.md"
       - "docs/decisions/0016-kernel-package-update-policy.md"
       - "docs/decisions/0017-signed-installer-media.md"
+      - "docs/kernel-apt-repository.md"
       - ".github/workflows/installer-iso.yml"
   pull_request:
     paths:
@@ -110,8 +114,8 @@ jobs:
         run: |
           bash -n scripts/build-base-rootfs.sh scripts/build-initramfs-target.sh \
             scripts/build-installer-initramfs.sh scripts/build-installed-kernel.sh \
-            scripts/build-kernel-efi-iso.sh scripts/build-kernel-package.sh scripts/build-uefi-iso.sh \
-            scripts/ensure-ubuntu-apt-sources.sh
+            scripts/build-kernel-efi-iso.sh scripts/build-kernel-package.sh scripts/build-kernel-apt-repository.sh scripts/build-uefi-iso.sh \
+            scripts/ensure-ubuntu-apt-sources.sh scripts/prepare-apt-repository-key.sh
           sh -n system/base/installer/init system/base/installer/install.sh \
             system/base/installer/rescue.sh system/base/installer/backup.sh \
             system/base/installer/restore.sh system/base/installer/verify-media.sh \
@@ -146,7 +150,7 @@ jobs:
             -o Acquire::Queue-Mode=access \
             install -y \
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev \
-            git gnupg curl perl cpio gzip binutils file mtools xorriso openssl \
+            git gnupg curl perl cpio gzip binutils file mtools xorriso openssl apt-utils \
             mmdebstrap qemu-user-static binfmt-support e2fsprogs kmod util-linux \
             dosfstools python3-pexpect \
             ${CROSS_PACKAGES} ${QEMU_PACKAGE} ${FIRMWARE_PACKAGES}
@@ -159,6 +163,9 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Validate signed APT repository generation and verification
+        run: python3 -m unittest discover -s tests -p 'test_kernel_apt_repository.py' -v
 
       - name: Prepare runner-owned build workspace
         run: mkdir -p "$GITHUB_WORKSPACE/build/base-userspace"
@@ -205,6 +212,12 @@ jobs:
             echo "AURA_RELEASE_SIGNING_MODE=$mode"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare pinned APT repository trust key
+        env:
+          AURA_APT_REPOSITORY_PUBLIC_KEY_ASC: ${{ vars.AURA_APT_REPOSITORY_PUBLIC_KEY_ASC }}
+          AURA_APT_REPOSITORY_FINGERPRINT: ${{ vars.AURA_APT_REPOSITORY_FINGERPRINT }}
+        run: bash scripts/prepare-apt-repository-key.sh
+
       - name: Prepare verified Debian Trixie signing keyring
         run: |
           sudo bash scripts/prepare-debian-trixie-keyring.sh \
@@ -226,7 +239,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.target_arch }}
           OUTPUT_DIR: ${{ github.workspace }}/build/base-userspace/${{ matrix.target_arch }}
           DEBIAN_KEYRING: ${{ github.workspace }}/build/base-userspace/debian-trixie-keyring.gpg
-        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING bash scripts/build-base-rootfs.sh
+        run: sudo --preserve-env=TARGET_ARCH,OUTPUT_DIR,DEBIAN_KEYRING,AURA_APT_REPOSITORY_PUBLIC_KEY_FILE,AURA_APT_REPOSITORY_URL bash scripts/build-base-rootfs.sh
 
       - name: Build the Debian installer initramfs
         env:
@@ -308,3 +321,83 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+
+  publish-kernel-apt-repository:
+    name: Publish signed Aura kernel APT repository
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: install-and-boot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Check out Aura OS
+        uses: actions/checkout@v4
+
+      - name: Download architecture kernel packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aura-os-installer-*
+          path: ${{ runner.temp }}/aura-installer-artifacts
+          merge-multiple: true
+
+      - name: Restore the existing Pages repository
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: existing-pages
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare and verify the dedicated APT signing key
+        env:
+          AURA_APT_REPOSITORY_SIGNING_KEY_ASC: ${{ secrets.AURA_APT_REPOSITORY_SIGNING_KEY_ASC }}
+          AURA_APT_REPOSITORY_PUBLIC_KEY_ASC: ${{ vars.AURA_APT_REPOSITORY_PUBLIC_KEY_ASC }}
+          AURA_APT_REPOSITORY_FINGERPRINT: ${{ vars.AURA_APT_REPOSITORY_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          : "${AURA_APT_REPOSITORY_SIGNING_KEY_ASC:?missing AURA_APT_REPOSITORY_SIGNING_KEY_ASC secret}"
+          : "${AURA_APT_REPOSITORY_PUBLIC_KEY_ASC:?missing AURA_APT_REPOSITORY_PUBLIC_KEY_ASC variable}"
+          : "${AURA_APT_REPOSITORY_FINGERPRINT:?missing AURA_APT_REPOSITORY_FINGERPRINT variable}"
+          key_dir="$RUNNER_TEMP/aura-apt-publish-key"
+          export GNUPGHOME="$key_dir/gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 0700 "$key_dir" "$GNUPGHOME"
+          printf '%s\n' "$AURA_APT_REPOSITORY_SIGNING_KEY_ASC" > "$key_dir/private.asc"
+          printf '%s\n' "$AURA_APT_REPOSITORY_PUBLIC_KEY_ASC" > "$key_dir/public.asc"
+          public_fingerprint="$(gpg --batch --show-keys --with-colons "$key_dir/public.asc" | awk -F: '$1 == "fpr" { print toupper($10); exit }')"
+          [[ "$public_fingerprint" == "${AURA_APT_REPOSITORY_FINGERPRINT^^}" ]]
+          gpg --batch --import "$key_dir/private.asc" "$key_dir/public.asc"
+          secret_fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print toupper($10); exit }')"
+          [[ "$secret_fingerprint" == "$public_fingerprint" ]]
+          {
+            echo "AURA_APT_REPOSITORY_PRIVATE_KEY_FILE=$key_dir/private.asc"
+            echo "AURA_APT_REPOSITORY_PUBLIC_KEY_FILE=$key_dir/public.asc"
+            echo "AURA_APT_REPOSITORY_FINGERPRINT=$public_fingerprint"
+            echo "AURA_APT_GNUPGHOME=$GNUPGHOME"
+          } >> "$GITHUB_ENV"
+
+      - name: Build and sign the cumulative APT repository
+        env:
+          AURA_APT_REPOSITORY_URL: https://nebula-INE.github.io/aura_os/apt
+          AURA_APT_REPOSITORY_SIGNING_KEY_PASSPHRASE: ${{ secrets.AURA_APT_REPOSITORY_SIGNING_KEY_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aura-kernel-site/apt"
+          if [[ -d existing-pages/apt ]]; then
+            cp -a existing-pages/apt/. "$RUNNER_TEMP/aura-kernel-site/apt/"
+          fi
+          bash scripts/build-kernel-apt-repository.sh \
+            "$RUNNER_TEMP/aura-installer-artifacts" \
+            "$RUNNER_TEMP/aura-kernel-site/apt"
+
+      - name: Publish APT repository to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ${{ runner.temp }}/aura-kernel-site/apt
+          destination_dir: apt
+          keep_files: true
+          commit_message: "publish: Aura kernel APT repository ${{ github.ref_name }}"
