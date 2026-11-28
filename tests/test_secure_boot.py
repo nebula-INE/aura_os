@@ -53,7 +53,7 @@ class UefiSecureBootKeyTests(unittest.TestCase):
             text=True,
             timeout=15,
         ).stdout
-        self.assertRegex(key_info, r"Private-Key: \\(3072 bit(?:, [^)]+)?\\)")
+        self.assertIn("Private-Key: (3072 bit", key_info)
         fingerprint = hashlib.sha256(certificate_der.read_bytes()).hexdigest().upper()
         env_text = (self.root / "github-env").read_text(encoding="utf-8")
         self.assertIn(f"AURA_UEFI_SECURE_BOOT_CERT_SHA256={fingerprint}", env_text)
